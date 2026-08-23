@@ -1,0 +1,351 @@
+import { ZipGradeQuiz, ZipGradeClass, ZipGradeStudent, ZipGradeTag } from "../types/omr";
+
+export const INITIAL_ZIPGRADE_CLASSES: ZipGradeClass[] = [
+  {
+    id: "cls_temins_25_26",
+    name: "TEMINS 25_26",
+    quizIds: ["quiz_ra04_a", "quiz_ra04_b", "quiz_ra05_a"],
+    studentIds: ["std_01", "std_02", "std_03", "std_04", "std_05"],
+    createdAt: Date.now() - 86400000 * 30,
+  },
+  {
+    id: "cls_temins_24_25",
+    name: "TEMINS 24_25",
+    quizIds: [],
+    studentIds: ["std_06", "std_07"],
+    createdAt: Date.now() - 86400000 * 120,
+  },
+  {
+    id: "cls_mmiag_25_26",
+    name: "MMIAG 25_26",
+    quizIds: [],
+    studentIds: ["std_08", "std_09"],
+    createdAt: Date.now() - 86400000 * 30,
+  },
+  {
+    id: "cls_mmiag_24_25",
+    name: "MMIAG 24_25",
+    quizIds: [],
+    studentIds: [],
+    createdAt: Date.now() - 86400000 * 150,
+  },
+  {
+    id: "cls_sasp_24_25",
+    name: "SASP 24_25",
+    quizIds: [],
+    studentIds: [],
+    createdAt: Date.now() - 86400000 * 100,
+  },
+  {
+    id: "cls_daspgm_24_25",
+    name: "DASPGM _24_25",
+    quizIds: [],
+    studentIds: [],
+    createdAt: Date.now() - 86400000 * 110,
+  },
+];
+
+export const INITIAL_ZIPGRADE_STUDENTS: ZipGradeStudent[] = [
+  {
+    id: "std_01",
+    studentZipGradeId: "1001",
+    firstName: "García López",
+    lastName: "Alejandro",
+    className: "TEMINS 25_26",
+    classId: "cls_temins_25_26",
+  },
+  {
+    id: "std_02",
+    studentZipGradeId: "1002",
+    firstName: "Martínez Ruíz",
+    lastName: "Beatriz",
+    className: "TEMINS 25_26",
+    classId: "cls_temins_25_26",
+  },
+  {
+    id: "std_03",
+    studentZipGradeId: "1003",
+    firstName: "Sánchez Moreno",
+    lastName: "Carlos",
+    className: "TEMINS 25_26",
+    classId: "cls_temins_25_26",
+  },
+  {
+    id: "std_04",
+    studentZipGradeId: "1004",
+    firstName: "Fernández Navarro",
+    lastName: "Elena",
+    className: "TEMINS 25_26",
+    classId: "cls_temins_25_26",
+  },
+  {
+    id: "std_05",
+    studentZipGradeId: "1005",
+    firstName: "Jiménez Alarcón",
+    lastName: "David",
+    className: "TEMINS 25_26",
+    classId: "cls_temins_25_26",
+  },
+  {
+    id: "std_06",
+    studentZipGradeId: "1006",
+    firstName: "Romero Castro",
+    lastName: "Lucía",
+    className: "TEMINS 24_25",
+    classId: "cls_temins_24_25",
+  },
+  {
+    id: "std_07",
+    studentZipGradeId: "1007",
+    firstName: "Pérez Gómez",
+    lastName: "Manuel",
+    className: "TEMINS 24_25",
+    classId: "cls_temins_24_25",
+  },
+  {
+    id: "std_08",
+    studentZipGradeId: "1008",
+    firstName: "Torres Morales",
+    lastName: "Sofía",
+    className: "MMIAG 25_26",
+    classId: "cls_mmiag_25_26",
+  },
+  {
+    id: "std_09",
+    studentZipGradeId: "1009",
+    firstName: "Vargas Delgado",
+    lastName: "Adrián",
+    className: "MMIAG 25_26",
+    classId: "cls_mmiag_25_26",
+  },
+];
+
+export const INITIAL_ZIPGRADE_TAGS: ZipGradeTag[] = [
+  { id: "tag_ra01", name: "RA01", description: "Resultado de Aprendizaje 1 - Montaje y mantenimiento", category: "RA" },
+  { id: "tag_ra02", name: "RA02", description: "Resultado de Aprendizaje 2 - Diagnóstico de averías", category: "RA" },
+  { id: "tag_ra03", name: "RA03", description: "Resultado de Aprendizaje 3 - Procedimientos de seguridad", category: "RA" },
+  { id: "tag_ra04", name: "RA04", description: "Resultado de Aprendizaje 4 - Parámetros de funcionamiento", category: "RA" },
+  { id: "tag_ra05", name: "RA05", description: "Resultado de Aprendizaje 5 - Normativa y calidad", category: "RA" },
+  { id: "tag_ce4a", name: "CE4.a", description: "Criterio 4.a - Identificación de componentes", category: "CE" },
+  { id: "tag_ce4b", name: "CE4.b", description: "Criterio 4.b - Mediciones e instrumentación", category: "CE" },
+  { id: "tag_ce4c", name: "CE4.c", description: "Criterio 4.c - Interpretación de esquemas", category: "CE" },
+  { id: "tag_mat", name: "Materiales", description: "Propiedades y selección de materiales técnicos", category: "THEME" },
+  { id: "tag_seg", name: "Seguridad y PRL", description: "Prevención de riesgos laborales", category: "THEME" },
+];
+
+export const INITIAL_ZIPGRADE_QUIZZES: ZipGradeQuiz[] = [
+  {
+    id: "quiz_ra04_a",
+    name: "Rec RA04 Tipo A",
+    sheetType: "50 Question Form (2)",
+    date: "2026-06-10",
+    folder: "Main Folder",
+    classes: ["TEMINS 25_26"],
+    tags: ["RA04", "CE4.a", "CE4.b"],
+    totalQuestions: 40,
+    penaltyPerWrong: 0.33,
+    activeKeyId: "key_a",
+    keys: [
+      {
+        id: "key_a",
+        name: "A: PRINCIPAL",
+        answers: {
+          1: "B", 2: "C", 3: "B", 4: "B", 5: "A", 6: "C", 7: "D", 8: "D", 9: "A", 10: "C",
+          11: "D", 12: "B", 13: "A", 14: "C", 15: "B", 16: "D", 17: "A", 18: "C", 19: "B", 20: "D",
+          21: "A", 22: "C", 23: "B", 24: "A", 25: "D", 26: "B", 27: "C", 28: "A", 29: "D", 30: "C",
+          31: "B", 32: "A", 33: "C", 34: "D", 35: "B", 36: "A", 37: "C", 38: "D", 39: "B", 40: "A",
+        },
+        points: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [i + 1, 1])),
+        tags: {
+          1: ["RA04", "CE4.a"], 2: ["RA04", "CE4.a"], 3: ["RA04", "CE4.b"], 4: ["RA04", "CE4.b"],
+          5: ["RA04", "CE4.a"], 6: ["RA04", "CE4.c"], 7: ["RA04", "CE4.c"], 8: ["RA04", "CE4.b"],
+          9: ["RA04", "CE4.a"], 10: ["RA04", "CE4.b"], 11: ["RA04", "CE4.c"], 12: ["RA04", "CE4.a"],
+        },
+      },
+      {
+        id: "key_b",
+        name: "B: VARIANTE B",
+        answers: {
+          1: "C", 2: "A", 3: "D", 4: "B", 5: "C", 6: "B", 7: "A", 8: "C", 9: "D", 10: "B",
+          11: "A", 12: "D", 13: "C", 14: "B", 15: "A", 16: "C", 17: "D", 18: "B", 19: "A", 20: "C",
+          21: "B", 22: "A", 23: "D", 24: "C", 25: "B", 26: "A", 27: "D", 28: "C", 29: "B", 30: "A",
+          31: "C", 32: "D", 33: "B", 34: "A", 35: "C", 36: "D", 37: "B", 38: "A", 39: "C", 40: "D",
+        },
+        points: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [i + 1, 1])),
+        tags: {},
+      },
+    ],
+    scannedDocuments: [
+      {
+        id: "doc_1",
+        quizId: "quiz_ra04_a",
+        timestamp: new Date("2026-06-10T10:15:00").getTime(),
+        studentId: "1001",
+        studentName: "García López Alejandro",
+        className: "TEMINS 25_26",
+        totalQuestions: 40,
+        correctCount: 13,
+        incorrectCount: 6,
+        blankCount: 21,
+        penaltyPerWrong: 0.33,
+        rawScore: 11.02,
+        maxScore: 40,
+        percentage: 27.5,
+        grade10: 2.75,
+        passed: false,
+        questionGrades: Array.from({ length: 40 }, (_, i) => {
+          const qNum = i + 1;
+          const isCorrect = qNum <= 13;
+          const isWrong = qNum > 13 && qNum <= 19;
+          const isBlank = qNum > 19;
+          return {
+            questionNumber: qNum,
+            studentAnswer: isBlank ? null : isCorrect ? (["B","C","B","B","A","C","D","D","A","C","D","B","A"][qNum - 1] || "A") : "E",
+            correctAnswer: (["B","C","B","B","A","C","D","D","A","C","D","B","A","C","B","D","A","C","B","D"][qNum - 1] || "A"),
+            isCorrect,
+            isBlank,
+            confidence: isBlank ? 0 : 95,
+          };
+        }),
+      },
+      {
+        id: "doc_2",
+        quizId: "quiz_ra04_a",
+        timestamp: new Date("2026-06-10T10:18:00").getTime(),
+        studentId: "1002",
+        studentName: "Martínez Ruíz Beatriz",
+        className: "TEMINS 25_26",
+        totalQuestions: 40,
+        correctCount: 15,
+        incorrectCount: 6,
+        blankCount: 19,
+        penaltyPerWrong: 0.33,
+        rawScore: 13.02,
+        maxScore: 40,
+        percentage: 32.5,
+        grade10: 3.25,
+        passed: false,
+        questionGrades: Array.from({ length: 40 }, (_, i) => {
+          const qNum = i + 1;
+          const isCorrect = qNum <= 15;
+          const isWrong = qNum > 15 && qNum <= 21;
+          const isBlank = qNum > 21;
+          return {
+            questionNumber: qNum,
+            studentAnswer: isBlank ? null : isCorrect ? "B" : "D",
+            correctAnswer: "B",
+            isCorrect,
+            isBlank,
+            confidence: isBlank ? 0 : 94,
+          };
+        }),
+      },
+      {
+        id: "doc_3",
+        quizId: "quiz_ra04_a",
+        timestamp: new Date("2026-06-10T10:22:00").getTime(),
+        studentId: "1003",
+        studentName: "Sánchez Moreno Carlos",
+        className: "TEMINS 25_26",
+        totalQuestions: 40,
+        correctCount: 13,
+        incorrectCount: 4,
+        blankCount: 23,
+        penaltyPerWrong: 0.33,
+        rawScore: 11.68,
+        maxScore: 40,
+        percentage: 29.2,
+        grade10: 2.92,
+        passed: false,
+        questionGrades: Array.from({ length: 40 }, (_, i) => {
+          const qNum = i + 1;
+          const isCorrect = qNum <= 13;
+          const isWrong = qNum > 13 && qNum <= 17;
+          const isBlank = qNum > 17;
+          return {
+            questionNumber: qNum,
+            studentAnswer: isBlank ? null : isCorrect ? "C" : "A",
+            correctAnswer: "C",
+            isCorrect,
+            isBlank,
+            confidence: isBlank ? 0 : 92,
+          };
+        }),
+      },
+    ],
+    createdAt: new Date("2026-06-10").getTime(),
+    updatedAt: new Date("2026-06-10").getTime(),
+  },
+  {
+    id: "quiz_ra04_b",
+    name: "Rec RA04 Tipo B",
+    sheetType: "50 Question Form (2)",
+    date: "2026-06-10",
+    folder: "Main Folder",
+    classes: ["TEMINS 25_26"],
+    tags: ["RA04"],
+    totalQuestions: 40,
+    penaltyPerWrong: 0.33,
+    activeKeyId: "key_1",
+    keys: [
+      {
+        id: "key_1",
+        name: "A: PRINCIPAL",
+        answers: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [i + 1, ["A", "B", "C", "D"][i % 4]])),
+        points: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [i + 1, 1])),
+        tags: {},
+      },
+    ],
+    scannedDocuments: [],
+    createdAt: new Date("2026-06-10").getTime(),
+    updatedAt: new Date("2026-06-10").getTime(),
+  },
+  {
+    id: "quiz_ra05_a",
+    name: "Rec RA05 Tipo A",
+    sheetType: "50 Question Form (2)",
+    date: "2026-06-10",
+    folder: "Main Folder",
+    classes: ["TEMINS 25_26"],
+    tags: ["RA05"],
+    totalQuestions: 40,
+    penaltyPerWrong: 0.33,
+    activeKeyId: "key_1",
+    keys: [
+      {
+        id: "key_1",
+        name: "A: PRINCIPAL",
+        answers: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [i + 1, ["B", "C", "A", "D"][i % 4]])),
+        points: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [i + 1, 1])),
+        tags: {},
+      },
+    ],
+    scannedDocuments: [],
+    createdAt: new Date("2026-06-10").getTime(),
+    updatedAt: new Date("2026-06-10").getTime(),
+  },
+  {
+    id: "quiz_ra05_b",
+    name: "Rec RA05 Tipo B",
+    sheetType: "50 Question Form (2)",
+    date: "2026-06-10",
+    folder: "Main Folder",
+    classes: ["TEMINS 25_26"],
+    tags: ["RA05"],
+    totalQuestions: 40,
+    penaltyPerWrong: 0.33,
+    activeKeyId: "key_1",
+    keys: [
+      {
+        id: "key_1",
+        name: "A: PRINCIPAL",
+        answers: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [i + 1, ["D", "B", "C", "A"][i % 4]])),
+        points: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [i + 1, 1])),
+        tags: {},
+      },
+    ],
+    scannedDocuments: [],
+    createdAt: new Date("2026-06-10").getTime(),
+    updatedAt: new Date("2026-06-10").getTime(),
+  },
+];

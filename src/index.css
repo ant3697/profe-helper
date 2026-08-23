@@ -1,0 +1,227 @@
+@import "tailwindcss";
+
+@theme {
+  --color-app: var(--bg-app);
+  --color-surface: var(--bg-surface);
+  --color-alt: var(--bg-alt);
+  --color-hover: var(--bg-hover);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-accent-base: var(--accent-base);
+  --color-accent-hover: var(--accent-hover);
+}
+
+:root {
+  /* Fonts */
+  --font-primary: 'Roboto Condensed', system-ui, -apple-system, sans-serif;
+  --font-secondary: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Fira Code', monospace;
+
+  /* Colors in Light Mode (Crisp, High-Contrast, Professional) */
+  --bg-app: #f1f5f9;
+  --bg-surface: #ffffff;
+  --bg-alt: #f8fafc;
+  --bg-hover: #e2e8f0;
+  --border-subtle: #e2e8f0;
+  --border-default: #cbd5e1;
+  --border-strong: #94a3b8;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --accent-base: #f59e0b;
+  --accent-hover: #d97706;
+}
+
+[data-theme="dark"] {
+  /* Colors in Dark Mode - Sleek Obsidian & Vibrant Gold */
+  --bg-app: #0c0d12;
+  --bg-surface: #14151d;
+  --bg-alt: #1a1c26;
+  --bg-hover: #222432;
+  --border-subtle: #1e202c;
+  --border-default: #262837;
+  --border-strong: #36394e;
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+  --text-muted: #9ca3af;
+  --accent-base: #f59e0b;
+  --accent-hover: #fbbf24;
+}
+
+body {
+  font-family: var(--font-secondary);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+/* Custom High-Visibility Slider (Adaptive to Light & Dark Theme) */
+.custom-range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 9px;
+  background: var(--bg-alt);
+  border-radius: 9999px;
+  border: 1.5px solid var(--border-strong);
+  outline: none;
+  cursor: pointer;
+}
+
+.custom-range-slider::-webkit-slider-runnable-track {
+  height: 7px;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+.custom-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #f59e0b;
+  cursor: pointer;
+  margin-top: -5px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  border: 1.5px solid #d97706;
+  transition: transform 0.1s ease, background-color 0.1s ease;
+}
+
+.custom-range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  background: #fbbf24;
+}
+
+.custom-range-slider::-moz-range-track {
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--bg-alt);
+  border: 1.5px solid var(--border-strong);
+}
+
+.custom-range-slider::-moz-range-thumb {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #f59e0b;
+  cursor: pointer;
+  border: 1.5px solid #d97706;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Clean Print Styles for PDF & Direct OMR Sheets */
+.omr-container {
+  position: relative;
+  background: #ffffff !important;
+  color: #000000 !important;
+  box-sizing: border-box;
+}
+
+.fiducial-mark {
+  width: 18px;
+  height: 18px;
+  background: #000000 !important;
+  position: absolute;
+}
+.fiducial-tl { top: 8px; left: 8px; }
+.fiducial-tr { top: 8px; right: 8px; }
+.fiducial-bl { bottom: 8px; left: 8px; }
+.fiducial-br { bottom: 8px; right: 8px; }
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 6mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html.printing-omr-active,
+  body.printing-omr-active {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html.printing-omr-active body > *:not(#omr-direct-print-portal) {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  #omr-direct-print-portal {
+    display: none;
+  }
+
+  html.printing-omr-active #omr-direct-print-portal {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: flex-start !important;
+    position: static !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    visibility: visible !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+  .page-container, main, #mainWrapper {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .question-block {
+    break-inside: avoid;
+    border: 1px solid #cbd5e1 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    margin-bottom: 1rem !important;
+  }
+  .option-btn {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+  .option-btn[data-correct="true"] {
+    border: 2px solid #16a34a !important;
+    font-weight: bold !important;
+  }
+  .justification-box {
+    display: block !important;
+    background: #f8fafc !important;
+    border-left: 4px solid #f59e0b !important;
+  }
+}

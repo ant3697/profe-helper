@@ -1,0 +1,6 @@
+{
+  "name": "AI Exams Builder",
+  "description": "Generador y visualizador universal de exámenes interactivos a partir de documentación base con IA, escáner OMR con cámara para corrección móvil y exportación multiformato.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
