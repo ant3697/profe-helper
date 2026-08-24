@@ -150,7 +150,7 @@ function __exportWord() {
     }
     htmlContent = htmlContent.replace(/dark-theme/g, '');
     
-    var fullHtml = "<!DOCTYPE html><html>" + htmlContent + "</html>";
+    var fullHtml = "<!DOCTYPE html><" + "html>" + htmlContent + "<" + "/html>";
     try {
         if (typeof window.htmlDocx !== 'undefined') {
             var converted = window.htmlDocx.asBlob(fullHtml, {orientation: 'portrait'});
@@ -162,7 +162,7 @@ function __exportWord() {
     } catch(e) { console.warn(e); }
 
     var pageNode = document.querySelector('.page') || document.body;
-    var rawHtml = "<html><head><meta charset='utf-8'></head><body>" + pageNode.outerHTML.replace(/dark-theme/g, '') + "</body></html>";
+    var rawHtml = "<" + "html><" + "head><meta charset='utf-8'></" + "head><" + "body>" + pageNode.outerHTML.replace(/dark-theme/g, '') + "</" + "body></" + "html>";
     var blob = new Blob(['\\ufeff', rawHtml], { type: 'application/msword' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a"); a.href = url; a.download = 'Documento_Alta_Densidad.doc';
@@ -214,6 +214,11 @@ function __toggleTables() {
 .txt-export { background-color: #ea580c; } 
 .tables-toggle { background-color: #475569; } 
 .theme-toggle { background-color: #1e293b; }
+@media print {
+  .no-print, #standalone-export-bar, #standalone-styles, #standalone-scripts {
+    display: none !important;
+  }
+}
 </style>
 `;
 
@@ -518,6 +523,197 @@ ${optInstructions}
   return finalPrompt;
 }
 
+/**
+ * Builds the prompt for PHASE 1: Generating the Blueprint (Master Outline) with optimal sections
+ */
+export function buildModularOutlinePrompt(
+  topic: string,
+  currentDepth: TopicDepth,
+  numSections: number,
+  activeOptions: TopicAuditOptions,
+  aggregatedFileContent = "",
+  extraContext = ""
+): string {
+  const cleanTopic = (topic || "DOCUMENTO TÉCNICO").trim();
+  const fullContext = (aggregatedFileContent + (extraContext ? "\n" + extraContext : "")).trim();
+
+  return `Rol: Ingeniero Senior y Director Pedagógico de Oposiciones.
+Objetivo: Diseñar el ÍNDICE MAESTRO (Blueprint Estructural) de máxima exhaustividad para el desarrollo modular por secciones de un tema técnico de oposición.
+
+TÍTULO EXACTO DEL TEMA:
+"""${cleanTopic}"""
+
+PARÁMETROS:
+- Densidad deseada: ${currentDepth.toUpperCase()}
+- Número de epígrafes o subapartados de desarrollo (Cuerpo Central): EXACTAMENTE ${numSections} epígrafes.
+- Incluir Active Recall en cada apartado: ${activeOptions.recall ? "SÍ" : "NO"}
+- Incluir Glosario / Fórmulas final: ${activeOptions.glossary ? "SÍ" : "NO"}
+
+INSTRUCCIONES DE DISEÑO:
+1. Divide el temario en EXACTAMENTE ${numSections} epígrafes técnicos progresivos (3.1, 3.2, 3.3... etc.).
+2. Si el título o la documentación adjunta ya contiene epígrafes o guiones explícitos, respétalos y ordénalos con rigor.
+3. Para cada epígrafe, define un título claro, técnico y conciso, y una breve descripción de 1 línea con los conceptos, normativas, fórmulas o procedimientos obligatorios que deberá desarrollar.
+4. Responde ÚNICAMENTE con un bloque JSON con la siguiente estructura exacta:
+
+\`\`\`json
+{
+  "topicTitle": "${cleanTopic.replace(/"/g, '\\"')}",
+  "introductionSummary": "Breve justificación de la relevancia técnica y normativa del tema.",
+  "sections": [
+    {
+      "sectionNumber": "3.1",
+      "title": "Nombre del Epígrafe 1",
+      "description": "Conceptos clave, definiciones, principios físicos/legales y marco de aplicación."
+    },
+    {
+      "sectionNumber": "3.2",
+      "title": "Nombre del Epígrafe 2",
+      "description": "Procedimientos, esquemas, fórmulas cuantitativas y casos técnicos."
+    }
+  ],
+  "includeConclusion": true,
+  "includeBibliography": true,
+  "includeNormative": true,
+  "includeGlossary": ${activeOptions.glossary ? "true" : "false"}
+}
+\`\`\`
+${fullContext ? `\n\nBasa la estructura y epígrafes en este documento base:\n<<INICIO BASE DOCUMENTAL>>\n${fullContext.substring(0, 80000)}\n<<FIN BASE DOCUMENTAL>>` : ""}`;
+}
+
+/**
+ * Builds the prompt for PHASE 2: Generating a single deep section (Epígrafe) with individual token budget
+ */
+export function buildModularSectionPrompt(
+  topicTitle: string,
+  sectionPlan: { sectionNumber: string; title: string; description?: string },
+  sectionIndex: number,
+  totalSections: number,
+  currentDepth: TopicDepth,
+  activeOptions: TopicAuditOptions,
+  startQuestionNumber: number,
+  aggregatedFileContent = "",
+  extraContext = ""
+): string {
+  const numRecall = currentDepth === "resumen" ? 2 : currentDepth === "estandar" ? 3 : 4;
+  const fullContext = (aggregatedFileContent + (extraContext ? "\n" + extraContext : "")).trim();
+
+  let densityGuidelines = "";
+  if (currentDepth === "resumen") {
+    densityGuidelines = "Redacta una síntesis fluida con listas y conceptos esenciales en negrita (aprox. 350-500 palabras).";
+  } else if (currentDepth === "estandar") {
+    densityGuidelines = "Redacta un desarrollo técnico equilibrado, con explicaciones claras, casos prácticos y tablas (aprox. 600-900 palabras).";
+  } else {
+    densityGuidelines = "Redacta con MÁXIMO RIGOR y densidad técnica, cuantificando valores, incluyendo fórmulas en formato plano de teclado, tablas comparativas y análisis exhaustivo (aprox. 800-1400 palabras).";
+  }
+
+  return `Rol: Experto Ingeniero Senior y Especialista en Oposiciones Técnicas.
+Objetivo: Redactar de forma EXHAUSTIVA y COMPLETA el subapartado técnico individual ${sectionPlan.sectionNumber} para el tema: "${topicTitle}".
+
+EPÍGRAFE A REDACTAR AHORA:
+- Número: ${sectionPlan.sectionNumber} (Epígrafe ${sectionIndex + 1} de ${totalSections})
+- Título: ${sectionPlan.title}
+${sectionPlan.description ? `- Guía de contenido obligatorio: ${sectionPlan.description}` : ""}
+
+DIRECTRICES CRÍTICAS DE ESTILO Y FORMATO:
+1. DENSIDAD Y EXTENSIÓN: Tienes un presupuesto de tokens dedicado EXCLUSIVAMENTE a este epígrafe. No sintetices en exceso. ${densityGuidelines}
+2. FORMATO HTML: Devuelve ÚNICAMENTE el fragmento HTML correspondiente a este epígrafe.
+   - Inicia con: \`<h3>${sectionPlan.sectionNumber}. ${sectionPlan.title}</h3>\`
+   - Desarrolla el texto con párrafos \`<p>\`, listas \`<ul>\` o \`<ol>\`.
+   - Si incluye fórmulas, usa \`<div class="formula-box">\` con texto plano de teclado estándar (sqrt(), *, /, ^, °). PROHIBIDO LaTeX o signos $.
+   - Si incluye tablas, inserta antes un \`<div class="audio-desc">\` con resumen accesible narrativo y añade \`aria-hidden="true"\` a la \`<table>\`.
+${activeOptions.pedagogic ? '   - Inserta un `<div class="apuntes-box">` con "Apuntes del Experto" destacando puntos clave.' : ""}
+${activeOptions.mnemotecnias ? '   - Si procede, inserta una `<div class="mnemo-box">` con una regla mnemotécnica útil.' : ""}
+${
+  activeOptions.recall
+    ? `3. AUTOEVALUACIÓN RÁPIDA (ACTIVE RECALL):
+   - Al finalizar el apartado, inserta OBLIGATORIAMENTE un \`<div class="recall-box">\` con el encabezado \`<strong>Autoevaluación Rápida</strong>\`.
+   - Incluye EXACTAMENTE ${numRecall} preguntas tipo test o de respuesta concreta.
+   - Numeración CORRELATIVA GLOBAL: Inicia las preguntas a partir del número ${startQuestionNumber} (ejemplo: \`<li><strong>${startQuestionNumber}.</strong> ¿Cuál es...?</li>\`, \`<li><strong>${startQuestionNumber + 1}.</strong> ...</li>\`).
+   - REGLA DE ORO: TODAS las preguntas DEBEN responderse con los datos, fórmulas o procedimientos explicados en el texto precedente.`
+    : ""
+}
+
+${fullContext ? `Basa el contenido en la siguiente base documental:\n<<INICIO BASE DOCUMENTAL>>\n${fullContext.substring(0, 100000)}\n<<FIN BASE DOCUMENTAL>>` : ""}`;
+}
+
+/**
+ * Builds prompt for introductory and closing sections (Intro, Conclusión, Bibliografía, Normativa, Glosario)
+ */
+export function buildModularClosingPrompt(
+  topicTitle: string,
+  blueprint: any,
+  activeOptions: TopicAuditOptions,
+  lastQuestionNumber: number,
+  aggregatedFileContent = ""
+): string {
+  return `Rol: Ingeniero Senior y Especialista en Oposiciones Técnicas.
+Objetivo: Generar los bloques de CIERRE y SÍNTESIS FINAL para el tema "${topicTitle}".
+
+Genera los siguientes apartados en formato HTML limpio:
+1. <h2>4. CONCLUSIÓN</h2> (Síntesis global integrando los conceptos desarrollados).
+2. <h2>5. BIBLIOGRAFÍA Y FUENTES</h2> (Manuales de referencia, tratados técnicos y enlaces bibliográficos de prestigio).
+3. <h2>6. REFERENCIAS NORMATIVAS</h2> (Marco legal, reglamentos técnicos REBT/RITE/CTE/RSIF/UNE aplicables).
+${
+  activeOptions.glossary
+    ? `4. <h2>7. GLOSARIO, CONCEPTOS CLAVE Y FÓRMULAS RELEVANTES</h2>:
+   - <h3>7.1. Palabras Clave</h3> (lista <ul> con 15-20 términos técnicos definidos).
+   - <h3>7.2. Conceptos Fundamentales</h3> (lista <ul> con 15-20 conceptos desarrollados).
+   - <h3>7.3. Fórmulas Relevantes</h3> (fórmulas esenciales en <div class="formula-box"> con variables definidas en texto plano).`
+    : ""
+}
+
+REGLAS:
+- Prohibido LaTeX o símbolos $.
+- Devuelve únicamente el fragmento HTML de los bloques de cierre.`;
+}
+
+/**
+ * Assembles modular parts into a single coherent A4 HTML document
+ */
+export function assembleModularDocumentHtml(
+  topicTitle: string,
+  introSummary: string,
+  sections: Array<{ sectionNumber: string; title: string; html: string }>,
+  closingHtml: string
+): string {
+  let indexListHtml = sections
+    .map((sec) => `<li><strong>${sec.sectionNumber}</strong> ${sec.title}</li>`)
+    .join("\n");
+
+  const developmentBody = sections.map((sec) => sec.html).join("\n\n");
+
+  const fullRawHtml = `
+<div class="page">
+  <h1>${topicTitle}</h1>
+  
+  <h2>1. ÍNDICE</h2>
+  <ul>
+    <li><strong>1.</strong> ÍNDICE</li>
+    <li><strong>2.</strong> INTRODUCCIÓN Y JUSTIFICACIÓN</li>
+    <li><strong>3.</strong> DESARROLLO DE LOS APARTADOS TÉCNICOS
+      <ul>
+        ${indexListHtml}
+      </ul>
+    </li>
+    <li><strong>4.</strong> CONCLUSIÓN</li>
+    <li><strong>5.</strong> BIBLIOGRAFÍA Y FUENTES</li>
+    <li><strong>6.</strong> REFERENCIAS NORMATIVAS</li>
+    ${closingHtml.includes("GLOSARIO") ? "<li><strong>7.</strong> GLOSARIO, CONCEPTOS CLAVE Y FÓRMULAS RELEVANTES</li>" : ""}
+  </ul>
+
+  <h2>2. INTRODUCCIÓN Y JUSTIFICACIÓN</h2>
+  <p>${introSummary || "El presente tema aborda los principios teóricos, normativos y operacionales fundamentales para la especialidad técnica."}</p>
+
+  <h2>3. DESARROLLO DE LOS APARTADOS TÉCNICOS</h2>
+  ${developmentBody}
+
+  ${closingHtml}
+</div>
+`;
+
+  return injectDocumentStyles(cleanAndRepairTopicHtml(fullRawHtml));
+}
+
 export function injectDocumentStyles(html: string): string {
   let text = cleanAndRepairTopicHtml(html);
   if (!text.includes('id="docuexam-topic-styles"')) {
@@ -563,6 +759,56 @@ ${STANDALONE_HTML_BAR}
 </html>`;
 
   return fullHtml;
+}
+
+/**
+ * Creates completely clean HTML specifically optimized for PDF printing with zero scripts or leaked text
+ */
+export function preparePrintableHtmlDocument(html: string, title = "Temario de Alta Densidad"): string {
+  let clean = cleanAndRepairTopicHtml(html);
+
+  // Aggressively strip any scripts, toolbar elements, or non-print interactive controls
+  clean = clean.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "").trim();
+  clean = clean.replace(/<div id="standalone-export-bar"[\s\S]*?<\/div>/gi, "").trim();
+  clean = clean.replace(/<div class="[^"]*no-print[^"]*"[\s\S]*?<\/div>/gi, "").trim();
+  clean = clean.replace(/<style id="standalone-styles">[\s\S]*?<\/style>/gi, "").trim();
+  clean = clean.replace(/<style id="docuexam-topic-styles">[\s\S]*?<\/style>/gi, "").trim();
+
+  // Strip dark theme artifacts from print version to guarantee clean paper background
+  clean = clean.replace(/dark-theme/g, "");
+
+  // Strip existing outer html/body tags
+  clean = clean.replace(/<!DOCTYPE\s+html>/gi, "");
+  clean = clean.replace(/<\/?html\b[^>]*>/gi, "");
+  clean = clean.replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, "");
+  clean = clean.replace(/<\/?body\b[^>]*>/gi, "").trim();
+
+  // Ensure .page wrapper exists
+  if (!clean.includes('class="page"')) {
+    clean = `<div class="page">\n${clean}\n</div>`;
+  }
+
+  const printHtml = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${title}</title>
+${TOPIC_STYLE_INJECTIONS}
+<style>
+@media print {
+  body { background: #ffffff !important; margin: 0 !important; padding: 0 !important; color: #000000 !important; }
+  .page { box-shadow: none !important; border: none !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; padding: 0 !important; background: #ffffff !important; color: #000000 !important; }
+  .no-print, #standalone-export-bar, #standalone-styles, script { display: none !important; }
+}
+</style>
+</head>
+<body style="background: #ffffff; color: #000000;">
+${clean}
+</body>
+</html>`;
+
+  return printHtml;
 }
 
 /**

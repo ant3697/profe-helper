@@ -1368,6 +1368,114 @@ app.post("/api/stream-topic", async (req, res) => {
   }
 });
 
+// Fast Content Generation (Non-streaming, for blueprint extraction and modular execution)
+app.post("/api/generate-content", async (req, res) => {
+  try {
+    const {
+      prompt,
+      providerId = "gemini",
+      apiKey: requestApiKey = "",
+      endpoint: requestEndpoint = "",
+      model: requestModel = "",
+      temperature = 0.2,
+      jsonMode = false,
+    } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ error: "MISSING_PROMPT", message: "Falta el prompt." });
+    }
+
+    if (providerId === "gemini" || providerId === "temp_demo") {
+      const apiKey = requestApiKey || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(401).json({ error: "NO_API_KEY", message: "Clave de API requerida." });
+      }
+
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: { headers: { "User-Agent": "aistudio-build" } },
+      });
+      const modelName = sanitizeGeminiModel(requestModel || "gemini-3.6-flash");
+
+      const response = await generateWithGeminiRetry(ai, {
+        model: modelName,
+        contents: prompt,
+        config: {
+          temperature,
+          ...(jsonMode ? { responseMimeType: "application/json" } : {}),
+        },
+      });
+
+      const text = response.text || "";
+      const usage = response.usageMetadata
+        ? {
+            promptTokens: response.usageMetadata.promptTokenCount || 0,
+            candidatesTokens: response.usageMetadata.candidatesTokenCount || 0,
+            totalTokens: response.usageMetadata.totalTokenCount || 0,
+          }
+        : null;
+
+      return res.json({ text, model: modelName, usage });
+    }
+
+    // OpenAI compatible fallback
+    let baseUrl = (requestEndpoint || "").trim().replace(/\/+$/, "");
+    if (!baseUrl) {
+      if (providerId === "deepseek") baseUrl = "https://api.deepseek.com/v1";
+      else if (providerId === "groq") baseUrl = "https://api.groq.com/openai/v1";
+      else if (providerId === "openrouter") baseUrl = "https://openrouter.ai/api/v1";
+      else if (providerId === "openai") baseUrl = "https://api.openai.com/v1";
+      else if (providerId === "local_ollama") baseUrl = "http://localhost:11434/v1";
+      else baseUrl = "https://api.openai.com/v1";
+    }
+
+    const modelName = requestModel || (providerId === "deepseek" ? "deepseek-chat" : providerId === "groq" ? "llama-3.3-70b-versatile" : "gpt-4o-mini");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (requestApiKey && requestApiKey.trim()) {
+      headers["Authorization"] = `Bearer ${requestApiKey.trim()}`;
+    }
+    if (providerId === "openrouter") {
+      headers["HTTP-Referer"] = "https://docuexam.app";
+      headers["X-Title"] = "AI Exams Builder";
+    }
+
+    const requestPayload: any = {
+      model: modelName,
+      messages: [{ role: "user", content: prompt }],
+      temperature,
+    };
+    if (jsonMode && providerId !== "local_ollama") {
+      requestPayload.response_format = { type: "json_object" };
+    }
+
+    const apiRes = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestPayload),
+    });
+
+    if (!apiRes.ok) {
+      const errText = await apiRes.text().catch(() => "");
+      throw new Error(`Error del proveedor ${providerId}: ${errText.substring(0, 200)}`);
+    }
+
+    const data = await apiRes.json();
+    const text = data.choices?.[0]?.message?.content || "";
+    const usage = data.usage
+      ? {
+          promptTokens: data.usage.prompt_tokens || 0,
+          candidatesTokens: data.usage.completion_tokens || 0,
+          totalTokens: data.usage.total_tokens || 0,
+        }
+      : null;
+
+    return res.json({ text, model: modelName, usage });
+  } catch (error: any) {
+    console.error("Error en generate-content:", error);
+    res.status(500).json({ error: "SERVER_ERROR", message: error.message });
+  }
+});
+
 async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

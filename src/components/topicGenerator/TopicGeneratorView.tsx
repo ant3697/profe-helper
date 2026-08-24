@@ -70,14 +70,22 @@ import {
   TopicAuditOptions,
   TopicUploadedFile,
   GeneratedTopicVersion,
+  TopicGenerationMode,
+  TopicOutlineBlueprint,
+  TopicSectionPlan,
 } from "../../types/thematicDoc";
 import { AIProviderConfig } from "../../types/aiProviders";
 import { ExamData, UploadedDocument } from "../../types/exam";
 import { extractTextFromFile, extractTextFromPDF } from "../../utils/pdfExtractor";
 import {
   buildDynamicTopicPrompt,
+  buildModularOutlinePrompt,
+  buildModularSectionPrompt,
+  buildModularClosingPrompt,
+  assembleModularDocumentHtml,
   injectDocumentStyles,
   exportStandaloneHtmlDocument,
+  preparePrintableHtmlDocument,
   extractActiveRecallExamFromHtml,
   cleanAndRepairTopicHtml,
   htmlToCleanTopicText,
@@ -89,6 +97,7 @@ import {
 } from "../../utils/topicPromptGenerator";
 import { downloadBlob } from "../../utils/fileHelpers";
 import { exportHtmlToDocx } from "../../utils/docxExport";
+import { ModularPlannerModal } from "./ModularPlannerModal";
 
 export interface TopicDebugLog {
   fecha: string;
@@ -217,6 +226,26 @@ export const TopicGeneratorView: React.FC<TopicGeneratorViewProps> = ({
     return -1;
   });
   const [draggedVersionIdx, setDraggedVersionIdx] = useState<number | null>(null);
+
+  // Generation Mode: 'rapido' (1-shot) | 'modular' (multi-step by section)
+  const [generationMode, setGenerationMode] = useState<TopicGenerationMode>(() => {
+    return (localStorage.getItem("docuexam_topic_gen_mode") as TopicGenerationMode) || "modular";
+  });
+  const [modularBlueprint, setModularBlueprint] = useState<TopicOutlineBlueprint | null>(null);
+  const [isModularPlannerOpen, setIsModularPlannerOpen] = useState(false);
+  const [isLoadingBlueprint, setIsLoadingBlueprint] = useState(false);
+  const [modularProgress, setModularProgress] = useState<{ current: number; total: number; sectionName: string }>({
+    current: 0,
+    total: 0,
+    sectionName: "",
+  });
+
+  // Save generation mode to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("docuexam_topic_gen_mode", generationMode);
+    } catch {}
+  }, [generationMode]);
 
   // States
   const [isGenerating, setIsGenerating] = useState(false);
@@ -557,14 +586,334 @@ export const TopicGeneratorView: React.FC<TopicGeneratorViewProps> = ({
     }));
   };
 
-  // Start Generation Flow
+  // Fetch or regenerate Modular Outline Blueprint
+  const handleFetchModularBlueprint = async () => {
+    if (!topic.trim()) {
+      onShowToast("Introduce el título del tema para planificar el índice", true);
+      return;
+    }
+    setIsLoadingBlueprint(true);
+    setIsModularPlannerOpen(true);
+
+    try {
+      const outlinePrompt = buildModularOutlinePrompt(
+        topic,
+        currentDepth,
+        subapartados,
+        activeOptions,
+        aggregatedFilesText,
+        pastedContext
+      );
+
+      const response = await fetch("/api/generate-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: outlinePrompt,
+          providerId: activeProviderConfig?.id || "gemini",
+          apiKey: activeProviderConfig?.apiKey,
+          endpoint: activeProviderConfig?.endpoint,
+          model: activeProviderConfig?.selectedModel,
+          temperature: 0.2,
+          jsonMode: true,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error en servidor (${response.status})`);
+      }
+
+      const resData = await response.json();
+      const rawText = resData.text || "";
+      let parsed: TopicOutlineBlueprint | null = null;
+
+      try {
+        const cleanJsonStr = rawText.replace(/```(?:json)?\s*([\s\S]*?)\s*```/i, "$1").trim();
+        parsed = JSON.parse(cleanJsonStr);
+      } catch {
+        // Fallback: build default blueprint
+        const fallbackSections: TopicSectionPlan[] = Array.from({ length: subapartados }, (_, i) => ({
+          id: `sec-${i + 1}`,
+          sectionNumber: `3.${i + 1}`,
+          title: `Epígrafe ${i + 1}: Análisis y Desarrollo Técnico`,
+          description: "Fundamentos, procedimientos y casos prácticos aplicables.",
+          status: "pending",
+        }));
+
+        parsed = {
+          topicTitle: topic.trim(),
+          introductionSummary: "Justificación y relevancia del tema para la práctica técnica y marco de oposición.",
+          sections: fallbackSections,
+          includeConclusion: true,
+          includeBibliography: true,
+          includeNormative: true,
+          includeGlossary: activeOptions.glossary,
+        };
+      }
+
+      if (parsed && Array.isArray(parsed.sections)) {
+        parsed.sections = parsed.sections.map((s, idx) => ({
+          ...s,
+          id: s.id || `sec-${idx + 1}`,
+          sectionNumber: s.sectionNumber || `3.${idx + 1}`,
+          status: "pending" as const,
+        }));
+        setModularBlueprint(parsed);
+      }
+    } catch (err: any) {
+      console.error("Error obteniendo blueprint modular:", err);
+      onShowToast(`Error planificando índice: ${err.message || "Fallo de conexión"}`, true);
+    } finally {
+      setIsLoadingBlueprint(false);
+    }
+  };
+
+  // Start Generation Flow depending on selected mode
   const handleStartGeneration = () => {
     if (!topic.trim()) {
       onShowToast("Por favor, introduce el título o índice del tema a desarrollar", true);
       return;
     }
-    setIsConfirmModalOpen(true);
+    if (generationMode === "modular") {
+      handleFetchModularBlueprint();
+    } else {
+      setIsConfirmModalOpen(true);
+    }
   };
+
+  // Execute Modular Generation Section by Section
+  const handleExecuteModularGeneration = async () => {
+    if (!modularBlueprint || modularBlueprint.sections.length === 0) return;
+    setIsModularPlannerOpen(false);
+    setIsGenerating(true);
+    setGenerationError(null);
+    setMobileTab("preview");
+    setPreviewingRagDoc(null);
+
+    abortControllerRef.current = new AbortController();
+
+    const sectionsToGenerate = [...modularBlueprint.sections];
+    const generatedSections: Array<{ sectionNumber: string; title: string; html: string }> = [];
+    let currentQuestionCounter = 1;
+    let accumulatedTokensIn = 0;
+    let accumulatedTokensOut = 0;
+
+    try {
+      // Loop sequentially through each section with its own token budget
+      for (let i = 0; i < sectionsToGenerate.length; i++) {
+        if (abortControllerRef.current.signal.aborted) break;
+
+        const sec = sectionsToGenerate[i];
+        setModularProgress({
+          current: i + 1,
+          total: sectionsToGenerate.length + 1, // +1 for closing blocks
+          sectionName: `${sec.sectionNumber}. ${sec.title}`,
+        });
+        setLoadingStatus(
+          `[Epígrafe ${i + 1}/${sectionsToGenerate.length}] Redactando en máxima densidad: "${sec.title}"...`
+        );
+
+        const sectionPrompt = buildModularSectionPrompt(
+          modularBlueprint.topicTitle || topic,
+          sec,
+          i,
+          sectionsToGenerate.length,
+          currentDepth,
+          activeOptions,
+          currentQuestionCounter,
+          aggregatedFilesText,
+          pastedContext
+        );
+
+        const secRes = await fetch("/api/generate-content", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: sectionPrompt,
+            providerId: activeProviderConfig?.id || "gemini",
+            apiKey: activeProviderConfig?.apiKey,
+            endpoint: activeProviderConfig?.endpoint,
+            model: activeProviderConfig?.selectedModel,
+            temperature: 0.3,
+          }),
+          signal: abortControllerRef.current.signal,
+        });
+
+        if (!secRes.ok) {
+          throw new Error(`Fallo en epígrafe ${sec.sectionNumber} (HTTP ${secRes.status})`);
+        }
+
+        const secData = await secRes.json();
+        const cleanSecHtml = cleanAndRepairTopicHtml(secData.text || "");
+        generatedSections.push({
+          sectionNumber: sec.sectionNumber,
+          title: sec.title,
+          html: cleanSecHtml,
+        });
+
+        // Count how many questions were included
+        const recallQuestionsMatch = cleanSecHtml.match(/<li><strong>\d+\.<\/strong>/gi);
+        if (recallQuestionsMatch) {
+          currentQuestionCounter += recallQuestionsMatch.length;
+        } else {
+          currentQuestionCounter += (currentDepth === "resumen" ? 2 : currentDepth === "estandar" ? 3 : 4);
+        }
+
+        if (secData.usage) {
+          accumulatedTokensIn += secData.usage.promptTokens || 0;
+          accumulatedTokensOut += secData.usage.candidatesTokens || 0;
+        }
+
+        // Live preview of assembled progress so far
+        const partialHtml = assembleModularDocumentHtml(
+          modularBlueprint.topicTitle || topic,
+          modularBlueprint.introductionSummary,
+          generatedSections,
+          `<div class="loading-next-section" style="padding: 16px; background: rgba(245,158,11,0.1); border: 1px dashed #f59e0b; border-radius: 8px; margin-top: 16px; font-style: italic; color: #f59e0b;">⏳ Redactando siguientes epígrafes (${i + 2}/${sectionsToGenerate.length})...</div>`
+        );
+        if (iframeRef.current) {
+          iframeRef.current.srcdoc = partialHtml;
+        }
+      }
+
+      if (abortControllerRef.current.signal.aborted) {
+        throw new Error("Generación modular cancelada");
+      }
+
+      // PHASE 3: Generate Closing Blocks (Conclusión, Bibliografía, Normativa, Glosario)
+      setModularProgress({
+        current: sectionsToGenerate.length + 1,
+        total: sectionsToGenerate.length + 1,
+        sectionName: "Conclusión, Bibliografía, Normativa y Glosario",
+      });
+      setLoadingStatus("Generando apartados finales: Conclusión, Bibliografía, Normativas y Glosario...");
+
+      const closingPrompt = buildModularClosingPrompt(
+        modularBlueprint.topicTitle || topic,
+        modularBlueprint,
+        activeOptions,
+        currentQuestionCounter,
+        aggregatedFilesText
+      );
+
+      const closingRes = await fetch("/api/generate-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: closingPrompt,
+          providerId: activeProviderConfig?.id || "gemini",
+          apiKey: activeProviderConfig?.apiKey,
+          endpoint: activeProviderConfig?.endpoint,
+          model: activeProviderConfig?.selectedModel,
+          temperature: 0.3,
+        }),
+        signal: abortControllerRef.current.signal,
+      });
+
+      let closingHtml = "";
+      if (closingRes.ok) {
+        const closingData = await closingRes.json();
+        closingHtml = cleanAndRepairTopicHtml(closingData.text || "");
+        if (closingData.usage) {
+          accumulatedTokensIn += closingData.usage.promptTokens || 0;
+          accumulatedTokensOut += closingData.usage.candidatesTokens || 0;
+        }
+      }
+
+      // Assemble final complete document
+      let finalFullHtml = assembleModularDocumentHtml(
+        modularBlueprint.topicTitle || topic,
+        modularBlueprint.introductionSummary,
+        generatedSections,
+        closingHtml
+      );
+
+      // Sanitize
+      finalFullHtml = DOMPurify.sanitize(finalFullHtml, {
+        WHOLE_DOCUMENT: true,
+        ADD_TAGS: ["style", "meta", "title", "caption"],
+        ADD_ATTR: ["class", "id", "style", "aria-hidden", "charset", "lang"],
+      });
+      finalFullHtml = cleanAndRepairTopicHtml(finalFullHtml);
+      finalFullHtml = injectDocumentStyles(finalFullHtml);
+
+      if (docTheme === "dark" && !finalFullHtml.includes("dark-theme")) {
+        finalFullHtml = finalFullHtml.replace("<body", '<body class="dark-theme"');
+      }
+
+      // Update tokens in local storage
+      setTokensIn((prev) => {
+        const v = prev + accumulatedTokensIn;
+        localStorage.setItem("experto_tokens_in", v.toString());
+        return v;
+      });
+      setTokensOut((prev) => {
+        const v = prev + accumulatedTokensOut;
+        localStorage.setItem("experto_tokens_out", v.toString());
+        return v;
+      });
+      setTokensTotal((prev) => {
+        const v = prev + accumulatedTokensIn + accumulatedTokensOut;
+        localStorage.setItem("experto_tokens_total", v.toString());
+        return v;
+      });
+
+      const newVersion: GeneratedTopicVersion = {
+        id: Date.now(),
+        topic: (modularBlueprint.topicTitle || topic).trim(),
+        depth: currentDepth,
+        html: finalFullHtml,
+        timestamp: Date.now(),
+        modelName: `${activeProviderConfig?.selectedModel || "gemini-3.7-flash"} (Modular ${sectionsToGenerate.length} Secciones)`,
+      };
+
+      setVersions((prev) => {
+        const updated = [...prev, newVersion];
+        setCurrentVersionIndex(updated.length - 1);
+        return updated;
+      });
+
+      if (iframeRef.current) {
+        iframeRef.current.srcdoc = finalFullHtml;
+      }
+
+      onShowToast(`✨ Temario modular de ${sectionsToGenerate.length} epígrafes completado con éxito`);
+    } catch (error: any) {
+      if (error.name === "AbortError" || error.message.includes("cancelada")) {
+        if (generatedSections.length > 0) {
+          const draftHtml = assembleModularDocumentHtml(
+            modularBlueprint.topicTitle || topic,
+            modularBlueprint.introductionSummary,
+            generatedSections,
+            `<p><em>[Generación detenida en la sección ${generatedSections.length}]</em></p>`
+          );
+          const draftVersion: GeneratedTopicVersion = {
+            id: Date.now(),
+            topic: topic.trim() + " (Borrador Parcial)",
+            depth: currentDepth,
+            html: draftHtml,
+            timestamp: Date.now(),
+          };
+          setVersions((prev) => {
+            const updated = [...prev, draftVersion];
+            setCurrentVersionIndex(updated.length - 1);
+            return updated;
+          });
+          onShowToast("Generación cancelada. Se conservaron los epígrafes redactados.");
+        } else {
+          onShowToast("Generación cancelada", true);
+        }
+      } else {
+        console.error("Error en generación modular:", error);
+        setGenerationError(error.message || "Fallo en la redacción modular");
+        onShowToast(`Error: ${error.message || "Fallo en la redacción modular"}`, true);
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Start Generation Flow
 
   // Execute Generation via SSE Stream or API
   const handleConfirmAndExecute = async () => {
@@ -984,12 +1333,13 @@ export const TopicGeneratorView: React.FC<TopicGeneratorViewProps> = ({
 
     if (previewingRagDoc) {
       docTitle = previewingRagDoc.name.replace(/\.[^/.]+$/, "");
-      htmlContent = docViewStyle === "html"
+      const rawBody = docViewStyle === "html"
         ? renderTechnicalA4DocumentHtml(previewingRagDoc.name, previewingRagDoc.text, false)
         : renderMarkdownDeliverableHtml(previewingRagDoc.name, previewingRagDoc.text, false);
+      htmlContent = preparePrintableHtmlDocument(rawBody, docTitle);
     } else if (currentVersionIndex >= 0 && versions[currentVersionIndex]) {
       docTitle = topic ? `Temario_${topic.replace(/[^a-z0-9]/gi, "_")}` : `Temario_V${currentVersionIndex + 1}`;
-      htmlContent = exportStandaloneHtmlDocument(versions[currentVersionIndex].html);
+      htmlContent = preparePrintableHtmlDocument(versions[currentVersionIndex].html, docTitle);
     }
 
     if (!htmlContent) {
@@ -1009,7 +1359,7 @@ export const TopicGeneratorView: React.FC<TopicGeneratorViewProps> = ({
       }
 
       const bodyMatch = htmlContent.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-      const bodyInner = bodyMatch ? bodyMatch[1] : htmlContent;
+      const bodyInner = (bodyMatch ? bodyMatch[1] : htmlContent).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
       portal.innerHTML = bodyInner;
 
       document.documentElement.classList.add("printing-topic-active");
@@ -1052,7 +1402,7 @@ export const TopicGeneratorView: React.FC<TopicGeneratorViewProps> = ({
                 try { window.print(); } catch(e) { console.error(e); }
               }, 300);
             };
-          </script>
+          </` + `script>
           </body>`
         );
 
@@ -1968,6 +2318,61 @@ export const TopicGeneratorView: React.FC<TopicGeneratorViewProps> = ({
                     )}
                   </div>
                 )}
+              </section>
+
+              {/* Generation Mode Selector: Modular vs Directo */}
+              <section className="bg-gradient-to-br from-amber-500/10 via-alt/70 to-alt/90 p-4 rounded-2xl border-2 border-amber-500/30 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs uppercase font-black text-text-primary flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-amber-500" />
+                    Modo de Generación
+                  </label>
+                  <span className="text-[9px] font-black bg-amber-500 text-black px-2 py-0.5 rounded shadow-xs">
+                    {generationMode === "modular" ? "MAX. EXHAUSTIVIDAD" : "1-SHOT"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGenerationMode("modular")}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative ${
+                      generationMode === "modular"
+                        ? "bg-surface border-2 border-amber-500 shadow-md shadow-amber-500/10 text-text-primary"
+                        : "bg-surface/60 border-border-default hover:border-amber-500/40 text-text-muted"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-black flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                        <Sparkles className="w-3.5 h-3.5" /> Modular (Recomendado)
+                      </span>
+                      {generationMode === "modular" && <Check className="w-3.5 h-3.5 text-amber-500" />}
+                    </div>
+                    <p className="text-[10px] text-text-secondary leading-snug">
+                      Genera por epígrafes independientes. Evita recortes y logra <strong>+8.000 palabras</strong> sin pérdida de densidad.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setGenerationMode("rapido")}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative ${
+                      generationMode === "rapido"
+                        ? "bg-surface border-2 border-amber-500 shadow-md shadow-amber-500/10 text-text-primary"
+                        : "bg-surface/60 border-border-default hover:border-amber-500/40 text-text-muted"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold flex items-center gap-1.5">
+                        <Zap className="w-3.5 h-3.5 text-blue-400" /> Directo (1-Paso)
+                      </span>
+                      {generationMode === "rapido" && <Check className="w-3.5 h-3.5 text-amber-500" />}
+                    </div>
+                    <p className="text-[10px] text-text-secondary leading-snug">
+                      Generación en un solo flujo SSE. Rápido, adecuado para esquemas o temas cortos.
+                    </p>
+                  </button>
+                </div>
               </section>
 
               {/* Density Level & Subtopics Slider */}
@@ -3047,6 +3452,33 @@ export const TopicGeneratorView: React.FC<TopicGeneratorViewProps> = ({
               <span className="font-mono text-amber-400 font-bold uppercase">{currentDepth}</span>
             </div>
 
+            {/* Modular Generation Progress Bar */}
+            {generationMode === "modular" && modularProgress.total > 0 && (
+              <div className="p-3 bg-[#181b24] border border-amber-500/30 rounded-xl text-left space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-amber-400 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5" /> Progreso Modular:
+                  </span>
+                  <span className="font-mono font-bold text-white">
+                    {modularProgress.current} / {modularProgress.total} etapas
+                  </span>
+                </div>
+                <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-amber-500 to-amber-400 h-2 transition-all duration-300 rounded-full"
+                    style={{
+                      width: `${Math.min(100, Math.round((modularProgress.current / modularProgress.total) * 100))}%`,
+                    }}
+                  />
+                </div>
+                {modularProgress.sectionName && (
+                  <p className="text-[11px] text-gray-300 truncate font-mono">
+                    {modularProgress.sectionName}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Action Controls */}
             <div className="flex items-center justify-center gap-3 pt-2">
               <button
@@ -3133,6 +3565,18 @@ export const TopicGeneratorView: React.FC<TopicGeneratorViewProps> = ({
           </div>
         </div>
       )}
+      {/* Modular Planner & Blueprint Modal */}
+      <ModularPlannerModal
+        isOpen={isModularPlannerOpen}
+        topicTitle={topic}
+        depth={currentDepth}
+        blueprint={modularBlueprint}
+        isLoadingOutline={isLoadingBlueprint}
+        onClose={() => setIsModularPlannerOpen(false)}
+        onUpdateBlueprint={(updated) => setModularBlueprint(updated)}
+        onConfirmStartModular={handleExecuteModularGeneration}
+        onRegenerateOutline={handleFetchModularBlueprint}
+      />
     </div>
   );
 };

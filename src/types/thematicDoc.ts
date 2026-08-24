@@ -1,4 +1,25 @@
 export type TopicDepth = "resumen" | "estandar" | "catedratico";
+export type TopicGenerationMode = "rapido" | "modular";
+
+export interface TopicSectionPlan {
+  id: string;
+  sectionNumber: string; // e.g. "3.1", "3.2", "4", "5"
+  title: string; // e.g. "Termodinámica Básica y Ciclos Frigoríficos"
+  description?: string; // Brief guidance on what to cover
+  status: "pending" | "generating" | "completed" | "error";
+  generatedHtml?: string;
+  wordCount?: number;
+}
+
+export interface TopicOutlineBlueprint {
+  topicTitle: string;
+  introductionSummary: string;
+  sections: TopicSectionPlan[];
+  includeConclusion: boolean;
+  includeBibliography: boolean;
+  includeNormative: boolean;
+  includeGlossary: boolean;
+}
 
 export interface TopicAuditOptions {
   glossary: boolean;
