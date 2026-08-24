@@ -152,16 +152,6 @@ export const InteractiveToolbar: React.FC<InteractiveToolbarProps> = ({
         {/* Reordering controls */}
         <button
           type="button"
-          onClick={onShuffleQuestions}
-          className="flex-1 min-w-[110px] bg-surface/80 border border-border-strong hover:bg-hover px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 font-bold text-text-primary transition-all active:scale-95 shadow-xs cursor-pointer"
-          title="Barajar aleatoriamente el orden de las preguntas"
-        >
-          <Shuffle className="w-3.5 h-3.5 text-amber-500" />
-          <span>Barajar P</span>
-        </button>
-
-        <button
-          type="button"
           onClick={onSortQuestions}
           className="flex-1 min-w-[110px] bg-surface/80 border border-border-strong hover:bg-hover px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 font-bold text-text-primary transition-all active:scale-95 shadow-xs cursor-pointer"
           title="Restablecer el orden original de las preguntas"
@@ -172,12 +162,12 @@ export const InteractiveToolbar: React.FC<InteractiveToolbarProps> = ({
 
         <button
           type="button"
-          onClick={onShuffleOptions}
+          onClick={onShuffleQuestions}
           className="flex-1 min-w-[110px] bg-surface/80 border border-border-strong hover:bg-hover px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 font-bold text-text-primary transition-all active:scale-95 shadow-xs cursor-pointer"
-          title="Barajar aleatoriamente las opciones (A, B, C, D)"
+          title="Barajar aleatoriamente el orden de las preguntas"
         >
           <Shuffle className="w-3.5 h-3.5 text-amber-500" />
-          <span>Barajar O</span>
+          <span>Barajar P</span>
         </button>
 
         <button
@@ -188,6 +178,16 @@ export const InteractiveToolbar: React.FC<InteractiveToolbarProps> = ({
         >
           <ArrowUpDown className="w-3.5 h-3.5 text-amber-500" />
           <span>Ordenar O</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onShuffleOptions}
+          className="flex-1 min-w-[110px] bg-surface/80 border border-border-strong hover:bg-hover px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 font-bold text-text-primary transition-all active:scale-95 shadow-xs cursor-pointer"
+          title="Barajar aleatoriamente las opciones (A, B, C, D)"
+        >
+          <Shuffle className="w-3.5 h-3.5 text-amber-500" />
+          <span>Barajar O</span>
         </button>
 
         {/* Interactive-only view modifiers */}

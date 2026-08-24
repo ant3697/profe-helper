@@ -14,6 +14,7 @@ export interface TopicUploadedFile {
   name: string;
   text: string;
   size?: number;
+  active?: boolean;
 }
 
 export interface ExtractedActiveRecallQuestion {

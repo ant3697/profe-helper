@@ -38,7 +38,7 @@ import {
   AISettingsState,
   DEFAULT_AI_PROVIDERS,
 } from "./types/aiProviders";
-import { extractTextFromPDF } from "./utils/pdfExtractor";
+import { extractTextFromFile, extractTextFromPDF } from "./utils/pdfExtractor";
 import {
   parseGIFT,
   parseTXTCompleto,
@@ -53,6 +53,7 @@ import {
   exportStandaloneHTML,
 } from "./utils/examExporters";
 import { copyTextToClipboard, downloadBlob, DEFAULT_THEMATICS } from "./utils/fileHelpers";
+import { TopicUploadedFile } from "./types/thematicDoc";
 
 export default function App() {
   // Theme State
@@ -128,11 +129,30 @@ export default function App() {
   const [numQuestions, setNumQuestions] = useState(12);
   const [batchCount, setBatchCount] = useState(1);
   const [customPrompt, setCustomPrompt] = useState("");
-  const [thematics, setThematics] = useState<ThematicGroup[]>(DEFAULT_THEMATICS);
+  const [thematics, setThematics] = useState<ThematicGroup[]>(() => {
+    try {
+      const saved = localStorage.getItem("docuexam_thematics");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_THEMATICS;
+  });
+
+  const handleUpdateThematics = (groups: ThematicGroup[]) => {
+    setThematics(groups);
+    try {
+      localStorage.setItem("docuexam_thematics", JSON.stringify(groups));
+    } catch (e) {
+      console.warn("Error persisting thematics:", e);
+    }
+  };
 
   // Active Exam / Document State
   const [currentExamData, setCurrentExamData] = useState<ExamData | null>(null);
   const [selectedBaseDoc, setSelectedBaseDoc] = useState<UploadedDocument | null>(null);
+  const [docViewerPreferredMode, setDocViewerPreferredMode] = useState<"html" | "markdown" | "plain" | undefined>(undefined);
   const [loadedFileName, setLoadedFileName] = useState("Examen Generado");
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [currentTab, setCurrentTab] = useState<FormatTab>("interactive");
@@ -158,21 +178,52 @@ export default function App() {
   const [isOmrModalOpen, setIsOmrModalOpen] = useState(false);
   const [isOmrScannerOpen, setIsOmrScannerOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isProcessingFiles, setIsProcessingFiles] = useState(false);
+  const [processingStatusText, setProcessingStatusText] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastIsError, setToastIsError] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const renderedContentRef = useRef<HTMLDivElement>(null);
 
-  const handleReceiveExamFromTopic = (examData: ExamData) => {
-    setCurrentExamData(examData);
-    setLoadedFileName(examData.bloques[0]?.titulo || "Simulacro Active Recall");
-    setSelectedBaseDoc(null);
-    setSelectedDocumentId(null);
-    setIsExamSubmitted(false);
-    setCurrentTab("interactive");
+  const handleReceiveExamFromTopic = (
+    examData: ExamData | null,
+    baseDocuments?: UploadedDocument[]
+  ) => {
+    if (baseDocuments && baseDocuments.length > 0) {
+      setUploadedFiles((prev) => {
+        const existingNames = new Set(prev.map((d) => d.name));
+        const newDocs = baseDocuments.filter((d) => !existingNames.has(d.name));
+        const updatedExisting = prev.map((d) => {
+          const matchingNew = baseDocuments.find((nb) => nb.name === d.name);
+          return matchingNew ? { ...d, text: matchingNew.text, active: true } : d;
+        });
+        return [...updatedExisting, ...newDocs];
+      });
+
+      const primaryDoc =
+        baseDocuments.find((d) => d.name.startsWith("Tema -")) ||
+        baseDocuments.find((d) => d.name.startsWith("Autoevaluación")) ||
+        baseDocuments[0];
+
+      if (primaryDoc) {
+        setSelectedDocumentId(primaryDoc.id);
+        setSelectedBaseDoc(primaryDoc);
+      }
+    }
+
+    if (examData && examData.bloques && examData.bloques.length > 0 && examData.bloques[0].preguntas?.length > 0) {
+      setCurrentExamData(examData);
+      setLoadedFileName(examData.bloques[0]?.titulo || "Simulacro Active Recall");
+      setIsExamSubmitted(false);
+      setCurrentTab("interactive");
+    }
+
     setAppMode("exams");
-    showToast(`🎯 ¡Simulacro cargado con ${examData.bloques[0]?.preguntas.length || 0} preguntas de Active Recall!`);
+    const count = baseDocuments ? baseDocuments.length : 0;
+    showToast(
+      `🎯 ¡${count} documentos listos en el Módulo de Exámenes (bases activas, tema generado y autoevaluación con solucionario)!`
+    );
   };
 
   // Sync Theme to HTML root
@@ -224,51 +275,58 @@ export default function App() {
   // Process Files Upload (PDF, TXT, HTML, JSON, GIFT)
   const processUploadedFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
     let newDocs: UploadedDocument[] = [];
     let lastExamFile: UploadedDocument | null = null;
 
-    for (const file of fileArray) {
-      if (uploadedFiles.some((f) => f.name === file.name)) continue;
+    setIsProcessingFiles(true);
+    setProcessingStatusText(`Iniciando lectura de ${fileArray.length} archivo(s)...`);
+
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      if (uploadedFiles.some((f) => f.name === file.name)) {
+        showToast(`El archivo ${file.name} ya está en la lista`, false);
+        continue;
+      }
 
       let extractedText = "";
       const lowerName = file.name.toLowerCase();
+      setProcessingStatusText(`Cargando ${file.name} (${i + 1}/${fileArray.length})...`);
 
       try {
-        if (file.type === "application/pdf" || lowerName.endsWith(".pdf")) {
-          showToast(`Procesando documento PDF: ${file.name}...`, false);
-          extractedText = await extractTextFromPDF(file, (status) => {
+        const customApiKey =
+          aiSettings.providers[aiSettings.activeProviderId]?.apiKey ||
+          aiSettings.providers.gemini?.apiKey ||
+          "";
+
+        extractedText = await extractTextFromFile(
+          file,
+          (status) => {
+            setProcessingStatusText(status);
             showToast(status, false);
-          });
-        } else if (lowerName.endsWith(".html") || lowerName.endsWith(".htm")) {
-          extractedText = await file.text();
-        } else {
-          extractedText = await file.text();
-        }
+          },
+          customApiKey
+        );
 
         if (!extractedText.trim()) {
           showToast(`El archivo ${file.name} no contiene texto extraíble`, true);
           continue;
         }
 
-        // Determine role (exam or base study material)
+        // Determine role (base study material by default, exam only if explicitly structured GIFT or JSON)
         let role: "base" | "exam" = "base";
-        if (lowerName.endsWith(".gift") || lowerName.endsWith(".json")) {
-          role = "exam";
-        } else if (
-          extractedText.includes("::P") ||
-          extractedText.includes('{"bloques"') ||
-          extractedText.includes("(Correcta)") ||
-          lowerName.includes("examen") ||
-          lowerName.includes("test")
-        ) {
+        if (lowerName.endsWith(".gift") || (lowerName.endsWith(".json") && extractedText.includes('"bloques"'))) {
           role = "exam";
         }
 
         const doc: UploadedDocument = {
-          id: `file-${Date.now()}-${Math.random()}`,
+          id: `file-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           name: file.name,
           text: extractedText,
           role,
+          size: file.size,
+          active: true,
           timestamp: Date.now(),
         };
 
@@ -280,11 +338,14 @@ export default function App() {
       }
     }
 
+    setIsProcessingFiles(false);
+    setProcessingStatusText("");
+
     if (newDocs.length > 0) {
       setUploadedFiles((prev) => [...prev, ...newDocs]);
       showToast(`${newDocs.length} archivo(s) procesado(s) correctamente`);
 
-      // If an exam was uploaded, automatically view it
+      // If an explicit structured exam was uploaded, automatically view it
       if (lastExamFile) {
         handleSelectDocument(lastExamFile);
       }
@@ -326,8 +387,14 @@ export default function App() {
   };
 
   // Unified document selection handler (Exams and Base Documents) with toggle deselection
-  const handleSelectDocument = (file: UploadedDocument) => {
-    if (selectedDocumentId === file.id) {
+  const handleSelectDocument = (
+    file: UploadedDocument,
+    preferredMode?: "html" | "markdown" | "plain"
+  ) => {
+    if (preferredMode) {
+      setDocViewerPreferredMode(preferredMode);
+    }
+    if (selectedDocumentId === file.id && !preferredMode) {
       // Toggle off / Deselect document
       setSelectedDocumentId(null);
       setSelectedBaseDoc(null);
@@ -366,6 +433,67 @@ export default function App() {
       setSelectedBaseDoc(null);
       setCurrentExamData(null);
     }
+  };
+
+  const handleToggleFileActive = (id: string) => {
+    setUploadedFiles((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, active: f.active === false ? true : false } : f))
+    );
+  };
+
+  // Transfer document from Exams module to Topics module
+  const handleTransferDocumentToTopic = (file: UploadedDocument) => {
+    try {
+      const saved = localStorage.getItem("docuexam_topic_rag_files");
+      let currentTopicFiles: TopicUploadedFile[] = [];
+      if (saved) {
+        currentTopicFiles = JSON.parse(saved);
+      }
+      if (currentTopicFiles.some((f) => f.name === file.name)) {
+        showToast(`El documento "${file.name}" ya existe en el Creador de Temas`, false);
+        return;
+      }
+      const newTopicFile: TopicUploadedFile = {
+        id: `topic-transfer-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        name: file.name,
+        text: file.text,
+        size: file.size,
+        active: file.active !== false,
+      };
+      const updatedTopicFiles = [...currentTopicFiles, newTopicFile];
+      localStorage.setItem("docuexam_topic_rag_files", JSON.stringify(updatedTopicFiles));
+      window.dispatchEvent(new Event("storage"));
+      showToast(`🔄 Documento "${file.name}" transferido al Creador de Temas`);
+    } catch (e) {
+      console.error("Error transferring doc to topic:", e);
+      showToast("Error al transferir documento", true);
+    }
+  };
+
+  // Transfer document from Topics module to Exams module
+  const handleTransferDocumentToExams = (file: TopicUploadedFile) => {
+    const existing = uploadedFiles.find((f) => f.name === file.name);
+    if (existing) {
+      setSelectedDocumentId(existing.id);
+      setSelectedBaseDoc(existing);
+      setAppMode("exams");
+      showToast(`El documento "${file.name}" ya existía y ha sido activado en Exámenes`);
+      return;
+    }
+    const newExamFile: UploadedDocument = {
+      id: `exam-transfer-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: file.name,
+      text: file.text,
+      size: file.size,
+      role: "base",
+      timestamp: Date.now(),
+      active: file.active !== false,
+    };
+    setUploadedFiles((prev) => [...prev, newExamFile]);
+    setSelectedDocumentId(newExamFile.id);
+    setSelectedBaseDoc(newExamFile);
+    setAppMode("exams");
+    showToast(`🔄 Documento "${file.name}" transferido y abierto en Exámenes`);
   };
 
   const handleClearFiles = () => {
@@ -409,13 +537,16 @@ export default function App() {
     }
   };
 
-  // Aggregate content for Gemini RAG context
+  // Aggregate content for Gemini RAG context (respecting active flag)
   const getAggregatedContent = (overrideBaseText?: string) => {
     let baseText = overrideBaseText || "";
     let examText = "";
 
     if (!overrideBaseText) {
       uploadedFiles.forEach((f) => {
+        // Only include active documents in the generation context (default active is true)
+        if (f.active === false) return;
+
         if (f.role === "exam") {
           examText += f.text + "\n\n---\n\n";
         } else {
@@ -953,8 +1084,8 @@ export default function App() {
           onAppModeChange={setAppMode}
         />
 
-        {/* View Mode: High-Density Topic Generator (Experto IA) */}
-        {appMode === "topic_builder" ? (
+        {/* View Mode: High-Density Topic Generator (Experto IA) - Preserved in DOM across mode changes */}
+        <div className={appMode === "topic_builder" ? "block" : "hidden"}>
           <TopicGeneratorView
             activeProviderConfig={
               aiSettings.providers[aiSettings.activeProviderId] ||
@@ -962,10 +1093,13 @@ export default function App() {
             }
             onShowToast={showToast}
             onSendExamToApp={handleReceiveExamFromTopic}
+            onTransferDocumentToExams={handleTransferDocumentToExams}
             onOpenAIModal={() => setIsAIModalOpen(true)}
           />
-        ) : (
-          /* Main Grid: Exam Builder & Evaluator */
+        </div>
+
+        {/* Main Grid: Exam Builder & Evaluator - Preserved in DOM across mode changes */}
+        <div className={appMode === "exams" ? "block" : "hidden"}>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Left Panel: Settings & Configuration */}
           {!isFocusMode && (
@@ -980,6 +1114,8 @@ export default function App() {
                 uploadedFiles={uploadedFiles}
                 onUploadFiles={processUploadedFiles}
                 onRemoveFile={handleRemoveFile}
+                onToggleFileActive={handleToggleFileActive}
+                onTransferDocumentToTopic={handleTransferDocumentToTopic}
                 onClearFiles={handleClearFiles}
                 onSelectDocument={handleSelectDocument}
                 selectedDocumentId={selectedDocumentId}
@@ -1000,6 +1136,8 @@ export default function App() {
                 onOpenThematicBuilder={() => setIsThematicModalOpen(true)}
                 onRequestGenerate={() => setIsConfirmModalOpen(true)}
                 isLoading={isLoading}
+                isProcessingFiles={isProcessingFiles}
+                processingStatusText={processingStatusText}
               />
             </div>
           )}
@@ -1014,6 +1152,7 @@ export default function App() {
               {selectedBaseDoc ? (
                 <DocumentViewerPanel
                   document={selectedBaseDoc}
+                  initialViewMode={docViewerPreferredMode}
                   onClose={handleCloseViewer}
                   onUpdateDocumentText={handleUpdateDocumentText}
                   onRequestGenerateExam={() => setIsConfirmModalOpen(true)}
@@ -1234,7 +1373,7 @@ export default function App() {
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
 
       {/* Modals & Overlays */}
@@ -1242,7 +1381,7 @@ export default function App() {
         isOpen={isThematicModalOpen}
         onClose={() => setIsThematicModalOpen(false)}
         thematics={thematics}
-        onUpdateThematics={setThematics}
+        onUpdateThematics={handleUpdateThematics}
         onApplySelection={handleApplyThematics}
         onShowToast={showToast}
       />

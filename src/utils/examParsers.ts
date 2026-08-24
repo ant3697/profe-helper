@@ -1,5 +1,22 @@
 import { ExamData, ExamQuestion, ExamBlock } from "../types/exam";
 
+/**
+ * Sanitizes option text by removing duplicated letter prefixes (e.g. "a)", "Opción A:", "[A]")
+ * and removing any leaked annotations (e.g. "(Correcta)", "(Verdadera)", "(Distractor)").
+ */
+export function cleanOptionText(text: string): string {
+  if (!text || typeof text !== "string") return "";
+  let clean = text.trim();
+  
+  // 1. Strip leading option identifiers like "Opción A:", "Opción A -", "Opción A", "a)", "A.", "[a]", "(A)"
+  clean = clean.replace(/^(?:opci[oó]n\s+[a-d][\s:\.\-\)]*|[a-d][\.\)\:\-]\s*|\[[a-d]\]\s*|\([a-d]\)\s*)/i, "").trim();
+  
+  // 2. Strip trailing correctness or distractor annotations if any leaked from raw generation
+  clean = clean.replace(/\s*[\(\[]\s*(?:correcta|verdadera|falsa|incorrecta|distractor[^\)\]]*|respuesta correcta|desarrollo clave[^\)\]]*|condici[oó]n no aplicable[^\)\]]*|par[aá]metro fuera[^\)\]]*)\s*[\)\]]\s*$/i, "").trim();
+  
+  return clean || text.trim();
+}
+
 export function parseGIFT(text: string): ExamData {
   const sections = text.split(/(?=\/\/\s*Bloque:)/i);
   const blocks: ExamBlock[] = [];
@@ -55,7 +72,7 @@ export function parseGIFT(text: string): ExamData {
               const feed = optAndFeed.substring(hashIdx + 1).trim();
               if (feed) justificacion = feed;
             }
-            options.push(optText);
+            options.push(cleanOptionText(optText));
             if (isCorrect) {
               indiceCorrecta = options.length - 1;
             }
@@ -107,14 +124,15 @@ export function parseTXTCompleto(text: string): ExamData {
 
     if (trimmed.startsWith("- ")) {
       if (currentQ && currentQ.opciones && currentQ.opciones.length > 0) {
-        const optObjs = currentQ.opciones.map((opt, oIdx) => ({
+        const cleanedOpts = currentQ.opciones.map(cleanOptionText);
+        const optObjs = cleanedOpts.map((opt, oIdx) => ({
           text: opt,
           isCorrect: oIdx === (currentQ!.indiceCorrecta || 0),
           origOId: oIdx,
         }));
         questions.push({
           enunciado: currentQ.enunciado || "",
-          opciones: currentQ.opciones,
+          opciones: cleanedOpts,
           indiceCorrecta: currentQ.indiceCorrecta || 0,
           justificacion: currentQ.justificacion || "Examen importado desde archivo de texto plano.",
           origQId: questions.length,
@@ -137,7 +155,7 @@ export function parseTXTCompleto(text: string): ExamData {
         optText = trimmed.replace(correctRegex, "").trim();
       }
 
-      currentQ.opciones.push(optText);
+      currentQ.opciones.push(cleanOptionText(optText));
       if (isCorrect) {
         currentQ.indiceCorrecta = currentQ.opciones.length - 1;
       }
@@ -145,14 +163,15 @@ export function parseTXTCompleto(text: string): ExamData {
   });
 
   if (currentQ && currentQ.opciones && currentQ.opciones.length > 0) {
-    const optObjs = currentQ.opciones.map((opt, oIdx) => ({
+    const cleanedOpts = currentQ.opciones.map(cleanOptionText);
+    const optObjs = cleanedOpts.map((opt, oIdx) => ({
       text: opt,
       isCorrect: oIdx === (currentQ!.indiceCorrecta || 0),
       origOId: oIdx,
     }));
     questions.push({
       enunciado: currentQ.enunciado || "",
-      opciones: currentQ.opciones,
+      opciones: cleanedOpts,
       indiceCorrecta: currentQ.indiceCorrecta || 0,
       justificacion: currentQ.justificacion || "Examen importado desde archivo de texto plano.",
       origQId: questions.length,
@@ -194,8 +213,8 @@ export function parseHTMLDoc(htmlText: string): ExamData {
         let indiceCorrecta = 0;
         const optButtons = card.querySelectorAll(".option-btn");
         optButtons.forEach((btn, btnIdx) => {
-          const raw = btn.textContent?.replace(/^[a-z]\)\s*/i, "").trim() || "";
-          options.push(raw);
+          const raw = btn.textContent || "";
+          options.push(cleanOptionText(raw));
           if (btn.getAttribute("data-correct") === "true" || btn.classList.contains("correct")) {
             indiceCorrecta = btnIdx;
           }
@@ -243,8 +262,8 @@ export function parseHTMLDoc(htmlText: string): ExamData {
 
       const optButtons = card.querySelectorAll(".option-btn");
       optButtons.forEach((btn, btnIdx) => {
-        const text = btn.textContent?.replace(/^[a-z]\)\s*/i, "").trim() || "";
-        options.push(text);
+        const text = btn.textContent || "";
+        options.push(cleanOptionText(text));
         if (btn.getAttribute("data-correct") === "true" || btn.classList.contains("correct")) {
           indiceCorrecta = btnIdx;
         }
@@ -298,10 +317,13 @@ export function parseJSONExam(text: string): ExamData {
     throw new Error("JSON sin estructura de bloques o preguntas válida.");
   }
 
-  // Ensure normalized object options
+  // Ensure normalized object options and sanitized option texts
   examData.bloques.forEach((b) => {
     b.preguntas.forEach((q, qIdx) => {
       q.origQId = qIdx;
+      if (Array.isArray(q.opciones)) {
+        q.opciones = q.opciones.map(cleanOptionText);
+      }
       if (!q.opcionesObjs || q.opcionesObjs.length !== q.opciones.length) {
         q.opcionesObjs = q.opciones.map((txt, oIdx) => ({
           text: txt,

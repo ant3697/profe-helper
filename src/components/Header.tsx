@@ -65,33 +65,83 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Center / Navigation Mode Switcher */}
       {onAppModeChange && (
-        <div className="flex bg-alt p-1.5 rounded-2xl border border-border-default shadow-md">
+        <div className="flex bg-[#0f1422] p-1.5 rounded-2xl border border-slate-800/80 shadow-xl backdrop-blur-md items-center gap-1">
+          {/* Button: Exámenes y Tests */}
           <button
             type="button"
             onClick={() => onAppModeChange("exams")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+            className={`group px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-2.5 cursor-pointer select-none ${
               currentAppMode === "exams"
-                ? "bg-surface text-amber-600 dark:text-amber-400 shadow-md border border-border-default"
-                : "text-text-muted hover:text-text-primary"
+                ? "bg-gradient-to-r from-[#00b074] via-[#05c485] to-[#06b6d4] text-white shadow-lg shadow-emerald-500/25 border border-emerald-300/40"
+                : "bg-transparent hover:bg-white/5 text-slate-400 hover:text-slate-200 border border-transparent"
             }`}
           >
-            <FileQuestion className="w-4 h-4" />
-            <span>Exámenes y Tests</span>
+            <FileQuestion
+              className={`w-4 h-4 shrink-0 transition-colors ${
+                currentAppMode === "exams"
+                  ? "text-white"
+                  : "text-[#05c485]"
+              }`}
+            />
+            <div className="flex flex-col text-left leading-tight">
+              <span
+                className={`text-xs tracking-tight ${
+                  currentAppMode === "exams"
+                    ? "font-black text-white"
+                    : "font-bold text-slate-300 group-hover:text-white"
+                }`}
+              >
+                Exámenes y
+              </span>
+              <span
+                className={`text-xs tracking-tight ${
+                  currentAppMode === "exams"
+                    ? "font-black text-white"
+                    : "font-bold text-slate-400 group-hover:text-slate-200"
+                }`}
+              >
+                Tests
+              </span>
+            </div>
           </button>
+
+          {/* Button: Experto IA (Temarios) */}
           <button
             type="button"
             onClick={() => onAppModeChange("topic_builder")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+            className={`group px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-2.5 cursor-pointer select-none ${
               currentAppMode === "topic_builder"
-                ? "bg-amber-500 text-black shadow-md shadow-amber-500/20"
-                : "text-text-muted hover:text-amber-500"
+                ? "bg-gradient-to-r from-[#5a52ff] via-[#6d45fe] to-[#8d3ffe] text-white shadow-lg shadow-indigo-500/25 border border-indigo-300/40"
+                : "bg-transparent hover:bg-white/5 text-slate-400 hover:text-slate-200 border border-transparent"
             }`}
           >
-            <Cpu className="w-4 h-4" />
-            <span>Experto IA (Temarios)</span>
-            <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-black text-amber-400">
-              NUEVO
-            </span>
+            <Cpu
+              className={`w-4 h-4 shrink-0 transition-colors ${
+                currentAppMode === "topic_builder"
+                  ? "text-white"
+                  : "text-[#7c5cfc]"
+              }`}
+            />
+            <div className="flex flex-col text-left leading-tight">
+              <span
+                className={`text-xs tracking-tight ${
+                  currentAppMode === "topic_builder"
+                    ? "font-black text-white"
+                    : "font-bold text-slate-300 group-hover:text-white"
+                }`}
+              >
+                Experto IA
+              </span>
+              <span
+                className={`text-xs tracking-tight ${
+                  currentAppMode === "topic_builder"
+                    ? "font-black text-white"
+                    : "font-bold text-slate-400 group-hover:text-slate-200"
+                }`}
+              >
+                (Temarios)
+              </span>
+            </div>
           </button>
         </div>
       )}
@@ -102,7 +152,7 @@ export const Header: React.FC<HeaderProps> = ({
         <input
           type="file"
           ref={fileInputRef}
-          accept=".html,.htm,.gift,.txt,.json,.md,.pdf"
+          accept=".pdf,.md,.txt,.gift,.json,.png,.jpg,.jpeg,.webp"
           multiple
           className="hidden"
           onChange={onImportFile}

@@ -100,6 +100,30 @@ async function generateWithGeminiRetry(ai: GoogleGenAI, params: any, maxRetries 
   throw lastError;
 }
 
+function sanitizeExamQuestions(data: any): any {
+  if (!data || typeof data !== "object") return data;
+  const cleanStr = (str: any) => {
+    if (typeof str !== "string") return "";
+    let clean = str.trim();
+    clean = clean.replace(/^(?:opci[oó]n\s+[a-d][\s:\.\-\)]*|[a-d][\.\)\:\-]\s*|\[[a-d]\]\s*|\([a-d]\)\s*)/i, "").trim();
+    clean = clean.replace(/\s*[\(\[]\s*(?:correcta|verdadera|falsa|incorrecta|distractor[^\)\]]*|respuesta correcta|desarrollo clave[^\)\]]*|condici[oó]n no aplicable[^\)\]]*|par[aá]metro fuera[^\)\]]*)\s*[\)\]]\s*$/i, "").trim();
+    return clean || str.trim();
+  };
+
+  if (Array.isArray(data.bloques)) {
+    data.bloques.forEach((b: any) => {
+      if (Array.isArray(b.preguntas)) {
+        b.preguntas.forEach((q: any) => {
+          if (Array.isArray(q.opciones)) {
+            q.opciones = q.opciones.map(cleanStr);
+          }
+        });
+      }
+    });
+  }
+  return data;
+}
+
 // Helper to extract and auto-repair JSON from LLM text responses
 function extractJSONFromText(text: string): any {
   if (!text || typeof text !== "string") return null;
@@ -107,14 +131,14 @@ function extractJSONFromText(text: string): any {
 
   // 1. Direct parse
   try {
-    return JSON.parse(trimmed);
+    return sanitizeExamQuestions(JSON.parse(trimmed));
   } catch {}
 
   // 2. Strip markdown ```json code blocks
   const markdownMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (markdownMatch && markdownMatch[1]) {
     try {
-      return JSON.parse(markdownMatch[1].trim());
+      return sanitizeExamQuestions(JSON.parse(markdownMatch[1].trim()));
     } catch {}
   }
 
@@ -124,7 +148,7 @@ function extractJSONFromText(text: string): any {
   if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
     const candidate = trimmed.substring(firstBrace, lastBrace + 1);
     try {
-      return JSON.parse(candidate);
+      return sanitizeExamQuestions(JSON.parse(candidate));
     } catch {}
   }
 
@@ -149,7 +173,7 @@ function extractJSONFromText(text: string): any {
         try {
           const parsed = JSON.parse(attempt);
           if (parsed && (parsed.bloques || Array.isArray(parsed))) {
-            return parsed;
+            return sanitizeExamQuestions(parsed);
           }
         } catch {}
       }
@@ -159,7 +183,7 @@ function extractJSONFromText(text: string): any {
   // 5. Fallback AST/Regex question extractor
   const recoveredQuestions = extractQuestionsRegex(trimmed);
   if (recoveredQuestions.length > 0) {
-    return {
+    return sanitizeExamQuestions({
       analisis_anticolision: "Estructura recuperada exitosamente mediante el analizador de emergencia.",
       bloques: [
         {
@@ -167,7 +191,7 @@ function extractJSONFromText(text: string): any {
           preguntas: recoveredQuestions,
         },
       ],
-    };
+    });
   }
 
   throw new Error("No se pudo extraer una estructura JSON válida de la respuesta del modelo.");
@@ -219,7 +243,14 @@ app.post("/api/test-provider", async (req, res) => {
         });
       }
 
-      const ai = new GoogleGenAI({ apiKey: keyToUse });
+    const ai = new GoogleGenAI({
+      apiKey: keyToUse,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
 
       const testModel = sanitizeGeminiModel(model);
       const response = await generateWithGeminiRetry(ai, {
@@ -346,7 +377,14 @@ async function callLLMForExam(params: LLMExamCallParams): Promise<{ data: any; u
       throw new Error("No se ha configurado ninguna clave de API de Gemini ni servidor.");
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
     const modelName = sanitizeGeminiModel(requestModel);
 
     const response = await generateWithGeminiRetry(ai, {
@@ -593,6 +631,7 @@ Eres un Tribunal y Evaluador Experto de máximo nivel técnico y pedagógico en 
 Objetivo Crítico: Evitar el sesgo de la picardía o "Test-Wiseness". El alumno jamás debe poder deducir la respuesta correcta por descarte superficial, longitud dispar, tono, pistas gramaticales o descarte por sentido común.
 
 2. REGLAS PARA LAS OPCIONES DE RESPUESTA
+- FORMATO LIMPIO DE LAS OPCIONES: Cada elemento del array 'opciones' debe contener ÚNICAMENTE el texto de la respuesta (por ejemplo: "El valor límite no debe superar 50 V", "Filtro deshidratador en línea de líquido"). ESTÁ TERMINANTEMENTE PROHIBIDO incluir prefijos como "Opción A:", "a)", "A.", "1.", o añadir anotaciones como "(Correcta)", "(Verdadera)", "(Falsa)" en el array de opciones.
 - EVITAR EXPLICACIONES EN LAS OPCIONES: Las opciones (A, B, C, D) deben contener únicamente enunciados directos, datos objetivos, fórmulas o medidas. Toda la argumentación técnica detallada y citas reglamentarias deben ir en la "justificacion".
 - PROHIBICIÓN DE ABSOLUTISMOS: PROHIBIDO utilizar palabras absolutas o limitantes en los distractores falsos ("siempre", "nunca", "exclusivamente", "únicamente", "totalmente", "independientemente"). Los distractores falsos deben estar redactados de forma tan matizada, verosímil y profesional como la opción correcta.
 - HOMOGENEIDAD SINTÁCTICA Y DE LONGITUD: Todas las opciones de una misma pregunta deben tener una longitud, estructura gramatical y complejidad equivalente.
@@ -616,7 +655,12 @@ Debes responder OBLIGATORIAMENTE con un objeto JSON válido con la siguiente est
       "preguntas": [
         {
           "enunciado": "Texto claro y preciso de la pregunta",
-          "opciones": ["Opción A", "Opción B", "Opción C", "Opción D"],
+          "opciones": [
+            "Primera opción de respuesta (texto limpio sin prefijos ni anotaciones)",
+            "Segunda opción de respuesta (texto limpio sin prefijos ni anotaciones)",
+            "Tercera opción de respuesta (texto limpio sin prefijos ni anotaciones)",
+            "Cuarta opción de respuesta (texto limpio sin prefijos ni anotaciones)"
+          ],
           "indiceCorrecta": 0,
           "justificacion": "Justificación técnica y normativa exhaustiva (citando artículos, leyes, normas UNE/ISO, directivas o principios científicos) explicando la correcta y refutando las incorrectas."
         }
@@ -909,20 +953,22 @@ Recuerda: Devuelve únicamente el JSON estructurado solicitado para el bloque in
   }
 });
 
-// Server-side PDF / Image OCR Route with Gemini Vision
+// Server-side Multimodal Document Understanding Route (PDFs, Image Captures, Scanned Docs)
 app.post("/api/ocr-pdf", async (req, res) => {
   try {
     const {
       fileBase64,
+      pageImages,
       mimeType = "application/pdf",
       fileName = "documento.pdf",
-      customApiKey = ""
+      customApiKey = "",
+      customModel = "",
     } = req.body;
 
-    if (!fileBase64) {
+    if (!fileBase64 && (!pageImages || !Array.isArray(pageImages) || pageImages.length === 0)) {
       return res.status(400).json({
         error: "MISSING_DATA",
-        message: "No se recibieron datos de archivo para OCR.",
+        message: "No se recibieron datos de archivo ni imágenes para el procesamiento multimodal.",
       });
     }
 
@@ -930,34 +976,59 @@ app.post("/api/ocr-pdf", async (req, res) => {
     if (!apiKey) {
       return res.status(401).json({
         error: "NO_API_KEY",
-        message: "No se ha configurado ninguna clave de API de Gemini para realizar el OCR.",
+        message: "No se ha configurado ninguna clave de API de Gemini para realizar el análisis multimodal.",
       });
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
 
-    const modelName = "gemini-3.7-flash";
+    const modelName = sanitizeGeminiModel(customModel || "gemini-3.6-flash");
 
-    const promptText = `Actúa como un motor de Reconocimiento Óptico de Caracteres (OCR) y análisis de documentos técnicos de máxima precisión.
-Transcribe fielmente TODO el texto, enunciados de exámenes, opciones de respuesta, tablas, fórmulas, epígrafes y contenido didáctico de este documento.
-Reglas:
-1. Extrae íntegramente todo el contenido textual visible, respetando el orden de lectura y la estructura en párrafos/secciones.
-2. Si contiene preguntas tipo test o problemas, transcribe con exactitud cada pregunta, sus opciones (A, B, C, D) y cualquier solución o justificación visible.
-3. NO agregues introducciones, NO hagas resúmenes ni omitas párrafos. Devuelve únicamente el texto transcrito y estructurado en Markdown limpio.`;
+    const promptText = `Actúa como un motor de Document Understanding y Reconocimiento Multimodal de máxima precisión para oposiciones y temática técnica.
+El documento o capturas suministradas contienen texto digitalizado, capturas de pantalla, esquemas, preguntas de examen, tablas o fórmulas.
+Instrucciones de transcripción:
+1. Extrae y transcribe íntegramente todo el contenido textual visible, tablas, fórmulas y diagramas explicativos, respetando el orden de lectura y la estructura en párrafos y secciones.
+2. Si el documento contiene preguntas tipo test, problemas o ejercicios: transcribe cada enunciado con exactitud, todas sus opciones (A, B, C, D), la respuesta correcta indicada o deducible y su justificación si está presente.
+3. Formatea la salida en Markdown limpio, utilizando encabezados (##, ###), listas estructuradas y tablas Markdown fieles.
+4. NO omitas contenido, NO agregues introducciones superfluas ni resúmenes. Devuelve exclusivamente la transcripción fiel y estructurada del documento.`;
+
+    const contents: any[] = [];
+
+    if (Array.isArray(pageImages) && pageImages.length > 0) {
+      // Process multi-page rendered screenshots / canvas images
+      for (const img of pageImages) {
+        const cleanImg = img.includes(",") ? img.split(",")[1] : img;
+        contents.push({
+          inlineData: {
+            mimeType: "image/jpeg",
+            data: cleanImg,
+          },
+        });
+      }
+    } else if (fileBase64) {
+      const cleanData = fileBase64.includes(",") ? fileBase64.split(",")[1] : fileBase64;
+      contents.push({
+        inlineData: {
+          mimeType: mimeType || "application/pdf",
+          data: cleanData,
+        },
+      });
+    }
+
+    contents.push({
+      text: promptText,
+    });
 
     const response = await generateWithGeminiRetry(ai, {
       model: modelName,
-      contents: [
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: fileBase64,
-          },
-        },
-        {
-          text: promptText,
-        },
-      ],
+      contents,
     });
 
     const transcribedText = response.text || "";
@@ -973,12 +1044,13 @@ Reglas:
       text: transcribedText,
       fileName,
       model: modelName,
+      pagesCount: Array.isArray(pageImages) ? pageImages.length : 1,
     });
   } catch (error: any) {
-    console.error("Error en servicio OCR:", error);
+    console.error("Error en servicio OCR / Document Understanding:", error);
     res.status(500).json({
       error: "OCR_ERROR",
-      message: error.message || "Fallo durante el reconocimiento óptico de caracteres (OCR).",
+      message: error.message || "Fallo durante el reconocimiento multimodal del documento.",
     });
   }
 });
@@ -1016,7 +1088,14 @@ app.post("/api/suggest-depth", async (req, res) => {
     }
 
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
       const fastModel = "gemini-flash-latest";
 
       const prePrompt = `Analiza este tema o índice: "${topic.substring(0, 500)}". Responde ÚNICAMENTE con un número entero entre 2 y 15, que represente la cantidad ideal de subapartados técnicos necesarios para explicarlo en profundidad. No des explicaciones, solo el número.`;

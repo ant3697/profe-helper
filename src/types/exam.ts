@@ -38,6 +38,8 @@ export interface UploadedDocument {
   text: string;
   role: "base" | "exam";
   timestamp: number;
+  size?: number;
+  active?: boolean;
 }
 
 export interface ThematicGroup {

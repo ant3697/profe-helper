@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { HelpCircle, Check, X as XIcon, Lightbulb, Flag } from "lucide-react";
 import { ExamQuestion, EvaluationMode } from "../types/exam";
+import { cleanOptionText } from "../utils/examParsers";
 
 interface QuestionCardProps {
   question: ExamQuestion;
@@ -151,7 +152,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               <span className="font-bold text-amber-500 shrink-0 font-mono">
                 {letter})
               </span>
-              <span className="flex-1 leading-relaxed">{optText}</span>
+              <span className="flex-1 leading-relaxed">{cleanOptionText(optText)}</span>
 
               {/* Status Icons */}
               {isInstant && isAnswered && (

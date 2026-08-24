@@ -14,6 +14,9 @@ import {
   Layers,
   Settings,
   Cpu,
+  RefreshCw,
+  ArrowLeftRight,
+  FileCheck,
 } from "lucide-react";
 import { DifficultyLevel, UploadedDocument, CreativityStyle } from "../types/exam";
 import { AIProviderConfig } from "../types/aiProviders";
@@ -25,8 +28,10 @@ interface ConfigPanelProps {
   uploadedFiles: UploadedDocument[];
   onUploadFiles: (files: FileList | File[]) => void;
   onRemoveFile: (id: string) => void;
+  onToggleFileActive?: (id: string) => void;
+  onTransferDocumentToTopic?: (file: UploadedDocument) => void;
   onClearFiles: () => void;
-  onSelectDocument: (file: UploadedDocument) => void;
+  onSelectDocument: (file: UploadedDocument, preferredMode?: "html" | "markdown" | "plain") => void;
   selectedDocumentId: string | null;
   pastedText: string;
   onPastedTextChange: (text: string) => void;
@@ -45,6 +50,8 @@ interface ConfigPanelProps {
   onOpenThematicBuilder: () => void;
   onRequestGenerate: () => void;
   isLoading: boolean;
+  isProcessingFiles?: boolean;
+  processingStatusText?: string;
 }
 
 export const ConfigPanel: React.FC<ConfigPanelProps> = ({
@@ -54,6 +61,8 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   uploadedFiles,
   onUploadFiles,
   onRemoveFile,
+  onToggleFileActive,
+  onTransferDocumentToTopic,
   onClearFiles,
   onSelectDocument,
   selectedDocumentId,
@@ -74,6 +83,8 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   onOpenThematicBuilder,
   onRequestGenerate,
   isLoading,
+  isProcessingFiles = false,
+  processingStatusText = "",
 }) => {
   const [fileSort, setFileSort] = useState<string>("time-desc");
   const [isMainDragOver, setIsMainDragOver] = useState(false);
@@ -228,42 +239,87 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               onDragEnter={handleMainDragEnter}
               onDragOver={handleMainDragOver}
               onDragLeave={handleMainDragLeave}
-              onDrop={handleMainDrop}
-              onClick={() => fileDropInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1.5 group select-none bg-alt ${
+              onDrop={!isProcessingFiles ? handleMainDrop : undefined}
+              onClick={() => !isProcessingFiles && fileDropInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 group select-none ${
                 isMainDragOver
                   ? "border-amber-500 bg-amber-500/10 ring-2 ring-amber-500/30 scale-[1.01]"
-                  : "border-border-default hover:border-amber-500/80"
+                  : isProcessingFiles
+                  ? "border-amber-500 bg-amber-500/10 cursor-wait"
+                  : "border-border-default bg-alt hover:border-amber-500/80"
               }`}
             >
               <input
                 type="file"
                 ref={fileDropInputRef}
                 multiple
-                accept=".pdf,.txt,.html,.htm,.md,.json,.gift"
+                accept=".pdf,.md,.txt,.gift,.png,.jpg,.jpeg,.webp,.json"
                 className="hidden"
                 onChange={(e) => e.target.files && onUploadFiles(e.target.files)}
               />
-              <UploadCloud
-                className={`w-8 h-8 transition-transform pointer-events-none ${
-                  isMainDragOver ? "text-amber-400 scale-125 animate-bounce" : "text-amber-500 group-hover:scale-110"
-                }`}
-              />
-              <p className="text-xs font-bold text-text-primary pointer-events-none mt-0.5">
-                {isMainDragOver
-                  ? "¡Suelta los archivos aquí!"
-                  : "Arrastra PDFs, TXTs o .GIFT (Contexto)"}
-              </p>
-              <p className="text-[11px] text-text-muted pointer-events-none">
-                La aplicación detectará si es Temario o Examen Anticolisión.
-              </p>
-              <button
-                type="button"
-                className="mt-2 text-xs font-semibold text-text-primary bg-surface px-4 py-1.5 rounded-lg border border-border-default group-hover:border-amber-500 transition-colors pointer-events-none shadow-xs"
-              >
-                Explorar Archivos...
-              </button>
+              {isProcessingFiles ? (
+                <div className="flex flex-col items-center justify-center py-2 space-y-2 text-center animate-pulse">
+                  <div className="w-14 h-14 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-inner">
+                    <RefreshCw className="w-7 h-7 animate-spin text-amber-500" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-amber-500 dark:text-amber-400 flex items-center justify-center gap-1.5">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                      Procesando documento...
+                    </p>
+                    <p className="text-[11px] text-text-muted max-w-[280px] mx-auto leading-relaxed">
+                      {processingStatusText ||
+                        "Detectado documento con capturas de imagen / escaneado. Analizando con Gemini Multimodal (Document Understanding)..."}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <UploadCloud
+                    className={`w-8 h-8 transition-transform pointer-events-none ${
+                      isMainDragOver ? "text-amber-400 scale-125 animate-bounce" : "text-amber-500 group-hover:scale-110"
+                    }`}
+                  />
+                  <p className="text-xs font-bold text-text-primary pointer-events-none mt-0.5">
+                    {isMainDragOver
+                      ? "¡Suelta los archivos aquí!"
+                      : "Arrastra PDFs (Digitales o Capturas), Imágenes o .GIFT"}
+                  </p>
+                  <p className="text-[11px] text-text-muted pointer-events-none">
+                    Reconocimiento multimodal estructurado en formato Markdown (.md)
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-1 mt-0.5 pointer-events-none">
+                    {["PDF", "MD", "TXT", "PNG", "JPG", "GIFT"].map((ext) => (
+                      <span
+                        key={ext}
+                        className="text-[9px] font-mono font-bold bg-alt border border-border-default px-1.5 py-0.5 rounded text-text-secondary"
+                      >
+                        .{ext}
+                      </span>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="mt-2 text-xs font-semibold text-text-primary bg-surface px-4 py-1.5 rounded-lg border border-border-default group-hover:border-amber-500 transition-colors pointer-events-none shadow-xs"
+                  >
+                    Explorar Archivos...
+                  </button>
+                </>
+              )}
             </div>
+
+            {/* Processing banner if active */}
+            {isProcessingFiles && (
+              <div className="flex items-center gap-2.5 px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-500 text-xs shadow-xs">
+                <RefreshCw className="w-4 h-4 animate-spin text-amber-500 shrink-0" />
+                <div className="flex-1 truncate">
+                  <span className="font-bold">Reconocimiento RAG en curso: </span>
+                  <span className="text-text-muted text-[11px]">
+                    {processingStatusText || "Detectado documento con capturas..."}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Uploaded Files List */}
             {sortedFiles.length > 0 && (
@@ -306,77 +362,141 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   </select>
                 </div>
 
-                <ul className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                <ul className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {sortedFiles.map((file) => {
                     const isExam = file.role === "exam";
                     const isSelected = selectedDocumentId === file.id;
+                    const isActive = file.active !== false;
 
                     return (
                       <li
                         key={file.id}
                         onClick={() => onSelectDocument(file)}
-                        className={`flex justify-between items-center border rounded-lg px-3 py-2 text-xs transition-all cursor-pointer ${
-                          isExam
-                            ? "bg-amber-500/10 border-amber-500/40 hover:bg-amber-500/20"
-                            : "bg-blue-500/10 border-blue-500/40 hover:bg-blue-500/20"
-                        } ${
+                        className={`flex items-center justify-between px-3.5 py-2.5 rounded-2xl border transition-all cursor-pointer select-none text-xs group ${
                           isSelected
-                            ? isExam
-                              ? "ring-2 ring-amber-500 shadow-md font-bold bg-amber-500/20"
-                              : "ring-2 ring-blue-500 shadow-md font-bold bg-blue-500/20"
-                            : ""
+                            ? "bg-[#16120b] border-2 border-amber-500 shadow-md shadow-amber-500/10"
+                            : !isActive
+                            ? "bg-surface/50 border-border-default opacity-60"
+                            : "bg-surface/90 border-border-default hover:border-amber-500/50"
                         }`}
                         title={
                           isSelected
-                            ? `Clic para deseleccionar y cerrar la visualización de ${file.name}`
+                            ? `Clic para deseleccionar ${file.name}`
                             : isExam
                             ? "Clic para ver e interactuar con el examen"
-                            : "Clic para leer y explorar el documento base en el panel principal"
+                            : "Clic para leer y explorar el documento base"
                         }
                       >
-                        <div className="flex flex-col min-w-0 flex-1 mr-2 gap-1">
+                        {/* Left: Checkbox + Green File Icon + Title */}
+                        <div className="flex items-center gap-2.5 truncate pr-2 min-w-0 flex-1">
+                          <input
+                            type="checkbox"
+                            checked={isActive}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              if (onToggleFileActive) {
+                                onToggleFileActive(file.id);
+                              }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 rounded text-amber-500 bg-surface border-border-default focus:ring-amber-500/30 cursor-pointer shrink-0 accent-amber-500"
+                            title={
+                              isActive
+                                ? "Habilitado en la generación (clic para desactivar)"
+                                : "Deshabilitado en la generación (clic para activar)"
+                            }
+                          />
+
+                          <FileCheck
+                            className={`w-4 h-4 shrink-0 ${
+                              isActive ? "text-emerald-500" : "text-text-muted"
+                            }`}
+                          />
+
                           <span
-                            className="truncate font-mono text-text-primary text-xs font-semibold"
+                            className={`truncate font-semibold text-xs ${
+                              isActive
+                                ? "text-text-primary"
+                                : "text-text-muted line-through"
+                            }`}
                             title={file.name}
                           >
                             {file.name}
                           </span>
-                          <div className="flex items-center gap-1.5">
-                            {isExam ? (
-                              <span className="text-[9px] font-bold bg-amber-500 text-black px-1.5 py-0.5 rounded shadow-xs flex items-center gap-1">
-                                <Shield className="w-2.5 h-2.5" />
-                                EXAMEN (ANTICOLISIÓN)
-                              </span>
-                            ) : (
-                              <span className="text-[9px] font-bold bg-blue-600 text-white px-1.5 py-0.5 rounded shadow-xs">
-                                📚 BASE DOCUMENTAL
-                              </span>
-                            )}
-                            {isSelected && (
-                              <span
-                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                  isExam
-                                    ? "bg-amber-500/20 text-amber-700 dark:text-amber-300"
-                                    : "bg-blue-500/20 text-blue-700 dark:text-blue-300"
-                                }`}
-                              >
-                                👁️ VIENDO
-                              </span>
-                            )}
-                          </div>
+
+                          {isExam && (
+                            <span className="text-[9px] font-bold bg-amber-500 text-black px-1.5 py-0.2 rounded shrink-0 shadow-xs">
+                              EXAMEN
+                            </span>
+                          )}
+
+                          {!isActive && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-alt text-text-muted border border-border-default shrink-0">
+                              DESACTIVADO
+                            </span>
+                          )}
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRemoveFile(file.id);
-                          }}
-                          className="text-text-muted hover:text-red-500 p-1 rounded transition-colors hover:bg-surface border border-transparent hover:border-red-500/30 cursor-pointer"
-                          title="Eliminar archivo"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Right: MD + HTML + Swap + Delete */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectDocument(file, "markdown");
+                            }}
+                            className={`text-[10px] font-black px-2 py-0.5 rounded border transition-all cursor-pointer ${
+                              isSelected
+                                ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                                : "bg-blue-950/70 text-blue-400 hover:bg-blue-600 hover:text-white border-blue-800/40"
+                            }`}
+                            title="Ver documento en formato Markdown (.md)"
+                          >
+                            MD
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectDocument(file, "html");
+                            }}
+                            className={`text-[10px] font-black px-2 py-0.5 rounded border transition-all cursor-pointer ${
+                              isSelected
+                                ? "bg-amber-500 text-black border-amber-500 shadow-xs"
+                                : "bg-amber-950/70 text-amber-400 hover:bg-amber-500 hover:text-black border-amber-800/40"
+                            }`}
+                            title="Ver documento en formato HTML maquetado A4"
+                          >
+                            HTML
+                          </button>
+
+                          {onTransferDocumentToTopic && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onTransferDocumentToTopic(file);
+                              }}
+                              className="text-text-muted hover:text-amber-500 p-1 rounded transition-colors hover:bg-amber-500/10 cursor-pointer"
+                              title="Copiar / Enviar este documento al módulo Experto IA (Temarios)"
+                            >
+                              <ArrowLeftRight className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRemoveFile(file.id);
+                            }}
+                            className="text-text-muted hover:text-red-500 p-1 rounded transition-colors hover:bg-red-500/10 cursor-pointer"
+                            title="Eliminar archivo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </li>
                     );
                   })}
