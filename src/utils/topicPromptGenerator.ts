@@ -614,9 +614,13 @@ EPÍGRAFE A REDACTAR AHORA:
 - Título: ${sectionPlan.title}
 ${sectionPlan.description ? `- Guía de contenido obligatorio: ${sectionPlan.description}` : ""}
 
-DIRECTRICES CRÍTICAS DE ESTILO Y FORMATO:
+DIRECTRICES CRÍTICAS DE ESTILO Y ESTRUCTURA MODULAR (ALTA DENSIDAD PEDAGÓGICA):
 1. DENSIDAD Y EXTENSIÓN: Tienes un presupuesto de tokens dedicado EXCLUSIVAMENTE a este epígrafe. No sintetices en exceso. ${densityGuidelines}
-2. FORMATO HTML: Devuelve ÚNICAMENTE el fragmento HTML correspondiente a este epígrafe.
+2. ESTRUCTURA DIDÁCTICA POR CAPAS (SCAFFOLDING EN EL EPÍGRAFE):
+   - Capa 1 (Idea Fuerza): Comienza el epígrafe con 1-2 párrafos directos estableciendo la idea clave y los fundamentos operativos del subtema.
+   - Capa 2 (Matriz Técnica de Alta Densidad): En lugar de explicaciones redundantes o prosa de relleno, organiza los datos cuantitativos, normativas, presiones, tolerancias o variables en una matriz o tabla estructurada con clase "sigre-table" (o formato tabla estándar con cabeceras claras).
+   - Capa 3 (Procedimiento Práctico y Operaciones): Desarrolla los pasos de ejecución, diagnóstico o cálculo en listas numeradas claras y operativas.
+3. FORMATO HTML: Devuelve ÚNICAMENTE el fragmento HTML correspondiente a este epígrafe.
    - Inicia con: \`<h3>${sectionPlan.sectionNumber}. ${sectionPlan.title}</h3>\`
    - Desarrolla el texto con párrafos \`<p>\`, listas \`<ul>\` o \`<ol>\`.
    - Si incluye fórmulas, usa \`<div class="formula-box">\` con texto plano de teclado estándar (sqrt(), *, /, ^, °). PROHIBIDO LaTeX o signos $.
@@ -625,7 +629,7 @@ ${activeOptions.pedagogic ? '   - Inserta un `<div class="apuntes-box">` con "Ap
 ${activeOptions.mnemotecnias ? '   - Si procede, inserta una `<div class="mnemo-box">` con una regla mnemotécnica útil.' : ""}
 ${
   activeOptions.recall
-    ? `3. AUTOEVALUACIÓN RÁPIDA (ACTIVE RECALL):
+    ? `4. AUTOEVALUACIÓN RÁPIDA (ACTIVE RECALL):
    - Al finalizar el apartado, inserta OBLIGATORIAMENTE un \`<div class="recall-box">\` con el encabezado \`<strong>Autoevaluación Rápida</strong>\`.
    - Incluye EXACTAMENTE ${numRecall} preguntas tipo test o de respuesta concreta.
    - Numeración CORRELATIVA GLOBAL: Inicia las preguntas a partir del número ${startQuestionNumber} (ejemplo: \`<li><strong>${startQuestionNumber}.</strong> ¿Cuál es...?</li>\`, \`<li><strong>${startQuestionNumber + 1}.</strong> ...</li>\`).

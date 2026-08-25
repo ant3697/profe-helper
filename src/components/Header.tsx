@@ -12,6 +12,7 @@ import {
   Cpu,
   FileQuestion,
   BookOpen,
+  GraduationCap,
 } from "lucide-react";
 import { AIProviderConfig } from "../types/aiProviders";
 
@@ -26,8 +27,8 @@ interface HeaderProps {
   isExtendedMode?: boolean;
   onToggleExtendedMode?: () => void;
   onOpenOmrScanner?: () => void;
-  currentAppMode?: "exams" | "topic_builder";
-  onAppModeChange?: (mode: "exams" | "topic_builder") => void;
+  currentAppMode?: "exams" | "topic_builder" | "sigre_curricular";
+  onAppModeChange?: (mode: "exams" | "topic_builder" | "sigre_curricular") => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -140,6 +141,45 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 (Temarios)
+              </span>
+            </div>
+          </button>
+
+          {/* Button: SIGRE Curricular (FP & UDs) */}
+          <button
+            type="button"
+            onClick={() => onAppModeChange("sigre_curricular")}
+            className={`group px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-2.5 cursor-pointer select-none ${
+              currentAppMode === "sigre_curricular"
+                ? "bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-black shadow-lg shadow-amber-500/25 border border-amber-300/50 font-black"
+                : "bg-transparent hover:bg-white/5 text-slate-400 hover:text-slate-200 border border-transparent"
+            }`}
+          >
+            <GraduationCap
+              className={`w-4 h-4 shrink-0 transition-colors ${
+                currentAppMode === "sigre_curricular"
+                  ? "text-black"
+                  : "text-amber-400"
+              }`}
+            />
+            <div className="flex flex-col text-left leading-tight">
+              <span
+                className={`text-xs tracking-tight ${
+                  currentAppMode === "sigre_curricular"
+                    ? "font-black text-black"
+                    : "font-bold text-slate-300 group-hover:text-white"
+                }`}
+              >
+                SIGRE Curricular
+              </span>
+              <span
+                className={`text-xs tracking-tight ${
+                  currentAppMode === "sigre_curricular"
+                    ? "font-black text-black"
+                    : "font-bold text-slate-400 group-hover:text-slate-200"
+                }`}
+              >
+                (FP & HDI)
               </span>
             </div>
           </button>

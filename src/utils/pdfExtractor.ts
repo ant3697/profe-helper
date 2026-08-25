@@ -1,4 +1,5 @@
 import * as pdfjsLib from "pdfjs-dist";
+import mammoth from "mammoth";
 
 // Configure local worker URL bundled by Vite (guarantees exact version match)
 if (typeof window !== "undefined") {
@@ -318,6 +319,16 @@ export async function extractTextFromFile(
 
   if (mime === "application/pdf" || lowerName.endsWith(".pdf")) {
     return extractTextFromPDF(file, onStatus, customApiKey);
+  }
+
+  if (
+    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    lowerName.endsWith(".docx")
+  ) {
+    onStatus?.(`Extrayendo texto del documento DOCX ${file.name}...`);
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return result.value.trim();
   }
 
   if (

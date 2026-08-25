@@ -97,6 +97,7 @@ import {
 } from "../../utils/topicPromptGenerator";
 import { downloadBlob } from "../../utils/fileHelpers";
 import { exportHtmlToDocx } from "../../utils/docxExport";
+import { robustJsonParse } from "../../utils/jsonRepair";
 import { ModularPlannerModal } from "./ModularPlannerModal";
 
 export interface TopicDebugLog {
@@ -628,8 +629,7 @@ export const TopicGeneratorView: React.FC<TopicGeneratorViewProps> = ({
       let parsed: TopicOutlineBlueprint | null = null;
 
       try {
-        const cleanJsonStr = rawText.replace(/```(?:json)?\s*([\s\S]*?)\s*```/i, "$1").trim();
-        parsed = JSON.parse(cleanJsonStr);
+        parsed = robustJsonParse<TopicOutlineBlueprint>(rawText);
       } catch {
         // Fallback: build default blueprint
         const fallbackSections: TopicSectionPlan[] = Array.from({ length: subapartados }, (_, i) => ({

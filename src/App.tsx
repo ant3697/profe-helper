@@ -19,6 +19,7 @@ import { DocumentViewerPanel } from "./components/DocumentViewerPanel";
 import { OmrSheetModal } from "./components/OmrSheetModal";
 import { ZipgradeSuiteModal } from "./components/zipgrade/ZipgradeSuiteModal";
 import { TopicGeneratorView } from "./components/topicGenerator/TopicGeneratorView";
+import { SigreCurricularView } from "./components/sigre/SigreCurricularView";
 
 import {
   DifficultyLevel,
@@ -171,7 +172,7 @@ export default function App() {
   const [lastUsage, setLastUsage] = useState<GenerationTokenUsage | null>(null);
 
   // Modals & UI Controls
-  const [appMode, setAppMode] = useState<"exams" | "topic_builder">("exams");
+  const [appMode, setAppMode] = useState<"exams" | "topic_builder" | "sigre_curricular">("exams");
   const [isThematicModalOpen, setIsThematicModalOpen] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isResultsModalOpen, setIsResultsModalOpen] = useState(false);
@@ -1094,6 +1095,18 @@ export default function App() {
             onShowToast={showToast}
             onSendExamToApp={handleReceiveExamFromTopic}
             onTransferDocumentToExams={handleTransferDocumentToExams}
+            onOpenAIModal={() => setIsAIModalOpen(true)}
+          />
+        </div>
+
+        {/* View Mode: SIGRE Curricular (FP & UDs) - Preserved in DOM across mode changes */}
+        <div className={appMode === "sigre_curricular" ? "block" : "hidden"}>
+          <SigreCurricularView
+            theme={theme}
+            activeProviderConfig={
+              aiSettings.providers[aiSettings.activeProviderId] ||
+              DEFAULT_AI_PROVIDERS[aiSettings.activeProviderId]
+            }
             onOpenAIModal={() => setIsAIModalOpen(true)}
           />
         </div>

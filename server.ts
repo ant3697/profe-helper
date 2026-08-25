@@ -124,6 +124,66 @@ function sanitizeExamQuestions(data: any): any {
   return data;
 }
 
+// Helper to sanitize bad escapes and control characters inside JSON strings
+function repairJsonEscapes(str: string): string {
+  let result = "";
+  let inString = false;
+  let isEscaped = false;
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    if (!inString) {
+      if (char === '"') {
+        inString = true;
+        isEscaped = false;
+        result += char;
+      } else {
+        result += char;
+      }
+    } else {
+      if (isEscaped) {
+        isEscaped = false;
+        if (
+          char === '"' ||
+          char === "\\" ||
+          char === "/" ||
+          char === "b" ||
+          char === "f" ||
+          char === "n" ||
+          char === "r" ||
+          char === "t"
+        ) {
+          result += char;
+        } else if (char === "u" && /^[0-9a-fA-F]{4}$/.test(str.substring(i + 1, i + 5))) {
+          result += char;
+        } else {
+          result += "\\" + char;
+        }
+      } else {
+        if (char === "\\") {
+          isEscaped = true;
+          result += char;
+        } else if (char === '"') {
+          inString = false;
+          result += char;
+        } else if (char === "\n") {
+          result += "\\n";
+        } else if (char === "\r") {
+          result += "\\r";
+        } else if (char === "\t") {
+          result += "\\t";
+        } else if (char.charCodeAt(0) < 32) {
+          result += " ";
+        } else {
+          result += char;
+        }
+      }
+    }
+  }
+  if (isEscaped) result += "\\";
+  if (inString) result += '"';
+  return result.replace(/,(\s*[}\]])/g, "$1");
+}
+
 // Helper to extract and auto-repair JSON from LLM text responses
 function extractJSONFromText(text: string): any {
   if (!text || typeof text !== "string") return null;
@@ -139,7 +199,11 @@ function extractJSONFromText(text: string): any {
   if (markdownMatch && markdownMatch[1]) {
     try {
       return sanitizeExamQuestions(JSON.parse(markdownMatch[1].trim()));
-    } catch {}
+    } catch {
+      try {
+        return sanitizeExamQuestions(JSON.parse(repairJsonEscapes(markdownMatch[1].trim())));
+      } catch {}
+    }
   }
 
   // 3. Find leftmost { and rightmost }
@@ -149,8 +213,17 @@ function extractJSONFromText(text: string): any {
     const candidate = trimmed.substring(firstBrace, lastBrace + 1);
     try {
       return sanitizeExamQuestions(JSON.parse(candidate));
-    } catch {}
+    } catch {
+      try {
+        return sanitizeExamQuestions(JSON.parse(repairJsonEscapes(candidate)));
+      } catch {}
+    }
   }
+
+  // 4. Try repaired trimmed text
+  try {
+    return sanitizeExamQuestions(JSON.parse(repairJsonEscapes(trimmed)));
+  } catch {}
 
   // 4. Auto-repair for truncated JSON (e.g. cut off mid-stream or token boundary)
   if (firstBrace !== -1) {
@@ -1388,7 +1461,7 @@ app.post("/api/generate-content", async (req, res) => {
     if (providerId === "gemini" || providerId === "temp_demo") {
       const apiKey = requestApiKey || process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        return res.status(401).json({ error: "NO_API_KEY", message: "Clave de API requerida." });
+        return res.status(401).json({ error: "NO_API_KEY", message: "Clave de API de Gemini no configurada o no encontrada." });
       }
 
       const ai = new GoogleGenAI({
@@ -1402,11 +1475,23 @@ app.post("/api/generate-content", async (req, res) => {
         contents: prompt,
         config: {
           temperature,
+          maxOutputTokens: 65536,
           ...(jsonMode ? { responseMimeType: "application/json" } : {}),
         },
       });
 
-      const text = response.text || "";
+      let text = "";
+      try {
+        text = response.text || "";
+      } catch {
+        text = "";
+      }
+      if (!text && response.candidates?.[0]?.content?.parts) {
+        text = response.candidates[0].content.parts
+          .map((p: any) => (typeof p.text === "string" ? p.text : ""))
+          .join("");
+      }
+
       const usage = response.usageMetadata
         ? {
             promptTokens: response.usageMetadata.promptTokenCount || 0,

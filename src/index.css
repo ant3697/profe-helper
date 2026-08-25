@@ -240,3 +240,145 @@ body {
     border-left: 4px solid #f59e0b !important;
   }
 }
+
+/* ==========================================================================
+   SIGRE & Educational Content Table Styling (High-Contrast, Clean Borders)
+   ========================================================================== */
+.sigre-ud-page table,
+.sigre-table,
+.ud-content table,
+.tabular-data table,
+div[dangerouslySetInnerHTML] table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  margin: 18px 0 !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05) !important;
+}
+
+.sigre-ud-page thead,
+.sigre-table thead,
+.ud-content thead,
+div[dangerouslySetInnerHTML] thead {
+  background: #f1f5f9 !important;
+}
+
+.sigre-ud-page th,
+.sigre-table th,
+.ud-content th,
+div[dangerouslySetInnerHTML] th {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+  font-weight: 800 !important;
+  text-align: left !important;
+  padding: 11px 16px !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+  border-right: 1px solid #e2e8f0 !important;
+  font-size: 12.5px !important;
+  letter-spacing: 0.2px !important;
+}
+
+.sigre-ud-page th:last-child,
+.sigre-table th:last-child,
+.ud-content th:last-child,
+div[dangerouslySetInnerHTML] th:last-child {
+  border-right: none !important;
+}
+
+.sigre-ud-page td,
+.sigre-table td,
+.ud-content td,
+div[dangerouslySetInnerHTML] td {
+  padding: 10px 16px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  border-right: 1px solid #e2e8f0 !important;
+  color: #334155 !important;
+  vertical-align: top !important;
+  font-size: 13px !important;
+}
+
+.sigre-ud-page td:last-child,
+.sigre-table td:last-child,
+.ud-content td:last-child,
+div[dangerouslySetInnerHTML] td:last-child {
+  border-right: none !important;
+}
+
+.sigre-ud-page tbody tr:last-child td,
+.sigre-table tbody tr:last-child td,
+.ud-content tbody tr:last-child td,
+div[dangerouslySetInnerHTML] tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+.sigre-ud-page tbody tr:nth-child(even),
+.sigre-table tbody tr:nth-child(even),
+.ud-content tbody tr:nth-child(even),
+div[dangerouslySetInnerHTML] tbody tr:nth-child(even) {
+  background-color: #f8fafc !important;
+}
+
+.sigre-ud-page tbody tr:hover,
+.sigre-table tbody tr:hover,
+.ud-content tbody tr:hover,
+div[dangerouslySetInnerHTML] tbody tr:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* Pedagogical Callout Boxes inside SIGRE A4 / Preview */
+.apuntes-box {
+  margin: 16px 0;
+  padding: 14px 18px;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  border-radius: 0 8px 8px 0;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.recall-box {
+  margin: 16px 0;
+  padding: 14px 18px;
+  background: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  border-radius: 0 8px 8px 0;
+  color: #1e40af;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.mnemo-box {
+  margin: 16px 0;
+  padding: 14px 18px;
+  background: #faf5ff;
+  border-left: 4px solid #a855f7;
+  border-radius: 0 8px 8px 0;
+  color: #6b21a8;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.glosario-box {
+  margin: 20px 0;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.autoeval-box {
+  margin: 20px 0;
+  padding: 18px 22px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
