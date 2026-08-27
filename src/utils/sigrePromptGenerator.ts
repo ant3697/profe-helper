@@ -1,4 +1,97 @@
-import { SigreCurricularConfig, SigreUDItem, SigreUDData, SigrePedagogicalAuditResult } from "../types/sigre";
+// ...
+import { SigreCurricularConfig, SigreUDItem, SigreUDData, SigreUDCurricularData, SigrePedagogicalAuditResult } from "../types/sigre";
+
+/**
+ * Cleans LaTeX math syntax ($...$, $$, \text{}, \times, \Omega, etc.) and converts it to clear plain-text math notation (+, -, *, /, ^, °C, Ω, etc.)
+ */
+export function cleanSigreLatexMath(input: string): string {
+  if (!input || typeof input !== "string") return input || "";
+  let text = input;
+
+  // 1. Fractions: \frac{a}{b} -> (a / b), \dfrac{a}{b} -> (a / b)
+  text = text.replace(/\\(?:d)?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, "($1 / $2)");
+
+  // 2. Square roots: \sqrt{x} -> sqrt(x)
+  text = text.replace(/\\sqrt\s*\{([^{}]+)\}/g, "sqrt($1)");
+
+  // 3. Degree Celsius and temperature units:
+  // e.g. ^\circ\text{ }^\circ\text{C}^{-1}, ^\circ\text{C}^{-1}, ^\circ\text{C}, ^{\circ}\text{C}, ^\circ C, \text{ }^\circ\text{C}
+  text = text.replace(/\^\{\\circ\}\s*(?:\\text\{\s*C\s*\}|C)/gi, "°C");
+  text = text.replace(/\^\\circ\s*(?:\\text\{\s*C\s*\}|C)/gi, "°C");
+  text = text.replace(/\\text\{\s*\^?\\circ\s*C\s*\}/gi, "°C");
+  text = text.replace(/\\text\{\s*°C\s*\}/gi, "°C");
+  text = text.replace(/\^\\circ/gi, "°");
+  text = text.replace(/\^\{\\circ\}/gi, "°");
+  text = text.replace(/\\circ/gi, "°");
+
+  // 4. Multiplication & Division operators:
+  text = text.replace(/\\times\b/g, " * ");
+  text = text.replace(/\\cdot\b/g, " * ");
+  text = text.replace(/\\div\b/g, " / ");
+  text = text.replace(/\\pm\b/g, " +/- ");
+  text = text.replace(/\\mp\b/g, " -/+ ");
+
+  // 5. Comparison operators:
+  text = text.replace(/\\le(?:q)?\b/g, " <= ");
+  text = text.replace(/\\ge(?:q)?\b/g, " >= ");
+  text = text.replace(/\\neq\b/g, " != ");
+  text = text.replace(/\\approx\b/g, " ≈ ");
+  text = text.replace(/\\equiv\b/g, " ≡ ");
+  text = text.replace(/\\propto\b/g, " ∝ ");
+  text = text.replace(/\\sim\b/g, " ~ ");
+
+  // 6. Greek letters & physical units:
+  text = text.replace(/\\Omega\b/g, "Ω");
+  text = text.replace(/\\omega\b/g, "ω");
+  text = text.replace(/\\mu\b/g, "µ");
+  text = text.replace(/\\Delta\b/g, "Δ");
+  text = text.replace(/\\delta\b/g, "δ");
+  text = text.replace(/\\alpha\b/g, "α");
+  text = text.replace(/\\beta\b/g, "β");
+  text = text.replace(/\\gamma\b/g, "γ");
+  text = text.replace(/\\theta\b/g, "θ");
+  text = text.replace(/\\lambda\b/g, "λ");
+  text = text.replace(/\\rho\b/g, "ρ");
+  text = text.replace(/\\sigma\b/g, "σ");
+  text = text.replace(/\\eta\b/g, "η");
+  text = text.replace(/\\phi\b/g, "φ");
+  text = text.replace(/\\pi\b/g, "π");
+  text = text.replace(/\\tau\b/g, "τ");
+  text = text.replace(/\\epsilon\b/g, "ε");
+  text = text.replace(/\\infty\b/g, "inf");
+
+  // 7. \text{...}, \mathrm{...}, \mathbf{...}, \mathit{...}
+  // Repeat to handle nested cases like \text{ }\Omega or \text{ }^\circ\text{C}
+  text = text.replace(/\\(?:text|mathrm|mathbf|mathit|textsf|boldsymbol)\s*\{([^{}]*)\}/g, "$1");
+  text = text.replace(/\\(?:text|mathrm|mathbf|mathit|textsf|boldsymbol)\s*\{([^{}]*)\}/g, "$1");
+
+  // 8. Superscripts & Subscripts:
+  // e.g. 10^{-3} -> 10^-3, ^{\circ} -> ^°, _{0} -> _0, ^{-1} -> ^-1
+  text = text.replace(/\^\{([^{}]+)\}/g, "^$1");
+  text = text.replace(/_\{([^{}]+)\}/g, "_$1");
+
+  // 9. TeX Spacing commands:
+  text = text.replace(/\\(?:quad|qquad)\b/g, "  ");
+  text = text.replace(/\\(?:,|;|!|\s)/g, " ");
+
+  // 10. Math block/inline markers: $$...$$, $...$, \(...\), \[...\]
+  text = text.replace(/\$\$([\s\S]+?)\$\$/g, "$1");
+  text = text.replace(/\$([^\$\n]+?)\$/g, "$1");
+  text = text.replace(/\\\(([\s\S]+?)\\\)/g, "$1");
+  text = text.replace(/\\\[([\s\S]+?)\\\]/g, "$1");
+
+  // 11. Normalize scientific notation spacing: e.g. " * 10^-3"
+  text = text.replace(/\s*\*\s*10\^/g, " * 10^");
+
+  // 12. Fix remaining unit artifacts:
+  text = text.replace(/°\s*C/g, "°C");
+  text = text.replace(/°\s*C\s*\^/g, "°C^");
+
+  // 13. Clean up multiple spaces (without stripping newlines)
+  text = text.replace(/[ \t]{2,}/g, " ");
+
+  return text;
+}
 
 /**
  * Builds prompt to analyze raw uploaded documents (PDF, DOCX, TXT, etc.)
@@ -131,7 +224,7 @@ ${fullContext.substring(0, 100000)}
 }
 
 /**
- * Builds prompt for MODULE 1: Full Unit (1.1 to 1.11) with full Pedagogical Auditing (6 Axes)
+ * Builds prompt for MODULE 1: Full Unit with 8-Section Master Index and High-Density Modular Scaffolding
  */
 export function buildSigreUDModule1Prompt(
   ud: SigreUDItem,
@@ -143,7 +236,7 @@ export function buildSigreUDModule1Prompt(
   const sesionesUd = ud.sesionesEstimadas || Math.round(horasUd / 2);
 
   return `Rol: Experto en diseño curricular, tecnología educativa y edición de contenido para Formación Profesional (Sistema SIGRE - Módulo 1: El Arquitecto Curricular).
-Tu misión es analizar el currículo oficial del módulo y generar la Unidad Didáctica elegida ("${ud.fullCode}") de forma completa, multifacética y lista para su uso, estructurada rigurosamente en tres secciones claras.
+Tu misión es analizar el currículo oficial del módulo y generar la Unidad Didáctica elegida ("${ud.fullCode}") de forma exhaustiva, modular y de altísima densidad de información.
 
 INFORMACIÓN DE ENTRADA Y CONTEXTO:
 - Módulo Formativo: ${config.moduloFormativo || "Módulo Formativo"} (${config.codigo || ""})
@@ -155,70 +248,101 @@ INFORMACIÓN DE ENTRADA Y CONTEXTO:
 - Nivel de Adhesión Curricular: ${config.adhesion}/5
 - Nivel de Destinatario: ${config.userLevel === 1 ? "Secundaria (ESO)" : config.userLevel === 2 ? "Bachillerato / FP" : config.userLevel === 3 ? "Grado Universitario" : "Oposiciones / Especialización"}
 
-ESTRUCTURA DE GENERACIÓN - SECCIÓN I: MATERIAL IMPRIMIBLE PARA EL ALUMNO (FORMATO LIBRO DE TEXTO):
+ESTRUCTURA DE GENERACIÓN - ÍNDICE MAESTRO ESTANDARIZADO Y MODULAR (8 SECCIONES OBLIGATORIAS):
 
-1.1. Título del Tema: Formato exacto "${ud.fullCode}".
-1.2. Breve Introducción: (Aprox. 150-200 palabras contextualizadas).
-1.3. Contenidos Específicos: Desglosados en:
-     - Conceptuales (Saber)
-     - Procedimentales (Saber hacer)
-     - Actitudinales (Saber ser)
-1.4. Objetivos Específicos de Aprendizaje: (Exactamente 5-8 objetivos SMART).
-1.5. Índice del Desarrollo del Tema: Guion completo y numerado.
-1.6. Desarrollo de los Apartados del Índice:
-     INSTRUCCIÓN CRÍTICA (REGLA INQUEBRANTABLE): Sigue exhaustivamente, uno por uno y en orden, el guion creado en el índice (1.5). Utiliza cada entrada como un subtítulo, manteniendo la numeración y el texto exactos. BAJO NINGUNA CIRCUNSTANCIA sustituyas el desarrollo real por un texto de resumen o un marcador de posición. Debes generar el contenido completo, riguroso y detallado para cada punto del índice.
-     - Aplica scaffolding didáctico en cada epígrafe:
-       * Idea fuerza / Síntesis ejecutiva.
-       * Tablas estructuradas con clase "sigre-table" con columnas de Parámetro/Componente, Criterio Operativo, Normativa/Tolerancia y Verificación.
-       * Procedimiento práctico paso a paso de taller/campo.
-       * Cajas de apoyo pedagógico:
-         - <div class="apuntes-box"><strong>💡 Apuntes del Experto:</strong> [Conexión y aplicación práctica]</div>
-         - <div class="recall-box"><strong>🧠 Autoevaluación Rápida (Active Recall):</strong> [Preguntas de recuperación activa]</div>
-         - <div class="mnemo-box"><strong>⚡ Regla Mnemotécnica:</strong> [Acrónimo o regla mnemotécnica]</div>
-1.7. Cuestionario de Autoevaluación:
-     Genera un mínimo de 20 preguntas variadas con una sección final de "Soluciones". En la sección de soluciones, la respuesta correcta debe aparecer en negrita con breve justificación.
-1.8. Diagrama de Flujo (Mermaid):
-     Reglas para el formato Mermaid:
-     - Orientación: Usa \`flowchart TD\`.
-     - Estructura: Para agrupar fases, utiliza la sintaxis de \`subgraph\` ("Fase 1: ...", "Fase 2: ...").
-     - Compatibilidad (CRÍTICO): Para conectar múltiples nodos a uno solo, define cada conexión en una línea separada. Usa siempre \`A --> C;\` \`B --> C;\`.
-     - Caracteres Especiales (CRÍTICO): Si el texto de un nodo contiene caracteres especiales (/, (, etc.), enciérralo siempre entre comillas dobles (").
-1.9. Mapa Mental (OPML):
-     Reglas para el formato OPML:
-     - Cabecera (<head>): Rellena los metadatos. Genera las fechas en formato RFC 822. ownerName: "IES Al-Baytar".
-     - Cuerpo (<body>): Estructura el contenido jerárquicamente usando \`<outline text="...">\`.
-1.10. Conclusiones y Síntesis del Tema: Resumen de ideas clave y relevancia profesional.
-1.11. Relación con Otras Unidades (Intradisciplinaridad):
-      Redacta un breve párrafo explicando cómo los contenidos de esta UD se relacionan con los de otras UDs del mismo módulo.
+Debes estructurar el tema bajo este índice genérico maestro exacto:
+1. ÍNDICE GENERAL DEL TEMA
+2. INTRODUCCIÓN Y CONTEXTUALIZACIÓN
+3. CONTENIDOS ESPECÍFICOS (Conceptuales, Procedimentales, Actitudinales)
+4. OBJETIVOS ESPECÍFICOS DE APRENDIZAJE (SMART)
+5. DESARROLLO
+   5.1. [Título del sub-epígrafe 1 adaptado al tema]
+   5.2. [Título del sub-epígrafe 2 adaptado al tema]
+   5.3. [Título del sub-epígrafe 3 adaptado al tema]
+   5.4. [Título del sub-epígrafe 4 adaptado al tema]
+   (Generar entre 4 y 6 sub-epígrafes 5.1 a 5.x adaptados a la temática y carga horaria)
+6. REFERENCIAS NORMATIVAS
+7. BIBLIOGRAFÍA Y WEBGRAFÍA
+8. CONCLUSIONES Y SÍNTESIS DEL TEMA
+
+PAUTAS DE DESARROLLO MODULAR PARA CADA APARTADO (MÁXIMA DENSIDAD Y RIGOR TÉCNICO):
+
+- 1. ÍNDICE GENERAL: Guion completo reflejando los apartados 1 a 8 y el desglose pormenorizado de los epígrafes 5.1, 5.2, 5.3...
+- 2. INTRODUCCIÓN Y CONTEXTUALIZACIÓN: (200-300 palabras). Justificación didáctica, importancia en el perfil profesional, sector productivo y aplicación real en instalaciones/entorno laboral.
+- 3. CONTENIDOS ESPECÍFICOS:
+     * Conceptuales (Saber): Principios, clasificaciones, fórmulas y fundamentos teóricos.
+     * Procedimentales (Saber hacer): Métodos de cálculo, montaje, ajuste, pruebas, diagnóstico y mantenimiento.
+     * Actitudinales (Saber ser): Seguridad, rigor técnico, sostenibilidad, orden y prevención ambiental.
+- 4. OBJETIVOS ESPECÍFICOS DE APRENDIZAJE (SMART): (Exactamente 5-8 objetivos redactados con taxonomía de Bloom y verbos de acción medibles).
+- 5. DESARROLLO (5.1, 5.2, 5.3...):
+     INSTRUCCIÓN CRÍTICA: Desarrolla cada sub-epígrafe 5.x de forma modular, profunda y exhaustiva, sin omitir ni resumir contenido.
+     Para cada sub-epígrafe 5.x incluye:
+     a) Idea fuerza / Síntesis ejecutiva del epígrafe.
+     b) Fundamentos técnicos y formulación aplicada (si procede).
+     c) Matriz Técnica de Parámetros/Tolerancias con tabla HTML estilizada <table class="sigre-table"> (Columnas: Parámetro/Componente, Criterio Operativo, Normativa/Tolerancia, Método de Verificación).
+     d) Procedimiento práctico paso a paso de taller/campo (1. Preparación, 2. Ejecución, 3. Verificación de seguridad).
+     e) Cajas de apoyo pedagógico:
+        - <div class="apuntes-box"><strong>💡 Apuntes del Experto:</strong> [Consejos profesionales, errores típicos de obra/taller y buenas prácticas]</div>
+        - <div class="recall-box"><strong>🧠 Autoevaluación Rápida (Active Recall):</strong> [2-3 preguntas clave de comprobación rápida]</div>
+        - <div class="mnemo-box"><strong>⚡ Regla Mnemotécnica:</strong> [Acrónimo o regla mnemotécnica para memorizar conceptos críticos]</div>
+- 6. REFERENCIAS NORMATIVAS:
+     Tabla técnica comparativa con clase "sigre-table" y análisis normativo (Código de Norma: UNE, RITE, REBT, CTE, RD, Ley PRL, Directivas CE | Ámbito / Organismo | Artículos / Prescripciones Clave | Aplicación e Implicación Práctica en Taller/Obra).
+- 7. BIBLIOGRAFÍA Y WEBGRAFÍA:
+     * Bibliografía Técnica Comentada: Manuales técnicos y libros de referencia con autor, año, título, editorial y resumen de aportación.
+     * Guías Técnicas Oficiales: Publicaciones de IDAE, INSST, Ministerios y comisiones técnicas.
+     * Webgrafía Comentada: Portales institucionales, bases de datos técnicas y recursos web oficiales recomendados para el alumnado.
+- 8. CONCLUSIONES Y SÍNTESIS DEL TEMA:
+     * Síntesis ejecutiva de competencias profesionales adquiridas.
+     * Relación con otras unidades del módulo (Intradisciplinaridad y conexión curricular).
+
+REGLA ESTRICTA DE NOTACIÓN MATEMÁTICA EN TEXTO PLANO (CRÍTICO):
+- PROHIBICIÓN ABSOLUTA DE SINTAXIS LATEX / COMANDOS TEX: Queda TERMINANTEMENTE PROHIBIDO usar delimitadores con signo dólar ($...$, $$...$$) o comandos TeX (\\text{}, \\times, \\frac{}, \\Omega, \\circ, etc.).
+- Toda fórmula, variable o expresión técnica debe escribirse OBLIGATORIAMENTE en TEXTO PLANO LIMPIO con operadores estándar:
+  * Multiplicación: usa * o espacio (ej. P = V * I o A = 3,9083 * 10^-3 °C^-1).
+  * División: usa / o paréntesis (ej. I = V / R o (V1 / T1) = (V2 / T2)).
+  * Suma y Resta: +, - (ej. ΔT = T2 - T1).
+  * Potencias y subíndices: usa ^ y _ (ej. 10^-3, 10^-7, R_0 = 1000 Ω, B = -5,775 * 10^-7 °C^-2).
+  * Unidades físicas: usa símbolos directos como Ω (o Ohm), °C, bar, kW, m/s, m^2, %, etc. Jamás uses \\text{ }\\Omega o ^\\circ\\text{C}.
+
+ENTREGABLES ADICIONALES INCLUIDOS EN EL JSON:
+- Glosario de Términos y Fórmulas Relevantes (HTML).
+- Cuestionario de Autoevaluación (mínimo 20 preguntas con soluciones justificadas).
+- Diagrama de Flujo Mermaid (flowchart TD con subgraphs para las fases del tema).
+- Mapa Mental OPML (XML jerárquico estructurado).
 
 NORMAS DE FORMATO JSON:
 - Devuelve ÚNICAMENTE un objeto JSON estrictamente válido.
 - No uses secuencias de escape inválidas (evita barras invertidas sueltas).
 - Todas las comillas dobles dentro de cadenas HTML deben estar escapadas (\\" o usar comillas simples ').
 
-Devuelve la respuesta en formato JSON con la siguiente estructura:
+Devuelve la respuesta en formato JSON con la siguiente estructura exacta:
 
 \`\`\`json
 {
   "titulo": "${ud.fullCode.replace(/"/g, '\\"')}",
   "cotRazonamiento": "Análisis de diseño curricular, delimitación de fronteras conceptuales y prevención de colisiones temáticas...",
-  "introduccion": "Texto de la introducción...",
+  "indiceDesarrollo": "1. ÍNDICE GENERAL DEL TEMA\\n2. INTRODUCCIÓN Y CONTEXTUALIZACIÓN\\n3. CONTENIDOS ESPECÍFICOS\\n4. OBJETIVOS ESPECÍFICOS DE APRENDIZAJE (SMART)\\n5. DESARROLLO\\n  5.1. [Título epígrafe 1]\\n  5.2. [Título epígrafe 2]\\n  5.3. [Título epígrafe 3]\\n  5.4. [Título epígrafe 4]\\n6. REFERENCIAS NORMATIVAS\\n7. BIBLIOGRAFÍA Y WEBGRAFÍA\\n8. CONCLUSIONES Y SÍNTESIS DEL TEMA",
+  "introduccion": "Texto detallado de la introducción y contextualización (200-300 palabras)...",
   "contenidos": {
-    "conceptuales": ["Concepto 1...", "Concepto 2..."],
-    "procedimentales": ["Procedimiento 1...", "Procedimiento 2..."],
-    "actitudinales": ["Actitud 1...", "Actitud 2..."]
+    "conceptuales": ["Concepto 1...", "Concepto 2...", "Concepto 3..."],
+    "procedimentales": ["Procedimiento 1...", "Procedimiento 2...", "Procedimiento 3..."],
+    "actitudinales": ["Actitud 1...", "Actitud 2...", "Actitud 3..."]
   },
   "objetivosSmart": [
     "1. Objetivo SMART 1...",
-    "2. Objetivo SMART 2..."
+    "2. Objetivo SMART 2...",
+    "3. Objetivo SMART 3...",
+    "4. Objetivo SMART 4...",
+    "5. Objetivo SMART 5..."
   ],
-  "indiceDesarrollo": "1. Introducción\\n2. Principios...\\n3. Procedimientos...",
-  "desarrolloEpigrafesHtml": "<div class=\\"ud-content\\"><h3>1. Introducción</h3><p>...</p><div class=\\"apuntes-box\\"><strong>💡 Apuntes del Experto:</strong> ...</div><div class=\\"recall-box\\"><strong>🧠 Autoevaluación Rápida:</strong> ...</div><div class=\\"mnemo-box\\"><strong>⚡ Regla Mnemotécnica:</strong> ...</div></div>",
+  "desarrolloEpigrafesHtml": "<div class=\\"ud-content\\"><div class=\\"epigrafe-block\\"><h3>5.1. [Título Sub-epígrafe 1]</h3><p>...</p><table class=\\"sigre-table\\"><thead><tr><th>Parámetro/Componente</th><th>Criterio Operativo</th><th>Normativa / Tolerancia</th><th>Verificación</th></tr></thead><tbody><tr><td>...</td><td>...</td><td>...</td><td>...</td></tr></tbody></table><div class=\\"apuntes-box\\"><strong>💡 Apuntes del Experto:</strong> ...</div><div class=\\"recall-box\\"><strong>🧠 Autoevaluación Rápida:</strong> ...</div><div class=\\"mnemo-box\\"><strong>⚡ Regla Mnemotécnica:</strong> ...</div></div><div class=\\"epigrafe-block\\"><h3>5.2. [Título Sub-epígrafe 2]</h3><p>...</p></div></div>",
+  "referenciasNormativasHtml": "<div class=\\"normativa-block\\"><p>Marco reglamentario y normativo técnico aplicable:</p><table class=\\"sigre-table\\"><thead><tr><th>Código / Norma</th><th>Ámbito / Organismo</th><th>Prescripciones Clave</th><th>Aplicación Práctica en Taller/Obra</th></tr></thead><tbody><tr><td><strong>RITE (RD 1027/2007)</strong></td><td>Instalaciones Térmicas en Edificios</td><td>IT 1.2 Exigencia de bienestar e higiene</td><td>Pruebas de estanqueidad y equilibrado hidráulico</td></tr></tbody></table></div>",
+  "bibliografiaWebgrafiaHtml": "<div class=\\"biblio-block\\"><h4 style=\\"color: #0369a1; margin-top: 12px;\\">Bibliografía Técnica de Referencia</h4><ul><li><strong>Autor (Año):</strong> <em>Título de la obra</em>. Editorial. Manual de referencia para dimensionamiento y cálculo.</li></ul><h4 style=\\"color: #059669; margin-top: 12px;\\">Guías Técnicas y Documentos Oficiales</h4><ul><li><strong>IDAE / Ministerio de Industria:</strong> <em>Guía Técnica de Ahorro y Eficiencia Energética</em>.</li></ul><h4 style=\\"color: #7c3aed; margin-top: 12px;\\">Webgrafía y Recursos en Línea</h4><ul><li><strong>Portal Oficial del BOE / Normativa Técnica:</strong> Enlace y descripción de consulta de normativa consolidada.</li></ul></div>",
+  "conclusiones": "Texto de conclusiones y síntesis del tema...",
+  "relacionIntradisciplinar": "Texto de relación con otras unidades del ciclo...",
   "glosarioHtml": "<div class=\\"glosario-box\\"><h4>Glosario de Términos y Fórmulas Relevantes</h4><ul><li><strong>Término 1:</strong> Definición...</li></ul></div>",
   "autoevaluacionHtml": "<div class=\\"autoeval-box\\"><h4>Cuestionario de Autoevaluación (20 Preguntas)</h4><ol><li>Pregunta 1...</li></ol><h5>Soluciones</h5><ol><li><strong>A) Respuesta correcta</strong>: Justificación técnica...</li></ol></div>",
-  "conclusiones": "Texto de conclusiones y síntesis...",
-  "relacionIntradisciplinar": "Texto de relación con otras unidades del módulo...",
-  "diagramaMermaid": "flowchart TD\\n    A[\\"Inicio: Planteamiento\\"] --> B(Planificación)\\n    subgraph \\"Fase 1: Análisis\\"\\n    B --> C[\\"Cálculo y Dimensionado\\"]\\n    end",
+  "diagramaMermaid": "flowchart TD\\n    A[\\"Inicio: Planificación y Seguridad\\"] --> B(Fase 1: Preparación Técnica)\\n    subgraph \\"Fase 2: Ejecución y Medición\\"\\n    B --> C[\\"Ensayos y Comprobación de Parámetros\\"]\\n    end",
   "mapaMentalOpml": "<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n<opml version=\\"2.0\\">\\n  <head>\\n    <title>${ud.title.replace(/"/g, '\\"')}</title>\\n    <ownerName>IES Al-Baytar</ownerName>\\n  </head>\\n  <body>\\n    <outline text=\\"${ud.title.replace(/"/g, '\\"')}\\">\\n      <outline text=\\"Fundamentos\\"/>\\n    </outline>\\n  </body>\\n</opml>"
 }
 \`\`\`
@@ -267,6 +391,10 @@ ESTRUCTURA DE GENERACIÓN OBLIGATORIA:
 
 2.4. Propuesta de Herramienta Didáctica Interactiva (HDI):
      Basándote en el contenido eminentemente práctico y procedimental de esta Unidad Didáctica, redacta una propuesta conceptual (150-200 palabras) para una aplicación web (Single-Page Application) que sirva para reforzar el aprendizaje. Describe qué haría la aplicación, qué problema resolvería para el estudiante y cómo se alinea con los Resultados de Aprendizaje de esta UD. Esta propuesta servirá como base para el Módulo 2.
+
+REGLA ESTRICTA DE NOTACIÓN MATEMÁTICA EN TEXTO PLANO:
+- PROHIBIDO USAR DELIMITADORES O SINTAXIS LATEX ($...$, $$...$$, \\text{}, \\times, \\Omega, etc.).
+- Todo enunciado, opción y justificación debe redactarse con operadores estándar: +, -, *, /, ^, °C, Ω (o Ohm), kW, %, etc.
 
 NORMAS DE FORMATO JSON:
 - Devuelve ÚNICAMENTE un objeto JSON estrictamente válido.
@@ -575,8 +703,11 @@ export function auditGiftQuestionsLengthBias(giftText: string): {
 export function formatSigreIndiceHtml(rawIndice: string): string {
   if (!rawIndice) return "<p style='color: #94a3b8; font-style: italic;'>Índice no disponible</p>";
 
+  // Clean LaTeX math if any
+  let text = cleanSigreLatexMath(rawIndice);
+
   // Clean HTML tags and markdown bullets
-  let text = rawIndice
+  text = text
     .replace(/<\/?(ol|ul)>/gi, "")
     .replace(/<li>/gi, "")
     .replace(/<\/li>/gi, "\n")
@@ -659,9 +790,10 @@ export function formatSigreIndiceHtml(rawIndice: string): string {
 export function formatSigreDesarrolloHtml(rawHtml: string): string {
   if (!rawHtml) return "";
 
-  let content = rawHtml;
+  // 1. Clean LaTeX math artifacts into clean plain text (+, -, *, /, ^, °C, Ω, etc.)
+  let content = cleanSigreLatexMath(rawHtml);
 
-  // 1. Convert Markdown tables to HTML tables if present
+  // 2. Convert Markdown tables to HTML tables if present
   if (content.includes("|")) {
     const tableRegex = /(?:^|\n)(\|.+?\|\r?\n\|[\s\-:|]+\|\r?\n(?:\|.+?\|\r?\n?)+)/g;
     content = content.replace(tableRegex, (_match, tableBlock) => {
@@ -814,43 +946,83 @@ export function renderSigreUDCompleteA4Html(ud: SigreUDItem, data: SigreUDData):
     </div>
   </div>
 
-  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">1.1. INTRODUCCIÓN Y CONTEXTUALIZACIÓN</h2>
-  <p style="text-align: justify; font-size: 14px;">${m1.introduccion}</p>
+  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">1. ÍNDICE GENERAL DEL TEMA</h2>
+  ${formatSigreIndiceHtml(m1.indiceDesarrollo || "")}
 
-  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">1.2. CONTENIDOS ESPECÍFICOS</h2>
+  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">2. INTRODUCCIÓN Y CONTEXTUALIZACIÓN</h2>
+  <p style="text-align: justify; font-size: 14px; line-height: 1.7;">${cleanSigreLatexMath(m1.introduccion)}</p>
+
+  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">3. CONTENIDOS ESPECÍFICOS</h2>
   <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 12px 0;">
-    <div style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
-      <h4 style="margin: 0 0 6px 0; font-size: 12px; color: #0369a1; text-transform: uppercase; font-weight: 800;">Conceptuales</h4>
-      <ul style="margin: 0; padding-left: 16px; font-size: 12px;">${(m1.contenidos.conceptuales || []).map((c) => `<li>${c}</li>`).join("")}</ul>
+    <div style="background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0;">
+      <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #0369a1; text-transform: uppercase; font-weight: 800; display: flex; align-items: center; gap: 4px;">📘 Conceptuales (Saber)</h4>
+      <ul style="margin: 0; padding-left: 16px; font-size: 12.5px; line-height: 1.5;">${(m1.contenidos.conceptuales || []).map((c) => `<li style="margin-bottom: 4px;">${cleanSigreLatexMath(c)}</li>`).join("")}</ul>
     </div>
-    <div style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
-      <h4 style="margin: 0 0 6px 0; font-size: 12px; color: #059669; text-transform: uppercase; font-weight: 800;">Procedimentales</h4>
-      <ul style="margin: 0; padding-left: 16px; font-size: 12px;">${(m1.contenidos.procedimentales || []).map((c) => `<li>${c}</li>`).join("")}</ul>
+    <div style="background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0;">
+      <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #059669; text-transform: uppercase; font-weight: 800; display: flex; align-items: center; gap: 4px;">🛠️ Procedimentales (Saber Hacer)</h4>
+      <ul style="margin: 0; padding-left: 16px; font-size: 12.5px; line-height: 1.5;">${(m1.contenidos.procedimentales || []).map((c) => `<li style="margin-bottom: 4px;">${cleanSigreLatexMath(c)}</li>`).join("")}</ul>
     </div>
-    <div style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
-      <h4 style="margin: 0 0 6px 0; font-size: 12px; color: #7c3aed; text-transform: uppercase; font-weight: 800;">Actitudinales</h4>
-      <ul style="margin: 0; padding-left: 16px; font-size: 12px;">${(m1.contenidos.actitudinales || []).map((c) => `<li>${c}</li>`).join("")}</ul>
+    <div style="background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0;">
+      <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #7c3aed; text-transform: uppercase; font-weight: 800; display: flex; align-items: center; gap: 4px;">🤝 Actitudinales (Saber Ser)</h4>
+      <ul style="margin: 0; padding-left: 16px; font-size: 12.5px; line-height: 1.5;">${(m1.contenidos.actitudinales || []).map((c) => `<li style="margin-bottom: 4px;">${cleanSigreLatexMath(c)}</li>`).join("")}</ul>
     </div>
   </div>
 
-  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">1.3. OBJETIVOS ESPECÍFICOS DE APRENDIZAJE (SMART)</h2>
-  <ul style="font-size: 13px; padding-left: 20px;">
-    ${(m1.objetivosSmart || []).map((o) => `<li style="margin-bottom: 4px;">${o}</li>`).join("")}
+  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">4. OBJETIVOS ESPECÍFICOS DE APRENDIZAJE (SMART)</h2>
+  <ul style="font-size: 13.5px; padding-left: 20px; line-height: 1.6;">
+    ${(m1.objetivosSmart || []).map((o) => `<li style="margin-bottom: 6px;">${cleanSigreLatexMath(o)}</li>`).join("")}
   </ul>
 
-  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">1.4. ÍNDICE DEL DESARROLLO DEL TEMA</h2>
-  ${formatSigreIndiceHtml(m1.indiceDesarrollo || "")}
-
-  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">1.5. DESARROLLO DE LOS APARTADOS DEL ÍNDICE</h2>
+  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">5. DESARROLLO DEL TEMA</h2>
   <div style="font-size: 14px; text-align: justify; line-height: 1.7;">
     ${formatSigreDesarrolloHtml(m1.desarrolloEpigrafesHtml)}
   </div>
 
-  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">1.6. CONCLUSIONES Y SÍNTESIS DEL TEMA</h2>
-  <p style="font-size: 14px; text-align: justify;">${m1.conclusiones}</p>
+  ${
+    m1.referenciasNormativasHtml
+      ? `
+  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">6. REFERENCIAS NORMATIVAS</h2>
+  <div style="font-size: 13.5px; line-height: 1.6;">
+    ${formatSigreDesarrolloHtml(m1.referenciasNormativasHtml)}
+  </div>`
+      : `
+  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">6. REFERENCIAS NORMATIVAS</h2>
+  <div style="font-size: 13.5px; line-height: 1.6; background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0;">
+    <p style="margin: 0; color: #475569;">Marco normativo y reglamentario técnico de referencia para el módulo y sector profesional: Normativa UNE, RITE, REBT, CTE y Ley 31/1995 de Prevención de Riesgos Laborales aplicables.</p>
+  </div>`
+  }
 
-  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">1.7. RELACIÓN CON OTRAS UNIDADES (INTRADISCIPLINARIDAD)</h2>
-  <p style="font-size: 13px; color: #475569;">${m1.relacionIntradisciplinar}</p>
+  ${
+    m1.bibliografiaWebgrafiaHtml
+      ? `
+  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">7. BIBLIOGRAFÍA Y WEBGRAFÍA</h2>
+  <div style="font-size: 13.5px; line-height: 1.6;">
+    ${formatSigreDesarrolloHtml(m1.bibliografiaWebgrafiaHtml)}
+  </div>`
+      : `
+  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">7. BIBLIOGRAFÍA Y WEBGRAFÍA</h2>
+  <div style="font-size: 13.5px; line-height: 1.6; background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0;">
+    <p style="margin: 0 0 6px 0; font-weight: 700; color: #0f172a;">Recursos y Manuales de Referencia:</p>
+    <ul style="margin: 0; padding-left: 18px; color: #475569;">
+      <li>Guías Técnicas Oficiales IDAE y Ministerios competentes.</li>
+      <li>Manuales técnicos de formación y catálogos de fabricantes homologados.</li>
+      <li>Portal web del BOE y comisiones técnicas para normativa consolidada.</li>
+    </ul>
+  </div>`
+  }
+
+  <h2 style="color: #d97706; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">8. CONCLUSIONES Y SÍNTESIS DEL TEMA</h2>
+  <p style="font-size: 14px; text-align: justify; line-height: 1.7;">${cleanSigreLatexMath(m1.conclusiones)}</p>
+
+  ${
+    m1.relacionIntradisciplinar
+      ? `
+  <div style="margin-top: 18px; padding: 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
+    <h4 style="margin: 0 0 6px 0; font-size: 13px; color: #166534; font-weight: 800;">🔗 Relación con Otras Unidades (Intradisciplinaridad):</h4>
+    <p style="margin: 0; font-size: 13px; color: #15803d; line-height: 1.6;">${cleanSigreLatexMath(m1.relacionIntradisciplinar)}</p>
+  </div>`
+      : ""
+  }
 
   ${
     (m1.glosarioHtml || data.glosarioHtml)
@@ -861,3 +1033,744 @@ export function renderSigreUDCompleteA4Html(ud: SigreUDItem, data: SigreUDData):
 </div>
 `;
 }
+
+/**
+ * Sanitizes all string fields of a SigreUDCurricularData object removing LaTeX math artifacts.
+ */
+export function cleanSigreCurricularData(data?: SigreUDCurricularData): SigreUDCurricularData | undefined {
+  if (!data) return data;
+  return {
+    ...data,
+    indiceGeneral: (data.indiceGeneral || []).map(cleanSigreLatexMath),
+    temporalizacion: {
+      horas: data.temporalizacion?.horas || 10,
+      sesiones: data.temporalizacion?.sesiones || 4,
+      fechaRealizacion: cleanSigreLatexMath(data.temporalizacion?.fechaRealizacion || "Trimestre 1"),
+      trimestre: cleanSigreLatexMath(data.temporalizacion?.trimestre || "1º"),
+      horasSemanalesTexto: cleanSigreLatexMath(data.temporalizacion?.horasSemanalesTexto || ""),
+    },
+    contextualizacion: cleanSigreLatexMath(data.contextualizacion || ""),
+    justificacionNormativa: cleanSigreLatexMath(data.justificacionNormativa || ""),
+    contribucionObjetivosGenerales: cleanSigreLatexMath(data.contribucionObjetivosGenerales || ""),
+    competenciasBasicas: (data.competenciasBasicas || []).map(cleanSigreLatexMath),
+    resultadosAprendizaje: (data.resultadosAprendizaje || []).map(cleanSigreLatexMath),
+    contribucionCompetenciasProfesionales: cleanSigreLatexMath(data.contribucionCompetenciasProfesionales || ""),
+    objetivosAprendizaje: (data.objetivosAprendizaje || []).map(cleanSigreLatexMath),
+    contenidosIntegrados: {
+      conceptuales: (data.contenidosIntegrados?.conceptuales || []).map(cleanSigreLatexMath),
+      procedimentales: (data.contenidosIntegrados?.procedimentales || []).map(cleanSigreLatexMath),
+      actitudinales: (data.contenidosIntegrados?.actitudinales || []).map(cleanSigreLatexMath),
+      peculiaridadesAutonomicas: (data.contenidosIntegrados?.peculiaridadesAutonomicas || []).map(cleanSigreLatexMath),
+      temasTransversales: (data.contenidosIntegrados?.temasTransversales || []).map(cleanSigreLatexMath),
+    },
+    temasTransversalesTexto: cleanSigreLatexMath(data.temasTransversalesTexto || ""),
+    metodologiaTic: {
+      metodologiasActivas: cleanSigreLatexMath(data.metodologiaTic?.metodologiasActivas || ""),
+      flippedClassroom: cleanSigreLatexMath(data.metodologiaTic?.flippedClassroom || ""),
+      duaMetodologia: cleanSigreLatexMath(data.metodologiaTic?.duaMetodologia || ""),
+      innovacionIa: cleanSigreLatexMath(data.metodologiaTic?.innovacionIa || ""),
+      secuenciacionMetodologica: cleanSigreLatexMath(data.metodologiaTic?.secuenciacionMetodologica || ""),
+    },
+    atencionDiversidad: {
+      dua: cleanSigreLatexMath(data.atencionDiversidad?.dua || ""),
+      multinivel: cleanSigreLatexMath(data.atencionDiversidad?.multinivel || ""),
+      refuerzo: cleanSigreLatexMath(data.atencionDiversidad?.refuerzo || ""),
+      ampliacion: cleanSigreLatexMath(data.atencionDiversidad?.ampliacion || ""),
+      accesibilidad: cleanSigreLatexMath(data.atencionDiversidad?.accesibilidad || ""),
+    },
+    secuenciacionActividades: {
+      iniciacionDesarrollo: {
+        horas: cleanSigreLatexMath(data.secuenciacionActividades?.iniciacionDesarrollo?.horas || "(3h+3h)"),
+        actividades: (data.secuenciacionActividades?.iniciacionDesarrollo?.actividades || []).map((a) => ({
+          codigo: cleanSigreLatexMath(a.codigo),
+          nombre: cleanSigreLatexMath(a.nombre),
+          descripcion: a.descripcion ? cleanSigreLatexMath(a.descripcion) : undefined,
+        })),
+      },
+      repasoRefuerzo: {
+        horas: cleanSigreLatexMath(data.secuenciacionActividades?.repasoRefuerzo?.horas || "(3h)"),
+        actividades: (data.secuenciacionActividades?.repasoRefuerzo?.actividades || []).map((a) => ({
+          codigo: cleanSigreLatexMath(a.codigo),
+          nombre: cleanSigreLatexMath(a.nombre),
+          descripcion: a.descripcion ? cleanSigreLatexMath(a.descripcion) : undefined,
+        })),
+      },
+      ampliacionEvaluacion: {
+        horas: cleanSigreLatexMath(data.secuenciacionActividades?.ampliacionEvaluacion?.horas || "(2h)"),
+        actividades: (data.secuenciacionActividades?.ampliacionEvaluacion?.actividades || []).map((a) => ({
+          codigo: cleanSigreLatexMath(a.codigo),
+          nombre: cleanSigreLatexMath(a.nombre),
+          descripcion: a.descripcion ? cleanSigreLatexMath(a.descripcion) : undefined,
+        })),
+      },
+    },
+    evaluacion: {
+      inicial: cleanSigreLatexMath(data.evaluacion?.inicial || ""),
+      parcial: cleanSigreLatexMath(data.evaluacion?.parcial || ""),
+      final: cleanSigreLatexMath(data.evaluacion?.final || ""),
+    },
+    instrumentosEvaluacion: (data.instrumentosEvaluacion || []).map(cleanSigreLatexMath),
+    criteriosEvaluacionPonderados: {
+      raGlobal: cleanSigreLatexMath(data.criteriosEvaluacionPonderados?.raGlobal || ""),
+      criterios: (data.criteriosEvaluacionPonderados?.criterios || []).map((c) => ({
+        criterio: cleanSigreLatexMath(c.criterio),
+        descripcion: cleanSigreLatexMath(c.descripcion),
+        peso: cleanSigreLatexMath(c.peso),
+      })),
+      criteriosTexto: data.criteriosEvaluacionPonderados?.criteriosTexto
+        ? cleanSigreLatexMath(data.criteriosEvaluacionPonderados.criteriosTexto)
+        : undefined,
+    },
+    materialesRecursos: (data.materialesRecursos || []).map(cleanSigreLatexMath),
+    bibliografiaWebgrafia: (data.bibliografiaWebgrafia || []).map(cleanSigreLatexMath),
+  };
+}
+
+/**
+ * Builds prompt to generate the full 19-point Curricular Unit (Ficha / Matriz Curricular Oficial).
+ */
+export function buildSigreUDCurricularPrompt(
+  targetUd: SigreUDItem,
+  config: SigreCurricularConfig,
+  ragContext?: string
+): string {
+  const calculatedHours = targetUd.horasEstimadas || Math.round((config.horasTotales || 160) / 10);
+  const calculatedSessions = targetUd.sesionesEstimadas || Math.max(1, Math.round(calculatedHours / 2));
+
+  // Determine approximate trimester based on UD number
+  const trimester = targetUd.number <= 4 ? "1º" : targetUd.number <= 8 ? "2º" : "3º";
+  const months = ["Septiembre", "Octubre", "Noviembre", "Diciembre", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio"];
+  const estimatedMonth = months[Math.min(months.length - 1, Math.max(0, targetUd.number - 1))];
+
+  return `ERES UN CATEDRÁTICO DE FORMACIÓN PROFESIONAL Y JEFE DE DEPARTAMENTO DE MÁXIMA EXPERIENCIA EN DISEÑO CURRICULAR Y PROGRAMACIONES DIDÁCTICAS OFICIALES SEGÚN LA LEY ORGÁNICA DE FP Y EL RD 659/2023.
+
+Tu misión es redactar la UNIDAD DIDÁCTICA CURRICULAR (Ficha / Matriz Curricular Oficial en formato de programación de aula) para la siguiente unidad:
+- CÓDIGO Y TÍTULO: ${targetUd.fullCode} (Nº ${targetUd.number})
+- BLOQUE DE CONTENIDOS: ${targetUd.bcCode}
+- MÓDULO FORMATIVO: ${config.moduloFormativo} (Código: ${config.codigo || "Cód. Oficial"})
+- CURSO Y CICLO: ${config.curso || "1º curso"} - ${config.cicloFormativo} (${config.familiaProfesional})
+- HORAS TOTALES MÓDULO: ${config.horasTotales || 160}h | Horas Semanales: ${config.horasSemanales || 5}h/sem
+- TEMPORALIZACIÓN ESTIMADA PARA ESTA UD: ${calculatedHours} horas (${calculatedSessions} sesiones lectivas) | ${estimatedMonth} | Trimestre: ${trimester}
+- CONTEXTO EDUCATIVO Y TERRITORIAL: ${config.contextoAplicacion || "Centro de FP en entorno industrial y comarcal"}
+
+${ragContext ? `DOCUMENTACIÓN CURRICULAR DE REFERENCIA (RAG):\n${ragContext.slice(0, 5000)}\n` : ""}
+
+ESTRUCTURA OBLIGATORIA DE LOS 19 PUNTOS CURRICULARES (Ficha Oficial de 2 Páginas):
+1. ÍNDICE GENERAL DEL TEMA:
+   Lista con los 19 puntos de la unidad didáctica curricular.
+
+2. TEMPORALIZACIÓN:
+   - Horas: ${calculatedHours} horas (${calculatedSessions} sesiones de ~2-3h).
+   - Fecha de realización: ${estimatedMonth} (ej. "${estimatedMonth} (Semanas ${((targetUd.number - 1) * 3) + 1}-${targetUd.number * 3})").
+   - Trimestre: ${trimester}.
+   - Horas semanales: ${config.horasSemanales || 4} horas semanales.
+
+3. CONTEXTUALIZACIÓN:
+   Redacta un párrafo sólido (80-120 palabras) describiendo el grupo (ej. 12-18 alumnos/as, perfiles heterogéneos: bachillerato, grado medio, trabajadores del sector), las características del centro educativo y el tejido industrial/económico local y comarcal donde se ubica el centro.
+
+4. JUSTIFICACIÓN Y NORMATIVA:
+   Fundamentación legal y técnica de por qué es imprescindible esta unidad (habilitación profesional, responsabilidad civil, seguridad, normativa sectorial aplicable ej. RD 659/2023, Orden de currículo autonómico, Ley 31/1995 de PRL, CTE, RITE, REBT, UNE-EN según aplique).
+
+5. CONTRIBUCIÓN A LOS OBJETIVOS GENERALES DEL MÓDULO / CICLO:
+   Objetivos generales formulados con letra y verbo en infinitivo (ej. "s) Tomar decisiones de forma fundamentada y afrontar contingencias.").
+
+6. COMPETENCIAS BÁSICAS:
+   2 a 3 competencias clave implicadas (ej. "Comunicación técnica y normativa profesional", "Competencia digital en búsqueda de materiales", "Visión geométrica y precisión métrica").
+
+7. RESULTADOS DE APRENDIZAJE:
+   Redacción oficial del RA o RAs asociados a este bloque (ej. "RA ${targetUd.number > 0 ? (targetUd.number % 6 || 1) : 1}: Identifica los materiales y sus tratamientos...").
+
+8. CONTRIBUCIÓN A LAS COMPETENCIAS PROFESIONALES, PERSONALES Y SOCIALES:
+   Competencias profesionales del título con sus letras oficiales (ej. "r) Organizar y coordinar equipos de trabajo con responsabilidad.").
+
+9. OBJETIVOS DE APRENDIZAJE:
+   4 objetivos operativos redactados con verbo en infinitivo (1, 2, 3, 4) medibles y contextualizados al contenido específico de la UD.
+
+10. CONTENIDOS INTEGRADOS:
+    Desglose en 5 columnas/bloques:
+    - Conceptuales (Saber): 3-4 conceptos clave teóricos y normativos.
+    - Procedimentales (Saber Hacer): 3-4 habilidades prácticas, protocolos y montajes en taller.
+    - Actitudinales (Saber Ser): 3-4 actitudes de rigor, pulcritud, orden y prevención.
+    - Ref. Peculiaridades de la Comunidad Autónoma: 2-3 referencias territoriales, autonómicas o industriales locales (ej. Andalucía / gestión de recursos / empresas públicas comarcales).
+    - Temas transversales / Educación en valores: 2-3 valores (Educación ambiental, Sostenibilidad, Igualdad, Cultura preventiva).
+
+11. TEMAS TRANSVERSALES:
+    Texto de síntesis del tratamiento de los valores cívicos, igualdad, inclusión y transición ecológica.
+
+12. METODOLOGÍA Y USO DE LAS TIC:
+    - Metodologías activas: ABP (Aprendizaje Basado en Proyectos), ABR (Aprendizaje Basado en Retos), Demostración Maestra, etc.
+    - Flipped Classroom / Aula Invertida con plataforma Moodle Centros.
+    - DUA (Diseño Universal para el Aprendizaje).
+    - Innovación e Inteligencia Artificial (NotebookLM, Gemini, simuladores digitales).
+    - Secuenciación metodológica paso a paso (ej. "1. Análisis visual -> 2. Ensayo -> 3. Diagnóstico -> 4. Propuesta").
+
+13. ATENCIÓN A LA DIVERSIDAD:
+    - DUA: Fichas técnicas, pictogramas, QR a videotutoriales, lectura fácil.
+    - Multinivel: Itinerarios de profundización para alumnado con experiencia previa o ritmo rápido.
+    - Refuerzo: Glosarios ilustrados, tablas comparativas simplificadas, prácticas en materiales blandos.
+    - Ampliación: Investigación sobre nuevos materiales o software avanzado.
+    - Accesibilidad: Diseño ergonómico de puestos de trabajo y rutas de evacuación.
+
+14. TEMPORALIZACIÓN Y SECUENCIACIÓN DE ACTIVIDADES:
+    - De Iniciación (I) / Desarrollo (D) (${Math.round(calculatedHours * 0.55)}h): Códigos I1 (dinámica inicial), D1 (taller/práctica), D2 (laboratorio/simulación).
+    - Repaso (R) / Refuerzo (Rf) (${Math.round(calculatedHours * 0.25)}h): Códigos R1 (juegos de identificación / role-playing), Rf1 (cuestionario habilitador en Moodle).
+    - Ampliación (A) / Evaluación (E) (${Math.round(calculatedHours * 0.20)}h): Códigos A1 (informe de profundización), E1 (prueba práctica / reto final).
+
+15. EVALUACIÓN (¿QUÉ EVALUAR?, ¿CÓMO EVALUAR?, ¿CUÁNDO EVALUAR?):
+    - Evaluación Inicial: Sondeo de ideas previas y nivel inicial (Semana 1).
+    - Evaluación Parcial: Observación sistemática en taller, listas de control de destreza.
+    - Evaluación Final: Calificación ponderada de rúbrica de taller + prueba conceptual escrita / Moodle.
+
+16. INSTRUMENTOS DE EVALUACIÓN:
+    Lista de 3 a 4 instrumentos concretos (ej. "Rúbrica de ejecución en taller", "Lista de cotejo de EPIs", "Cuestionario en Moodle Centros", "Memoria de montaje").
+
+17. RESULTADOS DE APRENDIZAJE Y SUS CRITERIOS DE EVALUACIÓN:
+    - Ponderación global del RA (ej. "RA 1 (${(100 / (config.numUnidadesDidacticas || 8)).toFixed(2)}% global)").
+    - Desglose ponderado de criterios de evaluación con porcentaje individual (ej. a) ID materiales (20%), b) Propiedades físico-químicas (20%), c) Tratamientos (15%), d) Procesos (20%), e) Técnicas (25%)).
+
+18. MATERIALES Y RECURSOS DIDÁCTICOS:
+    Componentes reales, kits de taller, calibres, simuladores, aula virtual Moodle Centros, manuales técnicos de editorial (Paraninfo/Marcombo), señalética reglamentaria.
+
+19. BIBLIOGRAFÍA Y WEBGRAFÍA:
+    Leyes estatales y autonómicas, normativas UNE/ISO, manuales técnicos de autoría reconocida (ej. Cerdá Filiu, L. M., Casillas, etc.), guías técnicas del INSST/IDAE, órdenes de evaluación vigentes.
+
+REGLA ESTRICTA DE NOTACIÓN MATEMÁTICA EN TEXTO PLANO:
+- PROHIBIDO USAR SINTAXIS LATEX ($...$, $$...$$, \\text{}, \\times, \\frac{}, \\Omega, etc.).
+- Usa texto plano y caracteres Unicode directos: +, -, *, /, ^, °, °C, Ω, µ, %, bar, kW, m/s, m^2, etc.
+
+FORMATO DE SALIDA (EXCLUSIVAMENTE JSON VÁLIDO):
+Devuelve ÚNICAMENTE un objeto JSON con este esquema exacto:
+{
+  "indiceGeneral": [
+    "1. ÍNDICE GENERAL DEL TEMA",
+    "2. TEMPORALIZACIÓN",
+    "3. CONTEXTUALIZACIÓN",
+    "4. JUSTIFICACIÓN Y NORMATIVA",
+    "5. CONTRIBUCIÓN A LOS OBJETIVOS GENERALES",
+    "6. COMPETENCIAS BÁSICAS",
+    "7. RESULTADOS DE APRENDIZAJE",
+    "8. CONTRIBUCIÓN A LAS COMPETENCIAS PROFESIONALES, PERSONALES Y SOCIALES",
+    "9. OBJETIVOS DE APRENDIZAJE",
+    "10. CONTENIDOS INTEGRADOS",
+    "11. TEMAS TRANSVERSALES",
+    "12. METODOLOGÍA Y USO DE LAS TIC",
+    "13. ATENCIÓN A LA DIVERSIDAD",
+    "14. TEMPORALIZACIÓN Y SECUENCIACIÓN DE ACTIVIDADES",
+    "15. EVALUACIÓN",
+    "16. INSTRUMENTOS DE EVALUACIÓN",
+    "17. RESULTADOS DE APRENDIZAJE Y SUS CRITERIOS DE EVALUACIÓN",
+    "18. MATERIALES Y RECURSOS DIDÁCTICOS",
+    "19. BIBLIOGRAFÍA Y WEBGRAFÍA"
+  ],
+  "temporalizacion": {
+    "horas": ${calculatedHours},
+    "sesiones": ${calculatedSessions},
+    "fechaRealizacion": "${estimatedMonth}",
+    "trimestre": "${trimester}",
+    "horasSemanalesTexto": "${calculatedHours} horas (${calculatedSessions} sesiones)"
+  },
+  "contextualizacion": "Texto de contextualización...",
+  "justificacionNormativa": "Texto de justificación y marco legal...",
+  "contribucionObjetivosGenerales": "s) Tomar decisiones de forma fundamentada y afrontar contingencias.",
+  "competenciasBasicas": ["Competencia 1", "Competencia 2"],
+  "resultadosAprendizaje": ["RA X: Texto completo del RA..."],
+  "contribucionCompetenciasProfesionales": "r) Organizar y coordinar equipos de trabajo con responsabilidad.",
+  "objetivosAprendizaje": [
+    "1. Primer objetivo operativo...",
+    "2. Segundo objetivo operativo...",
+    "3. Tercer objetivo operativo...",
+    "4. Cuarto objetivo operativo..."
+  ],
+  "contenidosIntegrados": {
+    "conceptuales": ["Concepto 1", "Concepto 2", "Concepto 3"],
+    "procedimentales": ["Procedimiento 1", "Procedimiento 2", "Procedimiento 3"],
+    "actitudinales": ["Actitud 1", "Actitud 2", "Actitud 3"],
+    "peculiaridadesAutonomicas": ["Referencia autonómica 1", "Referencia autonómica 2"],
+    "temasTransversales": ["Educación ambiental...", "Cultura preventiva..."]
+  },
+  "temasTransversalesTexto": "Texto detallado de temas transversales y educación en valores...",
+  "metodologiaTic": {
+    "metodologiasActivas": "Aprendizaje Basado en Retos (ABR): ...",
+    "flippedClassroom": "Teoría previa en Moodle Centros y debate presencial...",
+    "duaMetodologia": "Uso de señalética visual, vídeos interactivos...",
+    "innovacionIa": "Uso de IA (NotebookLM / Gemini) para...",
+    "secuenciacionMetodologica": "1. Análisis visual -> 2. Ensayo -> 3. Diagnóstico -> 4. Propuesta."
+  },
+  "atencionDiversidad": {
+    "dua": "Fichas técnicas con códigos QR...",
+    "multinivel": "Itinerarios de profundización para...",
+    "refuerzo": "Glosarios técnicos ilustrados...",
+    "ampliacion": "Investigación sobre...",
+    "accesibilidad": "Diseño ergonómico y libre de barreras..."
+  },
+  "secuenciacionActividades": {
+    "iniciacionDesarrollo": {
+      "horas": "(${Math.round(calculatedHours * 0.25)}h+${Math.round(calculatedHours * 0.30)}h)",
+      "actividades": [
+        { "codigo": "I1", "nombre": "Nombre actividad iniciación", "descripcion": "Descripción breve" },
+        { "codigo": "D1", "nombre": "Nombre actividad desarrollo 1", "descripcion": "Descripción breve" },
+        { "codigo": "D2", "nombre": "Nombre actividad desarrollo 2", "descripcion": "Descripción breve" }
+      ]
+    },
+    "repasoRefuerzo": {
+      "horas": "(${Math.round(calculatedHours * 0.25)}h)",
+      "actividades": [
+        { "codigo": "R1", "nombre": "Nombre actividad repaso", "descripcion": "Descripción breve" },
+        { "codigo": "Rf1", "nombre": "Cuestionario Moodle habilitador", "descripcion": "Descripción breve" }
+      ]
+    },
+    "ampliacionEvaluacion": {
+      "horas": "(${Math.round(calculatedHours * 0.20)}h)",
+      "actividades": [
+        { "codigo": "A1", "nombre": "Nombre actividad ampliación", "descripcion": "Descripción breve" },
+        { "codigo": "E1", "nombre": "Prueba o reto final de evaluación", "descripcion": "Descripción breve" }
+      ]
+    }
+  },
+  "evaluacion": {
+    "inicial": "Sondeo de nivel inicial y conocimientos previos...",
+    "parcial": "Observación sistemática y listas de control en taller...",
+    "final": "Calificación ponderada de práctica (70%) y prueba escrita/Moodle (30%)..."
+  },
+  "instrumentosEvaluacion": [
+    "Rúbrica de ejecución práctica en taller",
+    "Lista de cotejo de normas y EPIs",
+    "Cuestionario interactivo en Moodle Centros"
+  ],
+  "criteriosEvaluacionPonderados": {
+    "raGlobal": "RA X (${(100 / (config.numUnidadesDidacticas || 8)).toFixed(2)}% global)",
+    "criterios": [
+      { "criterio": "a)", "descripcion": "Identificación de riesgos y parámetros", "peso": "20%" },
+      { "criterio": "b)", "descripcion": "Ejecución técnica y cumplimiento de tolerancias", "peso": "30%" },
+      { "criterio": "c)", "descripcion": "Aplicación de medidas de seguridad y EPIs", "peso": "25%" },
+      { "criterio": "d)", "descripcion": "Gestión de residuos y orden en el puesto", "peso": "25%" }
+    ],
+    "criteriosTexto": "RA X. a) Identificación (20%), b) Ejecución (30%), c) Seguridad (25%), d) Residuos (25%)."
+  },
+  "materialesRecursos": [
+    "Equipos reales de taller y kits de montaje",
+    "Instrumentos de metrología y comprobación",
+    "Aula virtual Moodle Centros",
+    "Manuales técnicos de referencia (Paraninfo) y catálogos de fabricantes"
+  ],
+  "bibliografiaWebgrafia": [
+    "Ley Orgánica de FP y Real Decreto 659/2023.",
+    "Orden de currículo autonómico del título.",
+    "Ley 31/1995 de Prevención de Riesgos Laborales.",
+    "Manuales técnicos de la especialidad."
+  ]
+}`;
+}
+
+/**
+ * Builds prompt to regenerate a specific section (or block of sections) of a Curricular Unit.
+ */
+export function buildSigreUDCurricularSectionPrompt(
+  targetUd: SigreUDItem,
+  config: SigreCurricularConfig,
+  sectionKey: "contexto_justificacion" | "competencias_objetivos" | "contenidos_transversales" | "metodologia_diversidad" | "secuenciacion_actividades" | "evaluacion_criterios" | "recursos_bibliografia",
+  currentData?: SigreUDCurricularData,
+  ragContext?: string
+): string {
+  return `ERES UN CATEDRÁTICO Y ASESOR CURRICULAR EXPERTO EN FORMACIÓN PROFESIONAL (RD 659/2023).
+
+Necesitamos generar o actualizar ÚNICAMENTE el bloque curricular "${sectionKey}" para la Unidad Didáctica:
+- UNIDAD: ${targetUd.fullCode} (Nº ${targetUd.number})
+- BLOQUE DE CONTENIDOS: ${targetUd.bcCode}
+- MÓDULO: ${config.moduloFormativo} (Cód. ${config.codigo || "Oficial"})
+- CURSO Y CICLO: ${config.curso || "1º curso"} - ${config.cicloFormativo}
+- HORAS UD: ${targetUd.horasEstimadas || 11}h (${targetUd.sesionesEstimadas || 4} sesiones)
+
+${currentData ? `DATOS EXISTENTES DE LA UD:\nContextualización actual: ${currentData.contextualizacion || "N/A"}\nJustificación: ${currentData.justificacionNormativa || "N/A"}\n` : ""}
+${ragContext ? `REFERENCIA RAG:\n${ragContext.slice(0, 3000)}\n` : ""}
+
+REGLA ESTRICTA DE NOTACIÓN: Texto plano estricto. PROHIBIDO LATEX O SIGNOS DE DÓLAR ($...$).
+DEVUELVE EXCLUSIVAMENTE UN OBJETO JSON con las claves correspondientes a este bloque curricular.`;
+}
+
+/**
+ * Renders the Curricular Unit (Ficha Curricular Oficial de 19 Puntos) in a high-density, professional 2-page A4 HTML format.
+ * Matches the layout of official vocational training programming sheets.
+ */
+export function renderSigreUDCurricularA4Html(
+  ud: SigreUDItem,
+  data: SigreUDCurricularData,
+  config: SigreCurricularConfig
+): string {
+  if (!data) return "<p>No hay datos curriculares disponibles para esta unidad.</p>";
+
+  const sanitized = cleanSigreCurricularData(data)!;
+  const horas = sanitized.temporalizacion?.horas || ud.horasEstimadas || 11;
+  const sesiones = sanitized.temporalizacion?.sesiones || ud.sesionesEstimadas || 4;
+  const fecha = sanitized.temporalizacion?.fechaRealizacion || "Trimestre 1";
+  const trimestre = sanitized.temporalizacion?.trimestre || "1º";
+
+  return `
+<div class="sigre-curricular-doc" style="font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #0f172a; line-height: 1.4; max-width: 900px; margin: 0 auto;">
+
+  <!-- ==================== PÁGINA 1: FICHA CURRICULAR (PUNTOS 1 AL 11) ==================== -->
+  <div style="page-break-after: always; margin-bottom: 30px; border: 1.5px solid #0284c7; background: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+    
+    <!-- Top Header Ribbon -->
+    <div style="background: linear-gradient(90deg, #0284c7 0%, #0369a1 100%); color: #ffffff; padding: 6px 14px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">
+      <span>${cleanSigreLatexMath(config.moduloFormativo || "MÓDULO FORMATIVO")}</span>
+      <span style="font-family: monospace; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px;">${cleanSigreLatexMath(config.codigo || "CÓD. 1580")}</span>
+    </div>
+
+    <!-- Header Grid Box (3 Columns) -->
+    <div style="display: grid; grid-template-columns: 1.8fr 2fr 1.6fr; border-bottom: 1.5px solid #0284c7; background: #f0f9ff;">
+      <!-- Col 1: UD & BC -->
+      <div style="padding: 8px 10px; border-right: 1px solid #bae6fd;">
+        <div style="font-size: 13px; font-weight: 900; color: #0369a1; text-transform: uppercase;">Nº ${ud.number}: ${cleanSigreLatexMath(ud.title)}</div>
+        <div style="font-size: 11px; font-weight: 700; color: #0284c7; margin-top: 2px;">${cleanSigreLatexMath(ud.bcCode)}</div>
+      </div>
+
+      <!-- Col 2: Ciclo & Curso -->
+      <div style="padding: 8px 10px; border-right: 1px solid #bae6fd; font-size: 11px; color: #0f172a;">
+        <div style="font-weight: 800; color: #0369a1;">${cleanSigreLatexMath(config.moduloFormativo)}</div>
+        <div style="font-size: 10.5px; color: #475569; margin-top: 1px;">
+          <strong>Cód. ${cleanSigreLatexMath(config.codigo || "")}</strong> | ${cleanSigreLatexMath(config.curso || "1º curso")}<br>
+          <span style="font-weight: 700; color: #0284c7;">${cleanSigreLatexMath(config.cicloFormativo || "")}</span>
+        </div>
+      </div>
+
+      <!-- Col 3: Temporalización -->
+      <div style="padding: 8px 10px; background: #e0f2fe; font-size: 11px; color: #0369a1;">
+        <div><strong>TEMPORALIZACIÓN:</strong> <span style="color: #b91c1c; font-weight: 800;">${horas} horas (${sesiones} sesiones)</span></div>
+        <div style="margin-top: 2px;"><strong>FECHA DE REALIZACIÓN:</strong> <span style="font-weight: 700;">${fecha}</span></div>
+        <div style="margin-top: 2px;"><strong>TRIMESTRE:</strong> <span style="color: #b91c1c; font-weight: 800;">${trimestre}</span></div>
+      </div>
+    </div>
+
+    <!-- 3. CONTEXTUALIZACIÓN -->
+    <div style="padding: 8px 12px; border-bottom: 1px solid #bae6fd; background: #ffffff; font-size: 11px; text-align: justify; line-height: 1.5;">
+      <strong style="color: #0369a1; text-transform: uppercase; font-size: 11px;">CONTEXTUALIZACIÓN:</strong>
+      <span style="color: #334155;"> ${sanitized.contextualizacion}</span>
+    </div>
+
+    <!-- 4 & 5: JUSTIFICACIÓN / NORMATIVA & CONTRIBUCIÓN A LOS OBJETIVOS -->
+    <div style="display: grid; grid-template-columns: 1.1fr 1fr; border-bottom: 1px solid #bae6fd;">
+      <div style="border-right: 1px solid #bae6fd;">
+        <div style="background: #e0f2fe; color: #0369a1; font-size: 10.5px; font-weight: 800; padding: 4px 10px; text-transform: uppercase; text-align: center; border-bottom: 1px solid #bae6fd;">
+          4. JUSTIFICACIÓN / NORMATIVA
+        </div>
+        <div style="padding: 8px 10px; font-size: 10.5px; text-align: justify; color: #334155; line-height: 1.45;">
+          ${sanitized.justificacionNormativa}
+        </div>
+      </div>
+      <div>
+        <div style="background: #e0f2fe; color: #0369a1; font-size: 10.5px; font-weight: 800; padding: 4px 10px; text-transform: uppercase; text-align: center; border-bottom: 1px solid #bae6fd;">
+          5. CONTRIBUCIÓN A LOS OBJETIVOS DEL MÓDULO
+        </div>
+        <div style="padding: 8px 10px; font-size: 10.5px; text-align: justify; color: #334155; line-height: 1.45;">
+          <strong>${sanitized.contribucionObjetivosGenerales}</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6 & 7: COMPETENCIAS BÁSICAS & RESULTADOS DE APRENDIZAJE -->
+    <div style="display: grid; grid-template-columns: 1.1fr 1fr; border-bottom: 1px solid #bae6fd;">
+      <div style="border-right: 1px solid #bae6fd;">
+        <div style="background: #e0f2fe; color: #0369a1; font-size: 10.5px; font-weight: 800; padding: 4px 10px; text-transform: uppercase; text-align: center; border-bottom: 1px solid #bae6fd;">
+          6. COMPETENCIAS BÁSICAS
+        </div>
+        <div style="padding: 8px 10px; font-size: 10.5px; color: #334155; line-height: 1.45;">
+          <ul style="margin: 0; padding-left: 16px;">
+            ${(sanitized.competenciasBasicas || []).map((c) => `<li style="margin-bottom: 2px;">${c}</li>`).join("")}
+          </ul>
+        </div>
+      </div>
+      <div>
+        <div style="background: #e0f2fe; color: #0369a1; font-size: 10.5px; font-weight: 800; padding: 4px 10px; text-transform: uppercase; text-align: center; border-bottom: 1px solid #bae6fd;">
+          7. RESULTADOS DE APRENDIZAJE
+        </div>
+        <div style="padding: 8px 10px; font-size: 10.5px; color: #334155; line-height: 1.45;">
+          ${(sanitized.resultadosAprendizaje || []).map((ra) => `<p style="margin: 0 0 3px 0; font-weight: 600;">${ra}</p>`).join("")}
+        </div>
+      </div>
+    </div>
+
+    <!-- 8 & 9: CONTRIBUCIÓN A COMPETENCIAS PROFESIONALES & OBJETIVOS DE APRENDIZAJE -->
+    <div style="display: grid; grid-template-columns: 1.1fr 1fr; border-bottom: 1px solid #bae6fd;">
+      <div style="border-right: 1px solid #bae6fd;">
+        <div style="background: #e0f2fe; color: #0369a1; font-size: 10.5px; font-weight: 800; padding: 4px 10px; text-transform: uppercase; text-align: center; border-bottom: 1px solid #bae6fd;">
+          8. CONTRIBUCIÓN A LAS COMPETENCIAS PROFESIONALES, PERSONALES Y SOCIALES
+        </div>
+        <div style="padding: 8px 10px; font-size: 10.5px; color: #334155; line-height: 1.45;">
+          <strong>${sanitized.contribucionCompetenciasProfesionales}</strong>
+        </div>
+      </div>
+      <div>
+        <div style="background: #e0f2fe; color: #0369a1; font-size: 10.5px; font-weight: 800; padding: 4px 10px; text-transform: uppercase; text-align: center; border-bottom: 1px solid #bae6fd;">
+          9. OBJETIVOS DE APRENDIZAJE
+        </div>
+        <div style="padding: 8px 10px; font-size: 10.5px; color: #334155; line-height: 1.45;">
+          <ol style="margin: 0; padding-left: 16px;">
+            ${(sanitized.objetivosAprendizaje || []).map((obj) => `<li style="margin-bottom: 2px;">${obj.replace(/^\d+[\.\)]\s*/, "")}</li>`).join("")}
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <!-- 10. CONTENIDOS (5 Columns: Conceptuales | Procedimentales | Actitudinales | Peculiaridades Autonómicas | Temas Transversales) -->
+    <div>
+      <div style="background: #0284c7; color: #ffffff; font-size: 11px; font-weight: 800; padding: 4px 10px; text-transform: uppercase; text-align: center;">
+        10. CONTENIDOS INTEGRADOS & 11. TEMAS TRANSVERSALES
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; font-size: 10px; line-height: 1.35; background: #ffffff;">
+        
+        <!-- Col 1: Conceptuales -->
+        <div style="padding: 8px; border-right: 1px solid #bae6fd;">
+          <div style="font-weight: 800; color: #0369a1; text-transform: uppercase; margin-bottom: 4px; font-size: 9.5px; border-bottom: 1px dashed #bae6fd; padding-bottom: 2px;">
+            📘 Conceptuales (Saber)
+          </div>
+          <ul style="margin: 0; padding-left: 12px; color: #334155;">
+            ${(sanitized.contenidosIntegrados?.conceptuales || []).map((c) => `<li style="margin-bottom: 3px;">${c}</li>`).join("")}
+          </ul>
+        </div>
+
+        <!-- Col 2: Procedimentales -->
+        <div style="padding: 8px; border-right: 1px solid #bae6fd;">
+          <div style="font-weight: 800; color: #059669; text-transform: uppercase; margin-bottom: 4px; font-size: 9.5px; border-bottom: 1px dashed #bae6fd; padding-bottom: 2px;">
+            🛠️ Procedimentales (Saber Hacer)
+          </div>
+          <ul style="margin: 0; padding-left: 12px; color: #334155;">
+            ${(sanitized.contenidosIntegrados?.procedimentales || []).map((p) => `<li style="margin-bottom: 3px;">${p}</li>`).join("")}
+          </ul>
+        </div>
+
+        <!-- Col 3: Actitudinales -->
+        <div style="padding: 8px; border-right: 1px solid #bae6fd;">
+          <div style="font-weight: 800; color: #7c3aed; text-transform: uppercase; margin-bottom: 4px; font-size: 9.5px; border-bottom: 1px dashed #bae6fd; padding-bottom: 2px;">
+            🤝 Actitudinales (Saber Ser)
+          </div>
+          <ul style="margin: 0; padding-left: 12px; color: #334155;">
+            ${(sanitized.contenidosIntegrados?.actitudinales || []).map((a) => `<li style="margin-bottom: 3px;">${a}</li>`).join("")}
+          </ul>
+        </div>
+
+        <!-- Col 4: Peculiaridades Autonómicas -->
+        <div style="padding: 8px; border-right: 1px solid #bae6fd; background: #f8fafc;">
+          <div style="font-weight: 800; color: #d97706; text-transform: uppercase; margin-bottom: 4px; font-size: 9.5px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px;">
+            🏛️ Ref. Autonómicas
+          </div>
+          <ul style="margin: 0; padding-left: 12px; color: #475569;">
+            ${(sanitized.contenidosIntegrados?.peculiaridadesAutonomicas || ["Normativa autonómica aplicable", "Contexto industrial comarcal"]).map((ref) => `<li style="margin-bottom: 3px;">${ref}</li>`).join("")}
+          </ul>
+        </div>
+
+        <!-- Col 5: Temas Transversales / Valores -->
+        <div style="padding: 8px; background: #f8fafc;">
+          <div style="font-weight: 800; color: #0284c7; text-transform: uppercase; margin-bottom: 4px; font-size: 9.5px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px;">
+            🌱 Temas Transversales
+          </div>
+          <ul style="margin: 0; padding-left: 12px; color: #475569;">
+            ${(sanitized.contenidosIntegrados?.temasTransversales || ["Educación ambiental", "Cultura preventiva laboral", "Igualdad e inclusión"]).map((t) => `<li style="margin-bottom: 3px;">${t}</li>`).join("")}
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Page 1 Footer Subbar -->
+    <div style="background: #f1f5f9; padding: 4px 12px; border-top: 1px solid #cbd5e1; display: flex; justify-content: space-between; font-size: 9.5px; color: #64748b; font-family: monospace;">
+      <span>PROGRAMACIÓN DIDÁCTICA • ${cleanSigreLatexMath(config.moduloFormativo || "")}</span>
+      <span>PÁGINA 1/2 • FICHA CURRICULAR</span>
+    </div>
+
+  </div>
+
+  <!-- ==================== PÁGINA 2: METODOLOGÍA, ACTIVIDADES Y EVALUACIÓN (PUNTOS 12 AL 19) ==================== -->
+  <div style="border: 1.5px solid #0284c7; background: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+
+    <!-- Top Ribbon Page 2 -->
+    <div style="background: linear-gradient(90deg, #0284c7 0%, #0369a1 100%); color: #ffffff; padding: 6px 14px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">
+      <span>${cleanSigreLatexMath(config.moduloFormativo || "MÓDULO FORMATIVO")}</span>
+      <span style="font-family: monospace; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px;">Nº ${ud.number}: ${cleanSigreLatexMath(ud.title)}</span>
+    </div>
+
+    <!-- 12 & 13: METODOLOGÍA Y USO DE LAS TIC & ATENCIÓN A LA DIVERSIDAD -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1.5px solid #0284c7;">
+      <div style="border-right: 1px solid #bae6fd;">
+        <div style="background: #e0f2fe; color: #0369a1; font-size: 10.5px; font-weight: 800; padding: 4px 10px; text-transform: uppercase; text-align: center; border-bottom: 1px solid #bae6fd;">
+          12. METODOLOGÍA Y USO DE LAS TIC
+        </div>
+        <div style="padding: 8px 10px; font-size: 10.5px; color: #334155; line-height: 1.45;">
+          <p style="margin: 0 0 4px 0;"><strong>Metodologías Activas:</strong> ${sanitized.metodologiaTic?.metodologiasActivas || "Aprendizaje Basado en Retos (ABR) y Proyectos (ABP)."}</p>
+          ${sanitized.metodologiaTic?.flippedClassroom ? `<p style="margin: 0 0 4px 0;"><strong>Flipped Classroom:</strong> ${sanitized.metodologiaTic.flippedClassroom}</p>` : ""}
+          ${sanitized.metodologiaTic?.duaMetodologia ? `<p style="margin: 0 0 4px 0;"><strong>DUA:</strong> ${sanitized.metodologiaTic.duaMetodologia}</p>` : ""}
+          ${sanitized.metodologiaTic?.innovacionIa ? `<p style="margin: 0 0 4px 0;"><strong>Innovación / IA:</strong> ${sanitized.metodologiaTic.innovacionIa}</p>` : ""}
+          ${sanitized.metodologiaTic?.secuenciacionMetodologica ? `<p style="margin: 0; color: #0284c7; font-weight: 700;"><strong>Secuenciación:</strong> ${sanitized.metodologiaTic.secuenciacionMetodologica}</p>` : ""}
+        </div>
+      </div>
+
+      <div>
+        <div style="background: #e0f2fe; color: #0369a1; font-size: 10.5px; font-weight: 800; padding: 4px 10px; text-transform: uppercase; text-align: center; border-bottom: 1px solid #bae6fd;">
+          13. ATENCIÓN A LA DIVERSIDAD
+        </div>
+        <div style="padding: 8px 10px; font-size: 10.5px; color: #334155; line-height: 1.45;">
+          <p style="margin: 0 0 4px 0;"><strong>DUA:</strong> ${sanitized.atencionDiversidad?.dua || "Fichas técnicas visuales con códigos QR y videotutoriales."}</p>
+          ${sanitized.atencionDiversidad?.multinivel ? `<p style="margin: 0 0 4px 0;"><strong>Multinivel:</strong> ${sanitized.atencionDiversidad.multinivel}</p>` : ""}
+          <p style="margin: 0 0 4px 0;"><strong>Refuerzo:</strong> ${sanitized.atencionDiversidad?.refuerzo || "Glosarios técnicos ilustrados y tablas simplificadas."}</p>
+          <p style="margin: 0 0 4px 0;"><strong>Ampliación:</strong> ${sanitized.atencionDiversidad?.ampliacion || "Investigación sobre nuevas tecnologías y materiales inteligentes."}</p>
+          ${sanitized.atencionDiversidad?.accesibilidad ? `<p style="margin: 0;"><strong>Accesibilidad:</strong> ${sanitized.atencionDiversidad.accesibilidad}</p>` : ""}
+        </div>
+      </div>
+    </div>
+
+    <!-- 14. TEMPORALIZACIÓN Y SECUENCIACIÓN DE ACTIVIDADES -->
+    <div style="border-bottom: 1.5px solid #0284c7;">
+      <div style="background: #0284c7; color: #ffffff; font-size: 11px; font-weight: 800; padding: 4px 10px; text-transform: uppercase; text-align: center;">
+        14. TEMPORALIZACIÓN Y SECUENCIACIÓN DE ACTIVIDADES ENSEÑANZA Y APRENDIZAJE
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; font-size: 10.5px; line-height: 1.4;">
+        
+        <!-- Bloque 1: Iniciación / Desarrollo -->
+        <div style="padding: 8px 10px; border-right: 1px solid #bae6fd;">
+          <div style="font-weight: 800; color: #0369a1; text-transform: uppercase; margin-bottom: 4px; font-size: 10px;">
+            De Iniciación (I) / Desarrollo (D) <span style="color: #b91c1c;">${sanitized.secuenciacionActividades?.iniciacionDesarrollo?.horas || "(3h+3h)"}</span>
+          </div>
+          <ul style="margin: 0; padding-left: 14px; color: #334155;">
+            ${(sanitized.secuenciacionActividades?.iniciacionDesarrollo?.actividades || [
+              { codigo: "I1", nombre: "Kahoot inicial: Detección de ideas previas" },
+              { codigo: "D1", nombre: "Taller práctico de montaje e inspección" },
+              { codigo: "D2", nombre: "Simulación técnica y verificación de parámetros" }
+            ]).map((act) => `<li style="margin-bottom: 3px;"><strong>${act.codigo}.</strong> ${act.nombre}</li>`).join("")}
+          </ul>
+        </div>
+
+        <!-- Bloque 2: Repaso / Refuerzo -->
+        <div style="padding: 8px 10px; border-right: 1px solid #bae6fd;">
+          <div style="font-weight: 800; color: #0369a1; text-transform: uppercase; margin-bottom: 4px; font-size: 10px;">
+            Repaso (R) / Refuerzo (Rf) <span style="color: #b91c1c;">${sanitized.secuenciacionActividades?.repasoRefuerzo?.horas || "(3h)"}</span>
+          </div>
+          <ul style="margin: 0; padding-left: 14px; color: #334155;">
+            ${(sanitized.secuenciacionActividades?.repasoRefuerzo?.actividades || [
+              { codigo: "R1", nombre: "Role-playing y dinámicas de resolución técnica" },
+              { codigo: "Rf1", nombre: "Cuestionario Moodle habilitador (100% aciertos obligatorios)" }
+            ]).map((act) => `<li style="margin-bottom: 3px;"><strong>${act.codigo}.</strong> ${act.nombre}</li>`).join("")}
+          </ul>
+        </div>
+
+        <!-- Bloque 3: Ampliación / Evaluación -->
+        <div style="padding: 8px 10px;">
+          <div style="font-weight: 800; color: #0369a1; text-transform: uppercase; margin-bottom: 4px; font-size: 10px;">
+            Ampliación (A) / Evaluación (E) <span style="color: #b91c1c;">${sanitized.secuenciacionActividades?.ampliacionEvaluacion?.horas || "(2h)"}</span>
+          </div>
+          <ul style="margin: 0; padding-left: 14px; color: #334155;">
+            ${(sanitized.secuenciacionActividades?.ampliacionEvaluacion?.actividades || [
+              { codigo: "A1", nombre: "Informe de profundización y sostenibilidad" },
+              { codigo: "E1", nombre: "Prueba práctica y memoria técnica final" }
+            ]).map((act) => `<li style="margin-bottom: 3px;"><strong>${act.codigo}.</strong> ${act.nombre}</li>`).join("")}
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 15. EVALUACIÓN (¿QUÉ, CÓMO Y CUÁNDO EVALUAR?) -->
+    <div style="border-bottom: 1.5px solid #0284c7;">
+      <div style="background: #e0f2fe; color: #0369a1; font-size: 10.5px; font-weight: 800; padding: 4px 10px; text-transform: uppercase; text-align: center; border-bottom: 1px solid #bae6fd;">
+        15. EVALUACIÓN (¿QUÉ EVALUAR?, ¿CÓMO EVALUAR?, ¿CUÁNDO EVALUAR?)
+      </div>
+      <div style="padding: 6px 12px; font-size: 10.5px; color: #334155; line-height: 1.45;">
+        <p style="margin: 0 0 3px 0;"><strong>Evaluación Inicial:</strong> ${sanitized.evaluacion?.inicial || "Sondeo de nivel inicial y conocimientos previos (Semana 1)."}</p>
+        <p style="margin: 0 0 3px 0;"><strong>Evaluación Parcial:</strong> ${sanitized.evaluacion?.parcial || "Observación sistemática en taller y hojas de proceso continuo."}</p>
+        <p style="margin: 0;"><strong>Evaluación Final:</strong> ${sanitized.evaluacion?.final || "Calificación de prueba práctica (70%) y prueba escrita/Moodle (30%)."}</p>
+      </div>
+    </div>
+
+    <!-- 16 & 17. INSTRUMENTOS DE EVALUACIÓN & RAs CON CRITERIOS PONDERADOS -->
+    <div style="display: grid; grid-template-columns: 1.2fr 1fr 2fr; border-bottom: 1.5px solid #0284c7; font-size: 10.5px;">
+      
+      <!-- Col 1: Instrumentos -->
+      <div style="border-right: 1px solid #bae6fd;">
+        <div style="background: #e0f2fe; color: #0369a1; font-size: 10px; font-weight: 800; padding: 4px 8px; text-transform: uppercase; text-align: center; border-bottom: 1px solid #bae6fd;">
+          16. Instrumentos de Evaluación
+        </div>
+        <div style="padding: 8px; color: #334155;">
+          <ul style="margin: 0; padding-left: 14px;">
+            ${(sanitized.instrumentosEvaluacion || [
+              "Rúbrica de práctica en taller",
+              "Lista de cotejo de EPIs y seguridad",
+              "Cuestionario en Moodle Centros"
+            ]).map((inst) => `<li style="margin-bottom: 3px;">${inst}</li>`).join("")}
+          </ul>
+        </div>
+      </div>
+
+      <!-- Col 2: RA Global -->
+      <div style="border-right: 1px solid #bae6fd;">
+        <div style="background: #e0f2fe; color: #0369a1; font-size: 10px; font-weight: 800; padding: 4px 8px; text-transform: uppercase; text-align: center; border-bottom: 1px solid #bae6fd;">
+          Resultados de Aprendizaje
+        </div>
+        <div style="padding: 8px; color: #0f172a; text-align: center; font-weight: 800;">
+          <div style="color: #0369a1; font-size: 11px;">${sanitized.criteriosEvaluacionPonderados?.raGlobal || `RA ${ud.number} (${(100 / (config.numUnidadesDidacticas || 8)).toFixed(2)}% global)`}</div>
+        </div>
+      </div>
+
+      <!-- Col 3: Criterios Ponderados -->
+      <div>
+        <div style="background: #e0f2fe; color: #0369a1; font-size: 10px; font-weight: 800; padding: 4px 8px; text-transform: uppercase; text-align: center; border-bottom: 1px solid #bae6fd;">
+          17. Criterios de Evaluación (Ponderados)
+        </div>
+        <div style="padding: 8px; color: #334155; font-size: 10px;">
+          ${(sanitized.criteriosEvaluacionPonderados?.criterios && sanitized.criteriosEvaluacionPonderados.criterios.length > 0)
+            ? `<div style="display: flex; flex-wrap: wrap; gap: 4px 8px;">
+                ${sanitized.criteriosEvaluacionPonderados.criterios.map((c) => `<span style="background: #f1f5f9; border: 1px solid #e2e8f0; padding: 2px 6px; border-radius: 4px;"><strong>${c.criterio}</strong> ${c.descripcion} (<strong style="color: #b91c1c;">${c.peso}</strong>)</span>`).join("")}
+              </div>`
+            : `<p style="margin: 0;">${sanitized.criteriosEvaluacionPonderados?.criteriosTexto || "a) Identificación (20%), b) Montaje (30%), c) Seguridad y PRL (25%), d) Residuos (25%)."}</p>`
+          }
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 18 & 19: MATERIALES Y RECURSOS DIDÁCTICOS & BIBLIOGRAFÍA / WEBGRAFÍA -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; font-size: 10px;">
+      
+      <!-- Col 1: Materiales y Recursos -->
+      <div style="border-right: 1px solid #bae6fd; padding: 8px 10px;">
+        <div style="font-weight: 800; color: #0369a1; text-transform: uppercase; margin-bottom: 3px; font-size: 10px;">
+          18. MATERIALES Y RECURSOS DIDÁCTICOS
+        </div>
+        <div style="color: #334155; line-height: 1.4;">
+          ${(sanitized.materialesRecursos || [
+            "Kits reales de taller",
+            "Moodle Centros",
+            "Simulador digital",
+            "Manuales Paraninfo",
+            "Señalética reglamentaria"
+          ]).join(", ")}
+        </div>
+      </div>
+
+      <!-- Col 2: Bibliografía -->
+      <div style="padding: 8px 10px; background: #f8fafc;">
+        <div style="font-weight: 800; color: #0369a1; text-transform: uppercase; margin-bottom: 3px; font-size: 10px;">
+          19. BIBLIOGRAFÍA Y WEBGRAFÍA
+        </div>
+        <div style="color: #334155; line-height: 1.4;">
+          ${(sanitized.bibliografiaWebgrafia || [
+            "Ley Orgánica de FP y RD 659/2023.",
+            "Orden de currículo autonómico.",
+            "Manuales técnicos de referencia.",
+            "NTPs del INSST e IDAE."
+          ]).join(". ")}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Page 2 Footer Subbar -->
+    <div style="background: #f1f5f9; padding: 4px 12px; border-top: 1px solid #cbd5e1; display: flex; justify-content: space-between; font-size: 9.5px; color: #64748b; font-family: monospace;">
+      <span>PROGRAMACIÓN DIDÁCTICA • ${cleanSigreLatexMath(config.moduloFormativo || "")}</span>
+      <span>PÁGINA 2/2 • FICHA CURRICULAR OFICIAL</span>
+    </div>
+
+  </div>
+
+</div>
+`;
+}
+

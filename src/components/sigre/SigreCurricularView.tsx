@@ -37,6 +37,7 @@ import {
   SigreCurricularConfig,
   SigreUDItem,
   SigreUDData,
+  SigreUDCurricularData,
   SigreUserLevel,
   SigreRagDocument,
 } from "../../types/sigre";
@@ -48,9 +49,13 @@ import {
   buildSigreUDModuleDocentePrompt,
   buildSigreUDModuleEvalPrompt,
   buildSigreHDIPrompt,
+  buildSigreUDCurricularPrompt,
+  buildSigreUDCurricularSectionPrompt,
+  cleanSigreCurricularData,
   renderSigreUDCompleteA4Html,
   calculateSigrePedagogicalAudit,
   generateSigreOpml,
+  cleanSigreLatexMath,
 } from "../../utils/sigrePromptGenerator";
 import { SigrePlanModal } from "./SigrePlanModal";
 import { SigreMermaidViewer } from "./SigreMermaidViewer";
@@ -62,6 +67,9 @@ import { SigreCurriculumDropzone } from "./SigreCurriculumDropzone";
 import { SigreDocumentViewerModal } from "./SigreDocumentViewerModal";
 import { SigrePedagogicalAuditModal } from "./SigrePedagogicalAuditModal";
 import { SigreAutoevaluacionViewer } from "./SigreAutoevaluacionViewer";
+import { SigreCurricularViewer } from "./SigreCurricularViewer";
+import { SigreScheduleGuardManager } from "./SigreScheduleGuardManager";
+import { INITIAL_SIGRE_SCHEDULE_CONFIG } from "../../data/sigreSchedulePresets";
 import { extractTextFromFile } from "../../utils/pdfExtractor";
 import { exportHtmlToDocx } from "../../utils/docxExport";
 import { preparePrintableHtmlDocument } from "../../utils/topicPromptGenerator";
@@ -87,6 +95,7 @@ const DEFAULT_CONFIG: SigreCurricularConfig = {
   horasTotales: 160,
   horasSemanales: 5,
   numUnidadesDidacticas: 0, // 0 = Automático por Bloques
+  scheduleConfig: INITIAL_SIGRE_SCHEDULE_CONFIG,
   pedagogicalOptions: {
     testWiseness: true,
     cotAnticolision: true,
@@ -103,6 +112,59 @@ BC5: Sensores industriales y acondicionamiento de señal.
 BC6: Mantenimiento predictivo y diagnóstico de averías.
 BC7: Prevención de riesgos laborales y protección ambiental en instalaciones electrotécnicas.`,
 };
+
+function sanitizeUdDataMath(data?: SigreUDData): SigreUDData | undefined {
+  if (!data) return data;
+  return {
+    ...data,
+    modulo1: data.modulo1
+      ? {
+          ...data.modulo1,
+          titulo: cleanSigreLatexMath(data.modulo1.titulo),
+          introduccion: cleanSigreLatexMath(data.modulo1.introduccion),
+          conclusiones: cleanSigreLatexMath(data.modulo1.conclusiones),
+          relacionIntradisciplinar: cleanSigreLatexMath(data.modulo1.relacionIntradisciplinar),
+          indiceDesarrollo: cleanSigreLatexMath(data.modulo1.indiceDesarrollo),
+          desarrolloEpigrafesHtml: cleanSigreLatexMath(data.modulo1.desarrolloEpigrafesHtml),
+          referenciasNormativasHtml: cleanSigreLatexMath(data.modulo1.referenciasNormativasHtml),
+          bibliografiaWebgrafiaHtml: cleanSigreLatexMath(data.modulo1.bibliografiaWebgrafiaHtml),
+          glosarioHtml: cleanSigreLatexMath(data.modulo1.glosarioHtml),
+          autoevaluacionHtml: cleanSigreLatexMath(data.modulo1.autoevaluacionHtml),
+          contenidos: data.modulo1.contenidos
+            ? {
+                conceptuales: (data.modulo1.contenidos.conceptuales || []).map(cleanSigreLatexMath),
+                procedimentales: (data.modulo1.contenidos.procedimentales || []).map(cleanSigreLatexMath),
+                actitudinales: (data.modulo1.contenidos.actitudinales || []).map(cleanSigreLatexMath),
+              }
+            : data.modulo1.contenidos,
+          objetivosSmart: (data.modulo1.objetivosSmart || []).map(cleanSigreLatexMath),
+        }
+      : data.modulo1,
+    recursosDocente: data.recursosDocente
+      ? {
+          ...data.recursosDocente,
+          bancoGiftParte1: cleanSigreLatexMath(data.recursosDocente.bancoGiftParte1),
+          bancoGiftParte2: cleanSigreLatexMath(data.recursosDocente.bancoGiftParte2),
+          giftFullText: cleanSigreLatexMath(data.recursosDocente.giftFullText),
+          propuestaExamenHtml: cleanSigreLatexMath(data.recursosDocente.propuestaExamenHtml),
+          solucionarioExamenHtml: cleanSigreLatexMath(data.recursosDocente.solucionarioExamenHtml),
+          propuestaHdiConceptual: cleanSigreLatexMath(data.recursosDocente.propuestaHdiConceptual),
+        }
+      : data.recursosDocente,
+    programacionEval: data.programacionEval
+      ? {
+          ...data.programacionEval,
+          vinculacionCurricularHtml: cleanSigreLatexMath(data.programacionEval.vinculacionCurricularHtml),
+          matrizAlineacionHtml: cleanSigreLatexMath(data.programacionEval.matrizAlineacionHtml),
+          tablaActividadesHtml: cleanSigreLatexMath(data.programacionEval.tablaActividadesHtml),
+          rubricasXml: cleanSigreLatexMath(data.programacionEval.rubricasXml),
+        }
+      : data.programacionEval,
+    cotRazonamiento: cleanSigreLatexMath(data.cotRazonamiento || ""),
+    glosarioHtml: cleanSigreLatexMath(data.glosarioHtml || ""),
+    udCurricular: data.udCurricular ? cleanSigreCurricularData(data.udCurricular) : undefined,
+  };
+}
 
 export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   theme,
@@ -126,11 +188,18 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
       const parsed: SigreUDItem[] = JSON.parse(saved);
       if (!Array.isArray(parsed)) return [];
       // Sanitize any stale "generating" status from previous sessions so items are not stuck in an infinite loop
+      // and sanitize any LaTeX math syntax into clean plain text
       return parsed.map((u) => {
+        const sanitizedData = u.data ? sanitizeUdDataMath(u.data) : undefined;
         if (u.status === "generating") {
-          return u.data ? { ...u, status: "completed" } : { ...u, status: "pending" };
+          return sanitizedData ? { ...u, status: "completed", data: sanitizedData } : { ...u, status: "pending" };
         }
-        return u;
+        return {
+          ...u,
+          title: cleanSigreLatexMath(u.title),
+          fullCode: cleanSigreLatexMath(u.fullCode),
+          data: sanitizedData,
+        };
       });
     } catch {
       return [];
@@ -146,12 +215,13 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   });
 
   const [activeTab, setActiveTab] = useState<
-    "ud_completa" | "cuestionario_autoeval" | "recursos_docente" | "programacion_eval" | "diagrama_flujo" | "hdi_interactiva"
+    "ud_completa" | "ud_curricular" | "cuestionario_autoeval" | "recursos_docente" | "programacion_eval" | "diagrama_flujo" | "hdi_interactiva"
   >("ud_completa");
 
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [isAnalyzingCurriculum, setIsAnalyzingCurriculum] = useState(false);
   const [isGeneratingUd, setIsGeneratingUd] = useState(false);
+  const [isGeneratingCurricular, setIsGeneratingCurricular] = useState(false);
   const [isGeneratingHdi, setIsGeneratingHdi] = useState(false);
   const [isBatchGenerating, setIsBatchGenerating] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
@@ -167,6 +237,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   });
   const [viewingDoc, setViewingDoc] = useState<SigreRagDocument | null>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [configTab, setConfigTab] = useState<"curricular" | "horarios">("curricular");
   const [diagramSubTab, setDiagramSubTab] = useState<"mermaid" | "opml">("mermaid");
   const [docZoom, setDocZoom] = useState(1);
 
@@ -190,9 +261,13 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   }, [ragDocuments]);
 
   useEffect(() => {
-    if (selectedUdId) {
-      localStorage.setItem("docuexam_sigre_selected_ud", selectedUdId);
-    }
+    try {
+      if (selectedUdId) {
+        localStorage.setItem("docuexam_sigre_selected_ud", selectedUdId);
+      } else {
+        localStorage.removeItem("docuexam_sigre_selected_ud");
+      }
+    } catch {}
   }, [selectedUdId]);
 
   const selectedUd = uds.find((u) => u.id === selectedUdId) || uds[0] || null;
@@ -513,8 +588,10 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
             `2. Realizar montajes y mediciones siguiendo las especificaciones del fabricante.`,
             `3. Aplicar las normas de seguridad y protección ambiental aplicables al sector.`,
           ],
-          indiceDesarrollo: modulo1Data.indiceDesarrollo || `1. Introducción y fundamentos\n2. Procedimientos de trabajo y normativa\n3. Verificación y control de calidad`,
-          desarrolloEpigrafesHtml: modulo1Data.desarrolloEpigrafesHtml || `<div class="ud-content"><h3>1. Introducción y fundamentos</h3><p>Desarrollo técnico riguroso de ${targetUd.title}.</p></div>`,
+          indiceDesarrollo: modulo1Data.indiceDesarrollo || `1. ÍNDICE GENERAL DEL TEMA\n2. INTRODUCCIÓN Y CONTEXTUALIZACIÓN\n3. CONTENIDOS ESPECÍFICOS\n4. OBJETIVOS ESPECÍFICOS DE APRENDIZAJE (SMART)\n5. DESARROLLO\n  5.1. Fundamentos y Requisitos\n  5.2. Procedimientos y Verificación\n6. REFERENCIAS NORMATIVAS\n7. BIBLIOGRAFÍA Y WEBGRAFÍA\n8. CONCLUSIONES Y SÍNTESIS DEL TEMA`,
+          desarrolloEpigrafesHtml: modulo1Data.desarrolloEpigrafesHtml || `<div class="ud-content"><h3>5.1. Fundamentos y Requisitos</h3><p>Desarrollo técnico riguroso de ${targetUd.title}.</p></div>`,
+          referenciasNormativasHtml: modulo1Data.referenciasNormativasHtml || "",
+          bibliografiaWebgrafiaHtml: modulo1Data.bibliografiaWebgrafiaHtml || "",
           glosarioHtml: modulo1Data.glosarioHtml || "",
           autoevaluacionHtml: modulo1Data.autoevaluacionHtml || "",
           conclusiones: modulo1Data.conclusiones || `Síntesis didáctica y conclusiones clave para ${targetUd.title}.`,
@@ -543,9 +620,11 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
       // Calculate Pedagogical Audit with 6 axes
       completeUdData.pedagogicalAudit = calculateSigrePedagogicalAudit(completeUdData, config);
 
+      const sanitizedCompleteUdData = sanitizeUdDataMath(completeUdData) || completeUdData;
+
       setUds((prev) =>
         prev.map((u) =>
-          u.id === targetUd.id ? { ...u, status: "completed", error: undefined, data: completeUdData } : u
+          u.id === targetUd.id ? { ...u, status: "completed", error: undefined, data: sanitizedCompleteUdData } : u
         )
       );
       return true;
@@ -602,6 +681,181 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
     setIsBatchGenerating(false);
     setIsGeneratingUd(false);
     setLoadingStatus("");
+  };
+
+  // Step 4b: Generate Curricular UD (19 Points)
+  const handleGenerateCurricularUD = async (targetUd?: SigreUDItem, isBatch = false) => {
+    const udToGen = targetUd || selectedUd;
+    if (!udToGen) return;
+
+    setIsGeneratingCurricular(true);
+    setLoadingStatus(`Generando Ficha Curricular Oficial (19 puntos) para ${udToGen.fullCode}...`);
+
+    try {
+      const ragContext = ragDocuments.map((doc) => `[${doc.name}]: ${doc.text}`).join("\n\n");
+      const prompt = buildSigreUDCurricularPrompt(udToGen, config, ragContext);
+
+      const res = await fetch("/api/generate-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          providerId: activeProviderConfig.id,
+          apiKey: activeProviderConfig.apiKey,
+          endpoint: activeProviderConfig.endpoint,
+          model: activeProviderConfig.selectedModel,
+          temperature: 0.2,
+          jsonMode: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `HTTP ${res.status}`);
+      }
+
+      const resData = await res.json();
+      const parsed = robustJsonParse<SigreUDCurricularData>(resData.text, {} as any);
+      const sanitized = cleanSigreCurricularData(parsed);
+
+      setUds((prev) =>
+        prev.map((u) => {
+          if (u.id === udToGen.id) {
+            const baseData: SigreUDData = u.data || {
+              modulo1: {
+                titulo: u.fullCode,
+                introduccion: "",
+                contenidos: { conceptuales: [], procedimentales: [], actitudinales: [] },
+                objetivosSmart: [],
+                indiceDesarrollo: "",
+                desarrolloEpigrafesHtml: "",
+                referenciasNormativasHtml: "",
+                bibliografiaWebgrafiaHtml: "",
+                glosarioHtml: "",
+                autoevaluacionHtml: "",
+                conclusiones: "",
+                relacionIntradisciplinar: "",
+                diagramaMermaid: "",
+                mapaMentalOpml: "",
+              },
+              recursosDocente: {
+                bancoGiftParte1: "",
+                bancoGiftParte2: "",
+                giftFullText: "",
+                propuestaExamenHtml: "",
+                solucionarioExamenHtml: "",
+                propuestaHdiConceptual: "",
+              },
+              programacionEval: {
+                vinculacionCurricularHtml: "",
+                matrizAlineacionHtml: "",
+                tablaActividadesHtml: "",
+                rubricasXml: "",
+              },
+            };
+            return {
+              ...u,
+              data: {
+                ...baseData,
+                udCurricular: sanitized,
+              },
+            };
+          }
+          return u;
+        })
+      );
+    } catch (err: any) {
+      console.error("Error generando UD Curricular:", err);
+      if (!isBatch) {
+        alert("Error al generar la Unidad Didáctica Curricular: " + (err.message || err));
+      }
+    } finally {
+      setIsGeneratingCurricular(false);
+      setLoadingStatus("");
+    }
+  };
+
+  // Generate Curricular UD Section-by-Section
+  const handleGenerateCurricularUDSection = async (
+    sectionKey: "contexto_justificacion" | "competencias_objetivos" | "contenidos_transversales" | "metodologia_diversidad" | "secuenciacion_actividades" | "evaluacion_criterios" | "recursos_bibliografia"
+  ) => {
+    if (!selectedUd) return;
+
+    setIsGeneratingCurricular(true);
+    setLoadingStatus(`Regenerando bloque curricular "${sectionKey}" para ${selectedUd.fullCode}...`);
+
+    try {
+      const ragContext = ragDocuments.map((doc) => `[${doc.name}]: ${doc.text}`).join("\n\n");
+      const currentCurricular = selectedUd.data?.udCurricular;
+      const prompt = buildSigreUDCurricularSectionPrompt(selectedUd, config, sectionKey, currentCurricular, ragContext);
+
+      const res = await fetch("/api/generate-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          providerId: activeProviderConfig.id,
+          apiKey: activeProviderConfig.apiKey,
+          endpoint: activeProviderConfig.endpoint,
+          model: activeProviderConfig.selectedModel,
+          temperature: 0.2,
+          jsonMode: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `HTTP ${res.status}`);
+      }
+
+      const resData = await res.json();
+      const partialData = robustJsonParse<Partial<SigreUDCurricularData>>(resData.text, {});
+      const merged: SigreUDCurricularData = {
+        ...(currentCurricular || ({} as SigreUDCurricularData)),
+        ...partialData,
+      };
+      const sanitized = cleanSigreCurricularData(merged);
+
+      setUds((prev) =>
+        prev.map((u) => {
+          if (u.id === selectedUd.id && u.data) {
+            return {
+              ...u,
+              data: {
+                ...u.data,
+                udCurricular: sanitized,
+              },
+            };
+          }
+          return u;
+        })
+      );
+    } catch (err: any) {
+      console.error("Error regenerando sección curricular:", err);
+      alert("Error al regenerar el apartado curricular: " + (err.message || err));
+    } finally {
+      setIsGeneratingCurricular(false);
+      setLoadingStatus("");
+    }
+  };
+
+  const handleUpdateCurricularData = (updatedData: SigreUDCurricularData) => {
+    if (!selectedUd) return;
+    const sanitized = cleanSigreCurricularData(updatedData);
+    setUds((prev) =>
+      prev.map((u) => {
+        if (u.id === selectedUd.id && u.data) {
+          return {
+            ...u,
+            data: {
+              ...u.data,
+              udCurricular: sanitized,
+            },
+          };
+        }
+        return u;
+      })
+    );
   };
 
   // Generate Module 2: HDI
@@ -732,6 +986,27 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
+              onClick={() => {
+                setIsConfigOpen(true);
+                setConfigTab("horarios");
+                if (config.scheduleConfig) {
+                  setConfig({
+                    ...config,
+                    scheduleConfig: {
+                      ...config.scheduleConfig,
+                      activeView: "calendario_escolar",
+                    },
+                  });
+                }
+              }}
+              className="px-3.5 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Abrir el Calendario Escolar Oficial y organizador temporal de UDs"
+            >
+              <Calendar className="w-4 h-4 text-emerald-400" />
+              <span>Calendario Escolar</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setIsConfigOpen(!isConfigOpen)}
               className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors"
             >
@@ -759,16 +1034,78 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
 
         {/* Collapsible Curriculum Configuration Form */}
         {isConfigOpen && (
-          <div className="mt-6 pt-5 border-t border-slate-700/60 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <div className="space-y-1">
-              <label className="font-bold text-slate-300">Módulo Formativo:</label>
-              <input
-                type="text"
-                value={config.moduloFormativo}
-                onChange={(e) => setConfig({ ...config, moduloFormativo: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-medium focus:border-amber-500 focus:outline-none"
-              />
+          <div className="mt-6 pt-5 border-t border-slate-700/60 space-y-4 text-xs">
+            {/* Configuration Tabs Header */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setConfigTab("curricular")}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                    configTab === "curricular"
+                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                  }`}
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  Parámetros Curriculares & Ejes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfigTab("horarios")}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                    configTab === "horarios"
+                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  Horarios y Guardias Docentes
+                  <span className="px-1.5 py-0.5 rounded-md bg-red-500/20 text-red-400 text-[10px] font-mono border border-red-500/30">
+                    GUA
+                  </span>
+                </button>
+              </div>
+
+              {configTab === "curricular" && (
+                <button
+                  type="button"
+                  onClick={() => setConfigTab("horarios")}
+                  className="px-3 py-1 text-xs text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <span>Abrir Horarios & Guardias</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
+
+            {configTab === "horarios" ? (
+              <SigreScheduleGuardManager
+                scheduleConfig={config.scheduleConfig || INITIAL_SIGRE_SCHEDULE_CONFIG}
+                onUpdateScheduleConfig={(newSched) => setConfig({ ...config, scheduleConfig: newSched })}
+                onApplyToCurricularConfig={(horas) => {
+                  setConfig((prev) => ({
+                    ...prev,
+                    horasSemanales: horas,
+                  }));
+                }}
+                currentModuloCodigo={config.codigo || config.moduloFormativo}
+                moduloNombre={config.moduloFormativo}
+                cicloFormativo={config.cicloFormativo}
+                currentUds={uds}
+                theme={theme}
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Módulo Formativo:</label>
+                  <input
+                    type="text"
+                    value={config.moduloFormativo}
+                    onChange={(e) => setConfig({ ...config, moduloFormativo: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-medium focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
             <div className="space-y-1">
               <label className="font-bold text-slate-300">Código / Ciclo / Grado:</label>
               <input
@@ -909,21 +1246,31 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                     />
                     <span className="text-slate-400 font-semibold text-xs">h/semana</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1 pt-1">
-                    {[2, 3, 4, 5, 6, 8].map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setConfig({ ...config, horasSemanales: s })}
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-colors ${
-                          config.horasSemanales === s
-                            ? "bg-cyan-500 text-black"
-                            : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-                        }`}
-                      >
-                        {s}h/sem
-                      </button>
-                    ))}
+                  <div className="flex flex-wrap items-center justify-between gap-1 pt-1">
+                    <div className="flex flex-wrap items-center gap-1">
+                      {[2, 3, 4, 5, 6, 8].map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setConfig({ ...config, horasSemanales: s })}
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-colors ${
+                            config.horasSemanales === s
+                              ? "bg-cyan-500 text-black"
+                              : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                          }`}
+                        >
+                          {s}h/sem
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setConfigTab("horarios")}
+                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 flex items-center gap-1 cursor-pointer"
+                      title="Gestionar en el generador de horarios"
+                    >
+                      <Calendar className="w-2.5 h-2.5" /> Horario
+                    </button>
                   </div>
                 </div>
 
@@ -1225,6 +1572,8 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
           </div>
         )}
       </div>
+    )}
+  </div>
 
       {/* Document Viewer Modal for Reference Documents */}
       <SigreDocumentViewerModal
@@ -1264,13 +1613,28 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                   {uds.filter((u) => u.status === "completed").length}/{uds.length}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setIsPlanModalOpen(true)}
                   className="text-[11px] font-bold text-amber-500 hover:underline cursor-pointer"
                 >
                   Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("¿Seguro que deseas vaciar y reiniciar el Plan de Unidades Didácticas?")) {
+                      setUds([]);
+                      setSelectedUdId("");
+                      localStorage.removeItem("docuexam_sigre_uds");
+                      localStorage.removeItem("docuexam_sigre_selected_ud");
+                    }
+                  }}
+                  className="text-[11px] font-bold text-text-muted hover:text-red-400 transition-colors cursor-pointer"
+                  title="Vaciar todo el plan de UDs"
+                >
+                  Vaciar
                 </button>
               </div>
             </div>
@@ -1509,7 +1873,21 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                             : "bg-surface border border-border-default text-text-muted hover:text-text-primary"
                         }`}
                       >
-                        <BookOpen className="w-4 h-4" /> 1. Unidad Didáctica (1.1 - 1.11)
+                        <BookOpen className="w-4 h-4" /> 1. UD Aula (1.1 - 1.11)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("ud_curricular")}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                          activeTab === "ud_curricular"
+                            ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
+                            : "bg-surface border border-border-default text-text-muted hover:text-text-primary"
+                        }`}
+                      >
+                        <Layers className="w-4 h-4 text-indigo-400" /> 1b. UD Curricular (19 Puntos)
+                        {selectedUd.data?.udCurricular && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block shadow-sm"></span>
+                        )}
                       </button>
                       <button
                         type="button"
@@ -1628,6 +2006,19 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                           />
                         </div>
                       </div>
+                    )}
+
+                    {/* Tab 1b: UD Curricular Oficial (19 Puntos) */}
+                    {activeTab === "ud_curricular" && (
+                      <SigreCurricularViewer
+                        ud={selectedUd}
+                        config={config}
+                        theme={theme}
+                        isGenerating={isGeneratingCurricular}
+                        onGenerateFull={() => handleGenerateCurricularUD(selectedUd)}
+                        onGenerateSection={(sectionKey) => handleGenerateCurricularUDSection(sectionKey)}
+                        onUpdateData={(updatedData) => handleUpdateCurricularData(updatedData)}
+                      />
                     )}
 
                     {/* Tab 2: Cuestionario de Autoevaluación */}

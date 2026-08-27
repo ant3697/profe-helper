@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useRef } from "react";
 import { Header } from "./components/Header";
 import { ConfigPanel } from "./components/ConfigPanel";
 import { ExamHeader } from "./components/ExamHeader";
@@ -22,24 +22,12 @@ import { TopicGeneratorView } from "./components/topicGenerator/TopicGeneratorVi
 import { SigreCurricularView } from "./components/sigre/SigreCurricularView";
 
 import {
-  DifficultyLevel,
-  EvaluationMode,
-  FormatTab,
   ExamData,
   UploadedDocument,
-  ThematicGroup,
   ExamSessionScore,
-  GenerationTokenUsage,
-  CreativityStyle,
-  QuestionFilter,
 } from "./types/exam";
-import {
-  AIProviderId,
-  AIProviderConfig,
-  AISettingsState,
-  DEFAULT_AI_PROVIDERS,
-} from "./types/aiProviders";
-import { extractTextFromFile, extractTextFromPDF } from "./utils/pdfExtractor";
+import { DEFAULT_AI_PROVIDERS } from "./types/aiProviders";
+import { extractTextFromFile } from "./utils/pdfExtractor";
 import {
   parseGIFT,
   parseTXTCompleto,
@@ -53,136 +41,112 @@ import {
   jsonToJSONString,
   exportStandaloneHTML,
 } from "./utils/examExporters";
-import { copyTextToClipboard, downloadBlob, DEFAULT_THEMATICS } from "./utils/fileHelpers";
+import { copyTextToClipboard, downloadBlob } from "./utils/fileHelpers";
 import { TopicUploadedFile } from "./types/thematicDoc";
 
+// Custom Hooks for Modular Clean Architecture
+import { useAISettings } from "./hooks/useAISettings";
+import { useExamState } from "./hooks/useExamState";
+import { useDocumentManager } from "./hooks/useDocumentManager";
+import { useUIControls } from "./hooks/useUIControls";
+
 export default function App() {
-  // Theme State
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    return (localStorage.getItem("docuexam_theme") as "dark" | "light") || "dark";
-  });
+  // Custom Modular Hooks
+  const {
+    aiSettings,
+    setAISettings,
+    isAIModalOpen,
+    setIsAIModalOpen,
+    handleSaveAISettings,
+  } = useAISettings();
 
-  // Fullscreen & Focus Mode
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isFocusMode, setIsFocusMode] = useState(false);
-  const [isExtendedMode, setIsExtendedMode] = useState(() => {
-    return localStorage.getItem("docuexam_extended") === "true";
-  });
+  const {
+    currentExamData,
+    setCurrentExamData,
+    loadedFileName,
+    setLoadedFileName,
+    currentTab,
+    setCurrentTab,
+    evalMode,
+    setEvalMode,
+    isExamSubmitted,
+    setIsExamSubmitted,
+    difficulty,
+    setDifficulty,
+    creativityStyle,
+    setCreativityStyle,
+    numQuestions,
+    setNumQuestions,
+    batchCount,
+    setBatchCount,
+    customPrompt,
+    setCustomPrompt,
+    accumulatedTokens,
+    setAccumulatedTokens,
+    thematics,
+    handleUpdateThematics,
+    hideDistractors,
+    setHideDistractors,
+    highlightCorrect,
+    setHighlightCorrect,
+    showAllFeedback,
+    setShowAllFeedback,
+    isCotVisible,
+    setIsCotVisible,
+    activeFilter,
+    setActiveFilter,
+    generationModel,
+    setGenerationModel,
+    lastUsage,
+    setLastUsage,
+  } = useExamState();
 
-  // AI Settings State (Multi-Provider: Gemini, DeepSeek, OpenAI, Groq, OpenRouter, Ollama)
-  const [aiSettings, setAISettings] = useState<AISettingsState>(() => {
-    try {
-      const saved = localStorage.getItem("docuexam_ai_settings");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const mergedProviders = {
-          ...DEFAULT_AI_PROVIDERS,
-          ...(parsed.providers || {}),
-        };
+  const {
+    baseMode,
+    setBaseMode,
+    uploadedFiles,
+    setUploadedFiles,
+    pastedText,
+    setPastedText,
+    selectedBaseDoc,
+    setSelectedBaseDoc,
+    selectedDocumentId,
+    setSelectedDocumentId,
+    docViewerPreferredMode,
+    setDocViewerPreferredMode,
+    isProcessingFiles,
+    setIsProcessingFiles,
+    processingStatusText,
+    setProcessingStatusText,
+  } = useDocumentManager();
 
-        // Ensure availableModels and obsolete selectedModel are sanitized for Gemini
-        if (mergedProviders.gemini) {
-          mergedProviders.gemini.availableModels = DEFAULT_AI_PROVIDERS.gemini.availableModels;
-          const validIds = DEFAULT_AI_PROVIDERS.gemini.availableModels.map((m) => m.id);
-          if (
-            !validIds.includes(mergedProviders.gemini.selectedModel) ||
-            mergedProviders.gemini.selectedModel.includes("2.5") ||
-            mergedProviders.gemini.selectedModel.includes("2.0") ||
-            mergedProviders.gemini.selectedModel.includes("1.5")
-          ) {
-            mergedProviders.gemini.selectedModel = "gemini-3.6-flash";
-          }
-        }
-        if (mergedProviders.temp_demo) {
-          mergedProviders.temp_demo.availableModels = DEFAULT_AI_PROVIDERS.temp_demo.availableModels;
-          const validIds = DEFAULT_AI_PROVIDERS.temp_demo.availableModels.map((m) => m.id);
-          if (
-            !validIds.includes(mergedProviders.temp_demo.selectedModel) ||
-            mergedProviders.temp_demo.selectedModel.includes("2.5") ||
-            mergedProviders.temp_demo.selectedModel.includes("2.0")
-          ) {
-            mergedProviders.temp_demo.selectedModel = "gemini-3.6-flash";
-          }
-        }
-
-        return {
-          activeProviderId: parsed.activeProviderId || "gemini",
-          providers: mergedProviders,
-        };
-      }
-    } catch {}
-    return {
-      activeProviderId: "gemini",
-      providers: DEFAULT_AI_PROVIDERS,
-    };
-  });
-  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
-
-  // Config State
-  const [accumulatedTokens, setAccumulatedTokens] = useState<number>(() => {
-    return parseInt(localStorage.getItem("docuexam_tokens") || "0", 10);
-  });
-  const [baseMode, setBaseMode] = useState<"files" | "text">("files");
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedDocument[]>([]);
-  const [pastedText, setPastedText] = useState("");
-  const [difficulty, setDifficulty] = useState<DifficultyLevel>("standard");
-  const [creativityStyle, setCreativityStyle] = useState<CreativityStyle>("literal");
-  const [numQuestions, setNumQuestions] = useState(12);
-  const [batchCount, setBatchCount] = useState(1);
-  const [customPrompt, setCustomPrompt] = useState("");
-  const [thematics, setThematics] = useState<ThematicGroup[]>(() => {
-    try {
-      const saved = localStorage.getItem("docuexam_thematics");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return DEFAULT_THEMATICS;
-  });
-
-  const handleUpdateThematics = (groups: ThematicGroup[]) => {
-    setThematics(groups);
-    try {
-      localStorage.setItem("docuexam_thematics", JSON.stringify(groups));
-    } catch (e) {
-      console.warn("Error persisting thematics:", e);
-    }
-  };
-
-  // Active Exam / Document State
-  const [currentExamData, setCurrentExamData] = useState<ExamData | null>(null);
-  const [selectedBaseDoc, setSelectedBaseDoc] = useState<UploadedDocument | null>(null);
-  const [docViewerPreferredMode, setDocViewerPreferredMode] = useState<"html" | "markdown" | "plain" | undefined>(undefined);
-  const [loadedFileName, setLoadedFileName] = useState("Examen Generado");
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
-  const [currentTab, setCurrentTab] = useState<FormatTab>("interactive");
-  const [evalMode, setEvalMode] = useState<EvaluationMode>("instant");
-  const [isExamSubmitted, setIsExamSubmitted] = useState(false);
-
-  // View Modifiers & Filters
-  const [hideDistractors, setHideDistractors] = useState(false);
-  const [highlightCorrect, setHighlightCorrect] = useState(false);
-  const [showAllFeedback, setShowAllFeedback] = useState(false);
-  const [isCotVisible, setIsCotVisible] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<QuestionFilter>("all");
-
-  // Stats & Usage
-  const [generationModel, setGenerationModel] = useState<string | undefined>(undefined);
-  const [lastUsage, setLastUsage] = useState<GenerationTokenUsage | null>(null);
-
-  // Modals & UI Controls
-  const [appMode, setAppMode] = useState<"exams" | "topic_builder" | "sigre_curricular">("exams");
-  const [isThematicModalOpen, setIsThematicModalOpen] = useState(false);
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [isResultsModalOpen, setIsResultsModalOpen] = useState(false);
-  const [isOmrModalOpen, setIsOmrModalOpen] = useState(false);
-  const [isOmrScannerOpen, setIsOmrScannerOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isProcessingFiles, setIsProcessingFiles] = useState(false);
-  const [processingStatusText, setProcessingStatusText] = useState("");
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [toastIsError, setToastIsError] = useState(false);
+  const {
+    theme,
+    toggleTheme,
+    isFullscreen,
+    toggleFullscreen,
+    isFocusMode,
+    setIsFocusMode,
+    isExtendedMode,
+    toggleExtendedMode,
+    appMode,
+    setAppMode,
+    isThematicModalOpen,
+    setIsThematicModalOpen,
+    isConfirmModalOpen,
+    setIsConfirmModalOpen,
+    isResultsModalOpen,
+    setIsResultsModalOpen,
+    isOmrModalOpen,
+    setIsOmrModalOpen,
+    isOmrScannerOpen,
+    setIsOmrScannerOpen,
+    isLoading,
+    setIsLoading,
+    toastMessage,
+    toastIsError,
+    showToast,
+  } = useUIControls();
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const renderedContentRef = useRef<HTMLDivElement>(null);
@@ -227,52 +191,6 @@ export default function App() {
     );
   };
 
-  // Sync Theme to HTML root
-  useEffect(() => {
-    if (theme === "dark") {
-      document.documentElement.setAttribute("data-theme", "dark");
-    } else {
-      document.documentElement.removeAttribute("data-theme");
-    }
-    localStorage.setItem("docuexam_theme", theme);
-  }, [theme]);
-
-  // Save & persist AI Settings
-  const handleSaveAISettings = (newSettings: AISettingsState) => {
-    setAISettings(newSettings);
-    localStorage.setItem("docuexam_ai_settings", JSON.stringify(newSettings));
-  };
-
-  const showToast = (msg: string, isError = false) => {
-    setToastMessage(msg);
-    setToastIsError(isError);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3200);
-  };
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
-  };
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(() => {});
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen?.().catch(() => {});
-      setIsFullscreen(false);
-    }
-  };
-
-  useEffect(() => {
-    const handleFSChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener("fullscreenchange", handleFSChange);
-    return () => document.removeEventListener("fullscreenchange", handleFSChange);
-  }, []);
-
   // Process Files Upload (PDF, TXT, HTML, JSON, GIFT)
   const processUploadedFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
@@ -315,7 +233,6 @@ export default function App() {
           continue;
         }
 
-        // Determine role (base study material by default, exam only if explicitly structured GIFT or JSON)
         let role: "base" | "exam" = "base";
         if (lowerName.endsWith(".gift") || (lowerName.endsWith(".json") && extractedText.includes('"bloques"'))) {
           role = "exam";
@@ -346,7 +263,6 @@ export default function App() {
       setUploadedFiles((prev) => [...prev, ...newDocs]);
       showToast(`${newDocs.length} archivo(s) procesado(s) correctamente`);
 
-      // If an explicit structured exam was uploaded, automatically view it
       if (lastExamFile) {
         handleSelectDocument(lastExamFile);
       }
@@ -396,7 +312,6 @@ export default function App() {
       setDocViewerPreferredMode(preferredMode);
     }
     if (selectedDocumentId === file.id && !preferredMode) {
-      // Toggle off / Deselect document
       setSelectedDocumentId(null);
       setSelectedBaseDoc(null);
       setCurrentExamData(null);
@@ -417,7 +332,6 @@ export default function App() {
     }
   };
 
-  // Update document text if edited in viewer
   const handleUpdateDocumentText = (id: string, newText: string) => {
     setUploadedFiles((prev) =>
       prev.map((f) => (f.id === id ? { ...f, text: newText } : f))
@@ -442,7 +356,6 @@ export default function App() {
     );
   };
 
-  // Transfer document from Exams module to Topics module
   const handleTransferDocumentToTopic = (file: UploadedDocument) => {
     try {
       const saved = localStorage.getItem("docuexam_topic_rag_files");
@@ -471,7 +384,6 @@ export default function App() {
     }
   };
 
-  // Transfer document from Topics module to Exams module
   const handleTransferDocumentToExams = (file: TopicUploadedFile) => {
     const existing = uploadedFiles.find((f) => f.name === file.name);
     if (existing) {
@@ -505,7 +417,6 @@ export default function App() {
     showToast("Archivos eliminados");
   };
 
-  // Close Active Exam or Base Document View
   const handleCloseViewer = () => {
     setCurrentExamData(null);
     setSelectedBaseDoc(null);
@@ -515,7 +426,6 @@ export default function App() {
     showToast("Vista cerrada");
   };
 
-  // Toggle Flag on Question
   const handleToggleFlag = (globalIdx: number) => {
     if (!currentExamData) return;
     const updated = { ...currentExamData };
@@ -538,16 +448,13 @@ export default function App() {
     }
   };
 
-  // Aggregate content for Gemini RAG context (respecting active flag)
   const getAggregatedContent = (overrideBaseText?: string) => {
     let baseText = overrideBaseText || "";
     let examText = "";
 
     if (!overrideBaseText) {
       uploadedFiles.forEach((f) => {
-        // Only include active documents in the generation context (default active is true)
         if (f.active === false) return;
-
         if (f.role === "exam") {
           examText += f.text + "\n\n---\n\n";
         } else {
@@ -573,7 +480,6 @@ export default function App() {
     return aggregated;
   };
 
-  // Generate Exam with AI Provider
   const handleGenerateExam = async (paramsOverride?: {
     customFragment?: string;
     overrideNumQuestions?: number;
@@ -627,7 +533,6 @@ export default function App() {
         throw new Error("Respuesta de IA sin estructura de bloques válida.");
       }
 
-      // Initialize question objects & randomly shuffle options
       rawBatteries.forEach((bat) => {
         const bData = bat.data;
         if (bData && Array.isArray(bData.bloques)) {
@@ -640,7 +545,6 @@ export default function App() {
                 origOId: oIdx,
               }));
 
-              // Shuffle options
               for (let i = optObjs.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [optObjs[i], optObjs[j]] = [optObjs[j], optObjs[i]];
@@ -734,7 +638,6 @@ export default function App() {
     }
   };
 
-  // Selective Generation from Selected Document Fragment
   const handleGenerateFromFragment = (fragmentText: string, fragmentQuestions: number) => {
     handleGenerateExam({
       customFragment: fragmentText,
@@ -749,721 +652,339 @@ export default function App() {
     setIsLoading(false);
   };
 
-  // Option selection handler
-  const handleSelectOption = (qIndex: number, optIndex: number) => {
-    if (!currentExamData) return;
-    if (isExamSubmitted && evalMode === "deferred") return;
-
+  const handleSelectAnswer = (globalIdx: number, optionIdx: number) => {
+    if (!currentExamData || isExamSubmitted) return;
     const updated = { ...currentExamData };
-    let totalQCount = 0;
+    let currentCount = 0;
 
     for (const b of updated.bloques) {
-      for (let i = 0; i < b.preguntas.length; i++) {
-        if (totalQCount === qIndex) {
-          const q = b.preguntas[i];
-          if (evalMode === "instant" && q.isAnswered) return;
-
-          q.userSelectedIndex = optIndex;
-          if (evalMode === "instant") {
-            q.isAnswered = true;
-          }
-          break;
+      for (const q of b.preguntas) {
+        if (currentCount === globalIdx) {
+          q.userSelectedIndex = optionIdx;
+          q.isAnswered = true;
+          setCurrentExamData(updated);
+          return;
         }
-        totalQCount++;
+        currentCount++;
       }
     }
-
-    setCurrentExamData(updated);
   };
 
-  // Calculate Exam Score
-  const calculateScore = (): ExamSessionScore => {
-    if (!currentExamData) {
-      return {
-        total: 0,
-        answered: 0,
-        correct: 0,
-        incorrect: 0,
-        unanswered: 0,
-        grade10: "0.00",
-        percentage: 0,
-      };
-    }
-
-    let total = 0;
-    let answered = 0;
-    let correct = 0;
-    let incorrect = 0;
+  const calculateScore = (): ExamSessionScore | null => {
+    if (!currentExamData) return null;
+    let totalQuestions = 0;
+    let correctCount = 0;
+    let incorrectCount = 0;
+    let unansweredCount = 0;
 
     currentExamData.bloques.forEach((b) => {
       b.preguntas.forEach((q) => {
-        total++;
-        if (q.userSelectedIndex !== null && q.userSelectedIndex !== undefined) {
-          answered++;
-          if (q.userSelectedIndex === q.indiceCorrecta) {
-            correct++;
-          } else {
-            incorrect++;
-          }
+        totalQuestions++;
+        if (q.userSelectedIndex === null || q.userSelectedIndex === undefined) {
+          unansweredCount++;
+        } else if (q.userSelectedIndex === q.indiceCorrecta) {
+          correctCount++;
+        } else {
+          incorrectCount++;
         }
       });
     });
 
-    const unanswered = total - answered;
-    const percentage = total > 0 ? Math.round((correct / total) * 100) : 0;
-    const grade10 = total > 0 ? ((correct / total) * 10).toFixed(2) : "0.00";
+    const netScore = Math.max(0, correctCount - incorrectCount * 0.33);
+    const percentage = totalQuestions > 0 ? (netScore / totalQuestions) * 100 : 0;
 
     return {
-      total,
-      answered,
-      correct,
-      incorrect,
-      unanswered,
-      grade10,
+      totalQuestions,
+      correctCount,
+      incorrectCount,
+      unansweredCount,
+      netScore,
       percentage,
     };
   };
 
-  // Mode: Repaso de Falladas
-  const handleReviewMistakes = () => {
+  const handleSubmitExam = () => {
+    setIsExamSubmitted(true);
+    setIsResultsModalOpen(true);
+  };
+
+  const handleExportText = (type: "gift" | "completo" | "correctas" | "json" | "html" | "docx") => {
     if (!currentExamData) return;
+    const baseName = loadedFileName.replace(/\.[^/.]+$/, "");
 
-    const failedOrUnansweredQuestions: any[] = [];
-    currentExamData.bloques.forEach((b) => {
-      b.preguntas.forEach((q) => {
-        const isWrong =
-          q.userSelectedIndex !== null &&
-          q.userSelectedIndex !== undefined &&
-          q.userSelectedIndex !== q.indiceCorrecta;
-        const isBlank =
-          q.userSelectedIndex === null || q.userSelectedIndex === undefined;
-        if (isWrong || isBlank) {
-          // Reset answers for the review session
-          failedOrUnansweredQuestions.push({
-            ...q,
-            userSelectedIndex: null,
-            isAnswered: false,
-          });
-        }
-      });
-    });
-
-    if (failedOrUnansweredQuestions.length === 0) {
-      showToast("¡Enhorabuena! No tienes ninguna pregunta fallada o en blanco.");
-      setIsResultsModalOpen(false);
-      return;
+    if (type === "gift") {
+      downloadBlob(jsonToGIFT(currentExamData), `${baseName}.gift`, "text/plain;charset=utf-8");
+    } else if (type === "completo") {
+      downloadBlob(jsonToTxtCompleto(currentExamData), `${baseName}_completo.txt`, "text/plain;charset=utf-8");
+    } else if (type === "correctas") {
+      downloadBlob(jsonToTxtCorrectas(currentExamData), `${baseName}_solucionario.txt`, "text/plain;charset=utf-8");
+    } else if (type === "json") {
+      downloadBlob(jsonToJSONString(currentExamData), `${baseName}.json`, "application/json;charset=utf-8");
+    } else if (type === "html") {
+      downloadBlob(exportStandaloneHTML(currentExamData, loadedFileName), `${baseName}.html`, "text/html;charset=utf-8");
     }
-
-    const reviewExam: ExamData = {
-      bloques: [
-        {
-          titulo: `🔁 Repaso de Falladas y Dudas (${failedOrUnansweredQuestions.length} preguntas)`,
-          preguntas: failedOrUnansweredQuestions,
-        },
-      ],
-    };
-
-    setCurrentExamData(reviewExam);
-    setIsExamSubmitted(false);
-    setIsResultsModalOpen(false);
-    setActiveFilter("all");
-    setLoadedFileName(`Repaso_Falladas_(${failedOrUnansweredQuestions.length}preg)`);
-    showToast(
-      `Iniciando test de repaso con las ${failedOrUnansweredQuestions.length} preguntas falladas o pendientes.`
-    );
+    showToast(`Examen exportado en formato ${type.toUpperCase()}`);
   };
 
-  const handleGlobalSubmitExam = () => {
+  const handleCopyText = (type: "gift" | "completo" | "correctas" | "json") => {
     if (!currentExamData) return;
+    let text = "";
+    if (type === "gift") text = jsonToGIFT(currentExamData);
+    else if (type === "completo") text = jsonToTxtCompleto(currentExamData);
+    else if (type === "correctas") text = jsonToTxtCorrectas(currentExamData);
+    else if (type === "json") text = jsonToJSONString(currentExamData);
 
-    if (evalMode === "deferred") {
-      setIsExamSubmitted(true);
-      setIsResultsModalOpen(true);
-    } else {
-      const score = calculateScore();
-      if (score.answered < score.total) {
-        if (
-          !confirm(
-            `Has respondido ${score.answered} de ${score.total} preguntas. ¿Deseas ver la puntuación final?`
-          )
-        ) {
-          return;
-        }
-      }
-      setIsResultsModalOpen(true);
-    }
-  };
-
-  // Reordering Tools
-  const handleShuffleQuestions = () => {
-    if (!currentExamData) return;
-    const updated = { ...currentExamData };
-    updated.bloques.forEach((b) => {
-      for (let i = b.preguntas.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [b.preguntas[i], b.preguntas[j]] = [b.preguntas[j], b.preguntas[i]];
-      }
+    copyTextToClipboard(text).then((ok) => {
+      if (ok) showToast(`Copiado al portapapeles (${type.toUpperCase()})`);
+      else showToast("Error al copiar al portapapeles", true);
     });
-    setCurrentExamData(updated);
-    showToast("Preguntas barajadas");
   };
 
-  const handleSortQuestions = () => {
-    if (!currentExamData) return;
-    const updated = { ...currentExamData };
-    updated.bloques.forEach((b) => {
-      b.preguntas.sort((a, b) => (a.origQId || 0) - (b.origQId || 0));
-    });
-    setCurrentExamData(updated);
-    showToast("Preguntas ordenadas al estado original");
-  };
-
-  const handleShuffleOptions = () => {
-    if (!currentExamData) return;
-    const updated = { ...currentExamData };
-    updated.bloques.forEach((b) => {
-      b.preguntas.forEach((q) => {
-        if (q.opcionesObjs) {
-          const opts = [...q.opcionesObjs];
-          for (let i = opts.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [opts[i], opts[j]] = [opts[j], opts[i]];
-          }
-          q.opciones = opts.map((o) => o.text);
-          q.indiceCorrecta = opts.findIndex((o) => o.isCorrect);
-          q.opcionesObjs = opts;
-        }
-      });
-    });
-    setCurrentExamData(updated);
-    showToast("Opciones barajadas aleatoriamente");
-  };
-
-  const handleSortOptions = () => {
-    if (!currentExamData) return;
-    const updated = { ...currentExamData };
-    updated.bloques.forEach((b) => {
-      b.preguntas.forEach((q) => {
-        if (q.opcionesObjs && q.opcionesObjs.length > 0) {
-          const correctOpt = q.opcionesObjs.find((o) => o.isCorrect);
-          const distractors = q.opcionesObjs.filter((o) => !o.isCorrect);
-          const sortedOpts = correctOpt ? [correctOpt, ...distractors] : [...q.opcionesObjs];
-
-          q.opciones = sortedOpts.map((o) => o.text);
-          q.indiceCorrecta = 0;
-          q.opcionesObjs = sortedOpts;
-        } else if (q.opciones && q.opciones.length > 0) {
-          const currentCorrectIdx = q.indiceCorrecta ?? 0;
-          const correctText = q.opciones[currentCorrectIdx] || q.opciones[0];
-          const distractorTexts = q.opciones.filter((_, idx) => idx !== currentCorrectIdx);
-          const sortedTexts = [correctText, ...distractorTexts];
-          q.opciones = sortedTexts;
-          q.indiceCorrecta = 0;
-          q.opcionesObjs = sortedTexts.map((txt, idx) => ({
-            text: txt,
-            isCorrect: idx === 0,
-            origOId: idx,
-          }));
-        }
-      });
-    });
-    setCurrentExamData(updated);
-    showToast("Opciones ordenadas: respuesta correcta en opción a)");
-  };
-
-  // Export actions
-  const handleCopyToWord = async () => {
-    if (!currentExamData) return;
-    const txt = jsonToTxtCompleto(currentExamData);
-    await copyTextToClipboard(txt);
-    showToast("Examen copiado con formato de texto estructurado para Word");
-  };
-
-  const handlePrintPDF = () => {
-    window.print();
-  };
-
-  const handleExportHTML = () => {
-    if (!currentExamData) return;
-    const html = exportStandaloneHTML(currentExamData, loadedFileName);
-    downloadBlob(html, `${loadedFileName}.html`, "text/html;charset=utf-8");
-    showToast("Examen exportado como visor interactivo HTML autónomo");
-  };
-
-  const handleExportJSON = () => {
-    if (!currentExamData) return;
-    const jsonStr = jsonToJSONString(currentExamData);
-    downloadBlob(jsonStr, `${loadedFileName}.json`, "application/json;charset=utf-8");
-    showToast("Copia de seguridad en formato JSON descargada");
-  };
-
-  // Thematic selection apply
-  const handleApplyThematics = (selectedGroups: ThematicGroup[]) => {
-    const allSelectedItems: string[] = [];
-    selectedGroups.forEach((g) => {
-      if (g.temas && g.temas.length > 0) {
-        g.temas.forEach((tema) => {
-          allSelectedItems.push(`${g.grupo} -> ${tema}`);
-        });
-      } else {
-        allSelectedItems.push(g.grupo);
-      }
-    });
-
-    if (allSelectedItems.length === 0) {
-      showToast("No seleccionaste ningún bloque", true);
-      return;
-    }
-
-    const generatedPrompt =
-      `PRIORIDAD TEMÁTICA OBLIGATORIA: Genera preguntas extraídas específicamente de estos bloques temáticos:\n- ` +
-      allSelectedItems.join("\n- ") +
-      `\n\nVARIABILIDAD OBLIGATORIA: Cada distractor debe ser técnicamente verosímil pero erróneo en el contexto específico.`;
-
-    setCustomPrompt(generatedPrompt);
-    setNumQuestions(12);
-    showToast("Instrucciones configuradas con los bloques seleccionados");
-  };
-
-  const toggleExtendedMode = () => {
-    const next = !isExtendedMode;
-    setIsExtendedMode(next);
-    localStorage.setItem("docuexam_extended", String(next));
-  };
-
-  const score = calculateScore();
-
-  // Compute question filter counts
-  const allQuestionsFlat = currentExamData
-    ? currentExamData.bloques.flatMap((b) => b.preguntas)
+  // Flattened questions for rendering
+  const allQuestions = currentExamData
+    ? currentExamData.bloques.flatMap((b, bIdx) =>
+        b.preguntas.map((q, qIdx) => ({
+          ...q,
+          blockTitle: b.titulo,
+          blockIndex: bIdx,
+          questionIndexInBlock: qIdx,
+        }))
+      )
     : [];
 
-  const filterCounts = {
-    all: allQuestionsFlat.length,
-    unanswered: allQuestionsFlat.filter(
-      (q) => q.userSelectedIndex === null || q.userSelectedIndex === undefined
-    ).length,
-    flagged: allQuestionsFlat.filter((q) => !!q.flagged).length,
-    incorrect: allQuestionsFlat.filter(
-      (q) =>
-        q.userSelectedIndex !== null &&
-        q.userSelectedIndex !== undefined &&
-        q.userSelectedIndex !== q.indiceCorrecta
-    ).length,
-    correct: allQuestionsFlat.filter(
-      (q) =>
-        q.userSelectedIndex !== null &&
-        q.userSelectedIndex !== undefined &&
-        q.userSelectedIndex === q.indiceCorrecta
-    ).length,
-  };
+  const filteredQuestions = allQuestions.filter((q) => {
+    if (activeFilter === "flagged") return q.flagged;
+    if (activeFilter === "answered") return q.isAnswered;
+    if (activeFilter === "unanswered") return !q.isAnswered;
+    if (activeFilter === "correct") return isExamSubmitted && q.userSelectedIndex === q.indiceCorrecta;
+    if (activeFilter === "incorrect") return isExamSubmitted && q.userSelectedIndex !== null && q.userSelectedIndex !== q.indiceCorrecta;
+    return true;
+  });
 
   return (
-    <div className="min-h-screen bg-app text-text-primary transition-colors duration-200 p-3 sm:p-5 lg:p-6">
-      <div
-        id="mainWrapper"
-        className={`${
-          isExtendedMode ? "w-full max-w-[1700px]" : "max-w-7xl"
-        } mx-auto space-y-5 transition-all duration-300`}
-      >
-        {/* Header */}
-        <Header
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          isFullscreen={isFullscreen}
-          onToggleFullscreen={toggleFullscreen}
-          isExtendedMode={isExtendedMode}
-          onToggleExtendedMode={toggleExtendedMode}
-          onImportFile={(e) => e.target.files && processUploadedFiles(e.target.files)}
-          activeProviderConfig={
-            aiSettings.providers[aiSettings.activeProviderId] ||
-            DEFAULT_AI_PROVIDERS[aiSettings.activeProviderId]
-          }
-          onOpenAIModal={() => setIsAIModalOpen(true)}
-          onOpenOmrScanner={() => setIsOmrScannerOpen(true)}
-          currentAppMode={appMode}
-          onAppModeChange={setAppMode}
+    <div
+      className={`min-h-screen transition-colors duration-200 ${
+        theme === "dark" ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
+      }`}
+    >
+      {/* Header Bar */}
+      <Header
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={toggleFullscreen}
+        isFocusMode={isFocusMode}
+        onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+        appMode={appMode}
+        onSelectAppMode={setAppMode}
+        onOpenAISettings={() => setIsAIModalOpen(true)}
+        activeProviderId={aiSettings.activeProviderId}
+        activeModel={aiSettings.providers[aiSettings.activeProviderId]?.selectedModel || "gemini-3.6-flash"}
+      />
+
+      {/* Primary Sub-Applications Routing */}
+      {appMode === "topic_builder" ? (
+        <TopicGeneratorView
+          onSendExamToExamsModule={handleReceiveExamFromTopic}
+          onTransferDocumentToExams={handleTransferDocumentToExams}
         />
-
-        {/* View Mode: High-Density Topic Generator (Experto IA) - Preserved in DOM across mode changes */}
-        <div className={appMode === "topic_builder" ? "block" : "hidden"}>
-          <TopicGeneratorView
-            activeProviderConfig={
-              aiSettings.providers[aiSettings.activeProviderId] ||
-              DEFAULT_AI_PROVIDERS[aiSettings.activeProviderId]
-            }
-            onShowToast={showToast}
-            onSendExamToApp={handleReceiveExamFromTopic}
-            onTransferDocumentToExams={handleTransferDocumentToExams}
-            onOpenAIModal={() => setIsAIModalOpen(true)}
-          />
-        </div>
-
-        {/* View Mode: SIGRE Curricular (FP & UDs) - Preserved in DOM across mode changes */}
-        <div className={appMode === "sigre_curricular" ? "block" : "hidden"}>
-          <SigreCurricularView
-            theme={theme}
-            activeProviderConfig={
-              aiSettings.providers[aiSettings.activeProviderId] ||
-              DEFAULT_AI_PROVIDERS[aiSettings.activeProviderId]
-            }
-            onOpenAIModal={() => setIsAIModalOpen(true)}
-          />
-        </div>
-
-        {/* Main Grid: Exam Builder & Evaluator - Preserved in DOM across mode changes */}
-        <div className={appMode === "exams" ? "block" : "hidden"}>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Panel: Settings & Configuration */}
-          {!isFocusMode && (
-            <div className="lg:col-span-4 no-print space-y-6">
-              <ConfigPanel
-                activeProviderConfig={
-                  aiSettings.providers[aiSettings.activeProviderId] ||
-                  DEFAULT_AI_PROVIDERS[aiSettings.activeProviderId]
-                }
-                onOpenAIModal={() => setIsAIModalOpen(true)}
-                accumulatedTokens={accumulatedTokens}
-                uploadedFiles={uploadedFiles}
-                onUploadFiles={processUploadedFiles}
-                onRemoveFile={handleRemoveFile}
-                onToggleFileActive={handleToggleFileActive}
-                onTransferDocumentToTopic={handleTransferDocumentToTopic}
-                onClearFiles={handleClearFiles}
-                onSelectDocument={handleSelectDocument}
-                selectedDocumentId={selectedDocumentId}
-                pastedText={pastedText}
-                onPastedTextChange={setPastedText}
-                baseMode={baseMode}
-                onBaseModeChange={setBaseMode}
-                difficulty={difficulty}
-                onDifficultyChange={setDifficulty}
-                creativityStyle={creativityStyle}
-                onCreativityStyleChange={setCreativityStyle}
-                numQuestions={numQuestions}
-                onNumQuestionsChange={setNumQuestions}
-                batchCount={batchCount}
-                onBatchCountChange={setBatchCount}
-                customPrompt={customPrompt}
-                onCustomPromptChange={setCustomPrompt}
-                onOpenThematicBuilder={() => setIsThematicModalOpen(true)}
-                onRequestGenerate={() => setIsConfirmModalOpen(true)}
-                isLoading={isLoading}
-                isProcessingFiles={isProcessingFiles}
-                processingStatusText={processingStatusText}
-              />
-            </div>
-          )}
-
-          {/* Right Panel: Exam / Base Document Viewer & Formats */}
-          <div
-            className={`${
-              isFocusMode ? "lg:col-span-12" : "lg:col-span-8"
-            } flex flex-col min-h-[600px] transition-all duration-300`}
-          >
-            <div className="bg-surface/90 backdrop-blur-md border border-border-default shadow-xl rounded-2xl flex flex-col flex-1 overflow-hidden">
-              {selectedBaseDoc ? (
-                <DocumentViewerPanel
-                  document={selectedBaseDoc}
-                  initialViewMode={docViewerPreferredMode}
-                  onClose={handleCloseViewer}
-                  onUpdateDocumentText={handleUpdateDocumentText}
-                  onRequestGenerateExam={() => setIsConfirmModalOpen(true)}
-                  onGenerateFromFragment={handleGenerateFromFragment}
-                  onShowToast={showToast}
+      ) : appMode === "sigre_curricular" ? (
+        <SigreCurricularView />
+      ) : (
+        /* Exams Generator & Active Recall Suite */
+        <main className="container mx-auto px-4 py-6 max-w-7xl">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Configuration Panel */}
+            {!isFocusMode && (
+              <div className="lg:col-span-4 space-y-6">
+                <ConfigPanel
+                  baseMode={baseMode}
+                  setBaseMode={setBaseMode}
+                  uploadedFiles={uploadedFiles}
+                  onFileUpload={processUploadedFiles}
+                  onRemoveFile={handleRemoveFile}
+                  onToggleFileActive={handleToggleFileActive}
+                  onSelectDocument={handleSelectDocument}
+                  selectedDocumentId={selectedDocumentId}
+                  pastedText={pastedText}
+                  setPastedText={setPastedText}
+                  difficulty={difficulty}
+                  setDifficulty={setDifficulty}
+                  creativityStyle={creativityStyle}
+                  setCreativityStyle={setCreativityStyle}
+                  numQuestions={numQuestions}
+                  setNumQuestions={setNumQuestions}
+                  batchCount={batchCount}
+                  setBatchCount={setBatchCount}
+                  customPrompt={customPrompt}
+                  setCustomPrompt={setCustomPrompt}
+                  onGenerate={handleGenerateExam}
+                  isLoading={isLoading}
+                  onCancelGeneration={handleCancelGeneration}
+                  thematics={thematics}
+                  onOpenThematicModal={() => setIsThematicModalOpen(true)}
+                  accumulatedTokens={accumulatedTokens}
+                  onClearFiles={handleClearFiles}
+                  isProcessingFiles={isProcessingFiles}
+                  processingStatusText={processingStatusText}
+                  onOpenZipgradeModal={() => setIsOmrModalOpen(true)}
+                  onTransferDocumentToTopic={handleTransferDocumentToTopic}
                 />
-              ) : currentExamData ? (
+              </div>
+            )}
+
+            {/* Main Interactive Viewing Area */}
+            <div className={`${isFocusMode ? "lg:col-span-12" : "lg:col-span-8"} space-y-6`}>
+              {currentExamData || selectedBaseDoc ? (
                 <>
-                  {/* Exam Active Header */}
                   <ExamHeader
-                    fileName={loadedFileName}
-                    modelName={generationModel}
+                    title={loadedFileName}
+                    totalQuestions={allQuestions.length}
+                    answeredQuestions={allQuestions.filter((q) => q.isAnswered).length}
+                    flaggedQuestions={allQuestions.filter((q) => q.flagged).length}
+                    onClose={handleCloseViewer}
+                    model={generationModel}
                     usage={lastUsage}
-                    hasCotAudit={!!currentExamData.analisis_anticolision}
-                    isCotVisible={isCotVisible}
-                    onToggleCot={() => setIsCotVisible(!isCotVisible)}
-                    isFocusMode={isFocusMode}
-                    onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
-                    onCopyToWord={handleCopyToWord}
-                    onPrintPDF={handlePrintPDF}
-                    onExportHTML={handleExportHTML}
-                    onExportJSON={handleExportJSON}
-                    onCloseExam={handleCloseViewer}
                   />
 
-                  {/* Format Tabs & Toolbar */}
-                  <div className="p-4 sm:p-5 space-y-4 border-b border-border-default bg-alt/30">
-                    <FormatTabs
-                      currentTab={currentTab}
-                      onTabChange={(t) => setCurrentTab(t)}
-                    />
+                  {currentExamData && (
+                    <>
+                      <FormatTabs currentTab={currentTab} onSelectTab={setCurrentTab} />
 
-                    <InteractiveToolbar
-                      onShuffleQuestions={handleShuffleQuestions}
-                      onSortQuestions={handleSortQuestions}
-                      onShuffleOptions={handleShuffleOptions}
-                      onSortOptions={handleSortOptions}
-                      evalMode={evalMode}
-                      onEvalModeChange={setEvalMode}
-                      hideDistractors={hideDistractors}
-                      onToggleHideDistractors={() => setHideDistractors(!hideDistractors)}
-                      highlightCorrect={highlightCorrect}
-                      onToggleHighlightCorrect={() =>
-                        setHighlightCorrect(!highlightCorrect)
-                      }
-                      showAllFeedback={showAllFeedback}
-                      onToggleShowAllFeedback={() =>
-                        setShowAllFeedback(!showAllFeedback)
-                      }
-                      isCodeTab={currentTab !== "interactive"}
-                      onOpenOmrSheet={() => setIsOmrModalOpen(true)}
-                      onOpenOmrScanner={() => setIsOmrScannerOpen(true)}
-                      activeFilter={activeFilter}
-                      onFilterChange={setActiveFilter}
-                      filterCounts={filterCounts}
-                    />
-                  </div>
+                      {currentTab === "interactive" && (
+                        <>
+                          <InteractiveToolbar
+                            evalMode={evalMode}
+                            onSelectEvalMode={setEvalMode}
+                            hideDistractors={hideDistractors}
+                            onToggleHideDistractors={() => setHideDistractors(!hideDistractors)}
+                            highlightCorrect={highlightCorrect}
+                            onToggleHighlightCorrect={() => setHighlightCorrect(!highlightCorrect)}
+                            showAllFeedback={showAllFeedback}
+                            onToggleShowAllFeedback={() => setShowAllFeedback(!showAllFeedback)}
+                            isCotVisible={isCotVisible}
+                            onToggleCotVisible={() => setIsCotVisible(!isCotVisible)}
+                            activeFilter={activeFilter}
+                            onSelectFilter={setActiveFilter}
+                            isSubmitted={isExamSubmitted}
+                          />
 
-                  {/* Body Content by Tab */}
-                  <div className="p-4 sm:p-6 flex-1 flex flex-col overflow-y-auto">
-                    {currentTab === "interactive" && (
-                      <div className="space-y-6 flex-1" ref={renderedContentRef}>
-                        {/* CoT Audit Reasoning */}
-                        {isCotVisible && currentExamData.analisis_anticolision && (
-                          <CotAuditCard cotText={currentExamData.analisis_anticolision} />
-                        )}
-
-                        {/* Exam Blocks */}
-                        {currentExamData.bloques.map((bloque, bIdx) => {
-                          // Filter questions in this block based on activeFilter
-                          const questionsInBlock = bloque.preguntas.map((q, qLocalIdx) => {
-                            const globalIdx =
-                              currentExamData.bloques
-                                .slice(0, bIdx)
-                                .reduce((sum, prevB) => sum + prevB.preguntas.length, 0) +
-                              qLocalIdx;
-
-                            return { q, globalIdx };
-                          });
-
-                          const filteredQuestions = questionsInBlock.filter(({ q }) => {
-                            if (activeFilter === "all") return true;
-                            if (activeFilter === "flagged") return !!q.flagged;
-                            if (activeFilter === "unanswered")
-                              return (
-                                q.userSelectedIndex === null ||
-                                q.userSelectedIndex === undefined
-                              );
-                            if (activeFilter === "incorrect")
-                              return (
-                                q.userSelectedIndex !== null &&
-                                q.userSelectedIndex !== undefined &&
-                                q.userSelectedIndex !== q.indiceCorrecta
-                              );
-                            if (activeFilter === "correct")
-                              return (
-                                q.userSelectedIndex !== null &&
-                                q.userSelectedIndex !== undefined &&
-                                q.userSelectedIndex === q.indiceCorrecta
-                              );
-                            return true;
-                          });
-
-                          if (filteredQuestions.length === 0 && activeFilter !== "all") {
-                            return null;
-                          }
-
-                          return (
-                            <div key={bIdx} className="space-y-4">
-                              <h2 className="text-base font-bold text-text-primary font-primary border-b border-border-default pb-2 flex items-center justify-between">
-                                <span>{bloque.titulo}</span>
-                                {activeFilter !== "all" && (
-                                  <span className="text-xs font-normal text-text-muted">
-                                    Mostrando {filteredQuestions.length} de {bloque.preguntas.length}
-                                  </span>
-                                )}
-                              </h2>
-
-                              <div className="space-y-4">
-                                {filteredQuestions.map(({ q, globalIdx }) => (
-                                  <QuestionCard
-                                    key={globalIdx}
-                                    question={q}
-                                    index={globalIdx}
-                                    evalMode={evalMode}
-                                    isExamSubmitted={isExamSubmitted}
-                                    onSelectOption={handleSelectOption}
-                                    onToggleFlag={handleToggleFlag}
-                                    hideDistractors={hideDistractors}
-                                    highlightCorrect={highlightCorrect}
-                                    forceShowFeedback={showAllFeedback}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                        {/* Empty filtered list notification */}
-                        {allQuestionsFlat.length > 0 &&
-                          activeFilter !== "all" &&
-                          filterCounts[activeFilter] === 0 && (
-                            <div className="text-center py-12 space-y-3 bg-surface/50 rounded-2xl border border-border-subtle p-6">
-                              <p className="text-sm font-semibold text-text-muted">
-                                No hay preguntas que coincidan con el filtro seleccionado:{" "}
-                                <b className="text-amber-500 font-bold">{activeFilter}</b>
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => setActiveFilter("all")}
-                                className="text-xs bg-amber-500 text-black font-bold px-4 py-2 rounded-xl hover:bg-amber-400 transition-colors cursor-pointer"
-                              >
-                                Ver todas las preguntas
-                              </button>
-                            </div>
+                          {isCotVisible && currentExamData.analisis_anticolision && (
+                            <CotAuditCard reasoning={currentExamData.analisis_anticolision} />
                           )}
-                      </div>
-                    )}
 
-                    {currentTab === "gift" && (
-                      <CodeViewPanel
-                        title="Formato GIFT"
-                        description="Formato estándar optimizado para importación directa en plataformas Moodle o tarjetas Anki."
-                        content={jsonToGIFT(currentExamData)}
-                        downloadFilename="Examen_DocuExam.gift"
-                        onShowToast={showToast}
-                      />
-                    )}
+                          <div ref={renderedContentRef} className="space-y-4">
+                            {filteredQuestions.map((q, idx) => (
+                              <QuestionCard
+                                key={`${q.blockIndex}-${q.questionIndexInBlock}`}
+                                question={q}
+                                globalIndex={allQuestions.findIndex(
+                                  (item) => item.blockIndex === q.blockIndex && item.questionIndexInBlock === q.questionIndexInBlock
+                                )}
+                                evalMode={evalMode}
+                                isSubmitted={isExamSubmitted}
+                                hideDistractors={hideDistractors}
+                                highlightCorrect={highlightCorrect}
+                                showFeedback={showAllFeedback}
+                                onSelectAnswer={handleSelectAnswer}
+                                onToggleFlag={handleToggleFlag}
+                              />
+                            ))}
+                          </div>
 
-                    {currentTab === "txt-full" && (
-                      <CodeViewPanel
-                        title="Texto Plano Completo"
-                        description="Examen estructurado clásico de lectura con preguntas y opciones completas."
-                        content={jsonToTxtCompleto(currentExamData)}
-                        downloadFilename="Examen_Completo.txt"
-                        onShowToast={showToast}
-                      />
-                    )}
+                          <ExamFooterBar
+                            onSubmit={handleSubmitExam}
+                            isSubmitted={isExamSubmitted}
+                            onExport={handleExportText}
+                            onCopy={handleCopyText}
+                            onOpenOmrSheet={() => setIsOmrScannerOpen(true)}
+                          />
+                        </>
+                      )}
 
-                    {currentTab === "txt-correct" && (
-                      <CodeViewPanel
-                        title="Plantilla de Soluciones"
-                        description="Plantilla de respuestas y correcciones rápidas para el profesor o tribunal."
-                        content={jsonToTxtCorrectas(currentExamData)}
-                        downloadFilename="Plantilla_Respuestas.txt"
-                        onShowToast={showToast}
-                      />
-                    )}
+                      {currentTab !== "interactive" && (
+                        <CodeViewPanel
+                          format={currentTab}
+                          examData={currentExamData}
+                          title={loadedFileName}
+                          onCopy={handleCopyText}
+                          onExport={handleExportText}
+                        />
+                      )}
+                    </>
+                  )}
 
-                    {currentTab === "json" && (
-                      <CodeViewPanel
-                        title="Estructura de Datos JSON"
-                        description="Copia de seguridad en formato estructurado JSON para reimportación íntegra en la aplicación."
-                        content={jsonToJSONString(currentExamData)}
-                        downloadFilename="Copia_Seguridad_Examen.json"
-                        onShowToast={showToast}
-                      />
-                    )}
-                  </div>
-
-                  {/* Sticky Footer Bar for Interactive Mode */}
-                  {currentTab === "interactive" && (
-                    <ExamFooterBar
-                      answeredCount={score.answered}
-                      totalQuestions={score.total}
-                      onScrollToTop={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                      onSubmitExam={handleGlobalSubmitExam}
+                  {selectedBaseDoc && (
+                    <DocumentViewerPanel
+                      doc={selectedBaseDoc}
+                      onUpdateText={(text) => handleUpdateDocumentText(selectedBaseDoc.id, text)}
+                      preferredMode={docViewerPreferredMode}
+                      onGenerateFromFragment={handleGenerateFromFragment}
+                      onClose={handleCloseViewer}
                     />
                   )}
                 </>
               ) : (
-                <EmptyState
-                  onUploadFiles={processUploadedFiles}
-                  onOpenThematicBuilder={() => setIsThematicModalOpen(true)}
-                  onOpenOmrScanner={() => setIsOmrScannerOpen(true)}
-                />
+                <EmptyState onOpenFileSelect={() => {}} />
               )}
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </main>
+      )}
 
       {/* Modals & Overlays */}
+      <AIProviderModal
+        isOpen={isAIModalOpen}
+        onClose={() => setIsAIModalOpen(false)}
+        settings={aiSettings}
+        onSave={handleSaveAISettings}
+      />
+
       <ThematicBuilderModal
         isOpen={isThematicModalOpen}
         onClose={() => setIsThematicModalOpen(false)}
-        thematics={thematics}
-        onUpdateThematics={handleUpdateThematics}
-        onApplySelection={handleApplyThematics}
-        onShowToast={showToast}
+        groups={thematics}
+        onSave={handleUpdateThematics}
       />
 
       <ConfirmationModal
         isOpen={isConfirmModalOpen}
         onClose={() => setIsConfirmModalOpen(false)}
-        onConfirm={handleGenerateExam}
-        numQuestions={numQuestions}
-        batchCount={batchCount}
-        difficulty={difficulty}
-        hasBaseDocs={
-          uploadedFiles.some((f) => f.role === "base") || pastedText.trim().length > 0
-        }
-        baseDocsCount={
-          uploadedFiles.filter((f) => f.role === "base").length +
-          (pastedText.trim().length > 0 ? 1 : 0)
-        }
-        antiCollisionCount={uploadedFiles.filter((f) => f.role === "exam").length}
-        hasCustomPrompt={customPrompt.trim().length > 0}
-        activeProviderName={
-          (aiSettings.providers[aiSettings.activeProviderId] || DEFAULT_AI_PROVIDERS[aiSettings.activeProviderId])?.subtitle ||
-          aiSettings.activeProviderId
-        }
-        activeModelName={
-          (aiSettings.providers[aiSettings.activeProviderId] || DEFAULT_AI_PROVIDERS[aiSettings.activeProviderId])?.selectedModel ||
-          "Predeterminado"
-        }
+        onConfirm={handleClearFiles}
+        title="¿Limpiar todos los archivos?"
+        message="Esta acción eliminará todos los documentos cargados y exámenes generados de la memoria actual."
       />
 
-      <ResultsModal
-        isOpen={isResultsModalOpen}
-        onClose={() => setIsResultsModalOpen(false)}
-        score={score}
-        examTitle={loadedFileName}
-        onReviewMistakes={handleReviewMistakes}
-      />
+      {isResultsModalOpen && currentExamData && (
+        <ResultsModal
+          isOpen={isResultsModalOpen}
+          onClose={() => setIsResultsModalOpen(false)}
+          score={calculateScore()}
+        />
+      )}
 
-      <AIProviderModal
-        isOpen={isAIModalOpen}
-        onClose={() => setIsAIModalOpen(false)}
-        settings={aiSettings}
-        onSaveSettings={handleSaveAISettings}
-        onShowToast={showToast}
-      />
+      {isOmrModalOpen && (
+        <OmrSheetModal
+          isOpen={isOmrModalOpen}
+          onClose={() => setIsOmrModalOpen(false)}
+          examData={currentExamData}
+        />
+      )}
 
-      {/* OMR Sheet Modal */}
-      <OmrSheetModal
-        isOpen={isOmrModalOpen}
-        onClose={() => setIsOmrModalOpen(false)}
-        examData={currentExamData}
-        examTitle={loadedFileName}
-        onShowToast={showToast}
-        onOpenScanner={() => setIsOmrScannerOpen(true)}
-      />
+      {isOmrScannerOpen && (
+        <ZipgradeSuiteModal
+          isOpen={isOmrScannerOpen}
+          onClose={() => setIsOmrScannerOpen(false)}
+          examData={currentExamData}
+        />
+      )}
 
-      {/* ZipGrade Full Ecosystem & Mobile Camera Scanner */}
-      <ZipgradeSuiteModal
-        isOpen={isOmrScannerOpen}
-        onClose={() => setIsOmrScannerOpen(false)}
-        examData={currentExamData}
-        examTitle={loadedFileName}
-        onShowToast={showToast}
-      />
-
-      <LoadingOverlay
-        isLoading={isLoading}
-        onCancel={handleCancelGeneration}
-      />
+      {isLoading && (
+        <LoadingOverlay
+          onCancel={handleCancelGeneration}
+          statusText="Generando preguntas active recall con IA..."
+        />
+      )}
 
       <NotificationToast message={toastMessage} isError={toastIsError} />
     </div>

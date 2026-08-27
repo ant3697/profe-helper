@@ -45,6 +45,7 @@ import {
   exportStandaloneHTML,
 } from "../../utils/examExporters";
 import { exportHtmlToDocx } from "../../utils/docxExport";
+import { cleanSigreLatexMath } from "../../utils/sigrePromptGenerator";
 import { QuestionCard } from "../QuestionCard";
 import { FormatTabs } from "../FormatTabs";
 import { InteractiveToolbar } from "../InteractiveToolbar";
@@ -87,24 +88,32 @@ function parseAutoevalToExamData(
         });
 
         if (allQuestions.length > 0) {
-          const selected20 = allQuestions.slice(0, 20).map((q, idx) => ({
-            ...q,
-            origQId: idx,
-            userSelectedIndex: null,
-            isAnswered: false,
-            flagged: false,
-            opcionesObjs: q.opciones.map((opt, oIdx) => ({
-              text: opt,
-              isCorrect: oIdx === q.indiceCorrecta,
-              origOId: oIdx,
-            })),
-          }));
+          const selected20 = allQuestions.slice(0, 20).map((q, idx) => {
+            const cleanEnunciado = cleanSigreLatexMath(q.enunciado);
+            const cleanOptions = q.opciones.map(cleanSigreLatexMath);
+            const cleanJust = cleanSigreLatexMath(q.justificacion || "");
+            return {
+              ...q,
+              enunciado: cleanEnunciado,
+              opciones: cleanOptions,
+              justificacion: cleanJust,
+              origQId: idx,
+              userSelectedIndex: null,
+              isAnswered: false,
+              flagged: false,
+              opcionesObjs: cleanOptions.map((opt, oIdx) => ({
+                text: opt,
+                isCorrect: oIdx === q.indiceCorrecta,
+                origOId: oIdx,
+              })),
+            };
+          });
 
           return {
             analisis_anticolision: "Autoevaluación formativa calibrada con Test-Wiseness, CoT Anticolisión y Práctica Intercalada.",
             bloques: [
               {
-                titulo: `2. Cuestionario de Autoevaluación - ${udTitle}`,
+                titulo: `2. Cuestionario de Autoevaluación - ${cleanSigreLatexMath(udTitle)}`,
                 preguntas: selected20,
               },
             ],
@@ -184,13 +193,17 @@ function parseAutoevalToExamData(
           const letterIdx = ["A", "B", "C", "D"].indexOf(sol.letter.toUpperCase());
           const indiceCorrecta = letterIdx >= 0 && letterIdx < 4 ? letterIdx : 0;
 
+          const cleanEnunciado = cleanSigreLatexMath(enunciado);
+          const cleanOptions = foundOptions.map(cleanSigreLatexMath);
+          const cleanJust = cleanSigreLatexMath(sol.just);
+
           questions.push({
-            enunciado,
-            opciones: foundOptions,
+            enunciado: cleanEnunciado,
+            opciones: cleanOptions,
             indiceCorrecta,
-            justificacion: sol.just,
+            justificacion: cleanJust,
             origQId: qCount,
-            opcionesObjs: foundOptions.map((opt, oIdx) => ({
+            opcionesObjs: cleanOptions.map((opt, oIdx) => ({
               text: opt,
               isCorrect: oIdx === indiceCorrecta,
               origOId: oIdx,

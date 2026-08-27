@@ -356,11 +356,10 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
           </button>
           <button
             type="button"
-            disabled={uds.length === 0}
             onClick={() => onConfirmPlan(uds)}
-            className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 text-black font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95"
+            className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95"
           >
-            <Check className="w-4 h-4" /> Aprobar Plan ({uds.length} UDs • {totalAssignedHours}h)
+            <Check className="w-4 h-4" /> {uds.length === 0 ? "Guardar y Limpiar Plan (0 UDs)" : `Aprobar Plan (${uds.length} UDs • ${totalAssignedHours}h)`}
           </button>
         </div>
       </div>

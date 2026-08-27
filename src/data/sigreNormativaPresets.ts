@@ -1,0 +1,205 @@
+import { SigreNormativaItem } from "../types/sigre";
+
+export const DEFAULT_SIGRE_NORMATIVA_LIST: SigreNormativaItem[] = [
+  {
+    id: "norm_dec_102_2023",
+    code: "Decreto 102/2023",
+    title: "Decreto 102/2023, de 9 de mayo, por el que se establece la ordenación de la Formación Profesional en Andalucía",
+    category: "andalucia_autonomica",
+    officialScope: "Andalucía (BOJA)",
+    publicationRef: "BOJA núm. 90, de 15/05/2023",
+    status: "vigente",
+    isVigenteAndalucia: true,
+    lastCheckedDate: "2026-08-26",
+    summary:
+      "Regula con carácter autonómico el nuevo marco de la Formación Profesional en Andalucía adaptado a la LO 3/2022, estableciendo la estructura curricular, la co-docencia y desdobles en talleres y la vinculación con la empresa.",
+    keyPoints: [
+      "Estructuración de ciclos formativos en grados (Grado Básico, Medio y Superior) con carácter Dual.",
+      "Implantación de los nuevos módulos transversales: Digitalización (1664), Sostenibilidad (1708), Itinerario Personal I y II (1709/1710) y Proyecto Intermodular.",
+      "Criterios organizativos de co-docencia y desdobles en talleres con instalaciones térmicas, gases refrigerantes o maquinaria de riesgo.",
+      "Asignación de horas de coordinación para la relación con empresas y organismos equiparados (FFEoE).",
+    ],
+    applicabilityNotes:
+      "De obligado cumplimiento para todos los IES y CIFP de la Junta de Andalucía que impartan enseñanzas de FP.",
+    legalArticles: "Artículos 14 (Desdobles y co-docencia), 18 (Tutorías y coordinación FFEoE), 22 (Organización curricular)",
+    sourceUrl: "https://www.juntadeandalucia.es/eboja/2023/90/index.html",
+  },
+  {
+    id: "norm_orden_20_06_1997",
+    code: "Orden 20/06/1997",
+    title: "Orden de 20 de junio de 1997, por la que se dictan instrucciones sobre horario y jornada del profesorado en centros docentes de Andalucía",
+    category: "jornada_horarios",
+    officialScope: "Andalucía (BOJA)",
+    publicationRef: "BOJA núm. 77, de 05/07/1997 (Actualizada)",
+    status: "vigente",
+    isVigenteAndalucia: true,
+    lastCheckedDate: "2026-08-26",
+    summary:
+      "Fija la distribución de la jornada laboral docente en Andalucía: 30 horas semanales de permanencia en el centro educativo (25h regulares + 5h no fijas) y 7,5 horas no presenciales hasta completar las 37,5 horas semanales.",
+    keyPoints: [
+      "Jornada regular de 25 horas: horas lectivas de docencia directa, guardias de aula (GUA), guardias de recreo (REC), tutoría y reuniones de departamento.",
+      "Horario no fijo de 5 horas: asistencia a claustros, sesiones de evaluación, coordinación de ciclo y reuniones pedagógicas.",
+      "Horario no presencial de 7,5 horas: preparación de clases, diseño curricular y correcciones.",
+      "Máximo de permanencia diaria continua en el centro docente y régimen de turnos.",
+    ],
+    applicabilityNotes:
+      "Base legal de la jornada de permanencia de 30 horas aplicable a todo el cuerpo docente en centros públicos andaluces.",
+    legalArticles: "Artículos 2, 3 (Horario regular), 4 (Horas de guardia) y 6 (Cómputo semanal)",
+    sourceUrl: "https://www.juntadeandalucia.es/eboja/1997/77/index.html",
+  },
+  {
+    id: "norm_ley_4_2019",
+    code: "Ley 4/2019",
+    title: "Ley 4/2019, de 7 de marzo, de mejora de las condiciones para el desempeño de la docencia y la enseñanza",
+    category: "jornada_horarios",
+    officialScope: "Estatal (BOE)",
+    publicationRef: "BOE núm. 58, de 08/03/2019",
+    status: "vigente",
+    isVigenteAndalucia: true,
+    lastCheckedDate: "2026-08-26",
+    summary:
+      "Establece con carácter ordinario la parte lectiva de la jornada semanal del profesorado en 18 horas para las enseñanzas de Formación Profesional y Secundaria en centros públicos.",
+    keyPoints: [
+      "Jornada lectiva base de referencia ordinaria fijada en 18 horas semanales.",
+      "Las horas lectivas que excedan de las reducciones legales deben computarse como horas complementarias o de guardia.",
+      "Reversión de las medidas de flexibilización del RDL 14/2012.",
+    ],
+    applicabilityNotes:
+      "Punto de partida del cálculo horario en SIGRE: 18h lectivas base antes de deducir reducciones por cargos o edad.",
+    legalArticles: "Artículo 1 (Jornada lectiva del personal docente no universitario)",
+    sourceUrl: "https://www.boe.es/eli/es/l/2019/03/07/4",
+  },
+  {
+    id: "norm_instrucciones_organizacion_fp",
+    code: "Instrucciones Inicio Curso FP Andalucía",
+    title: "Instrucciones de la Viceconsejería de Desarrollo Educativo y FP sobre organización y funcionamiento de centros de FP",
+    category: "reducciones_edad",
+    officialScope: "Consejería de Desarrollo Educativo",
+    publicationRef: "Resolución e Instrucciones Anuales de la Junta de Andalucía",
+    status: "vigente",
+    isVigenteAndalucia: true,
+    lastCheckedDate: "2026-08-26",
+    summary:
+      "Determina anualmente el baremo de horas lectivas y complementarias de reducción para jefaturas de departamento de FP, coordinaciones de programas y proyectos de innovación.",
+    keyPoints: [
+      "Jefaturas de Departamento FP: 2h lectivas (1-3 profesores), 3h lectivas (4-7 profesores), 4h lectivas (8+ profesores) y 5h lectivas en CIFP / >12 profesores.",
+      "Coordinación de Aulas ATECA y Aulas de Emprendimiento: hasta 3 horas lectivas/complementarias.",
+      "Coordinación de Prevención de Riesgos Laborales (PRL): 2 a 3 horas complementarias.",
+      "Coordinación de Programas Internacionales / Erasmus+ FP y Programas de Innovación: 2 a 3 horas.",
+    ],
+    applicabilityNotes:
+      "Permite al centro modular las reducciones horarias exactas aplicadas en el panel de Configuración Laboral de SIGRE.",
+    legalArticles: "Instrucción Cuarta (Plantillas y reducciones), Instrucción Séptima (Coordinaciones de centro)",
+    sourceUrl: "https://www.juntadeandalucia.es/educacion/portals/web/cedfp",
+  },
+  {
+    id: "norm_acuerdo_mayores_55",
+    code: "Acuerdo Mayores de 55 Años Andalucía",
+    title: "Acuerdo Marco de la Junta de Andalucía sobre reducción de jornada lectiva para el profesorado mayor de 55 años",
+    category: "reducciones_edad",
+    officialScope: "Andalucía (BOJA)",
+    publicationRef: "Acuerdo de Consejo de Gobierno de la Junta de Andalucía",
+    status: "vigente",
+    isVigenteAndalucia: true,
+    lastCheckedDate: "2026-08-26",
+    summary:
+      "Reconoce el derecho a una reducción de 2 horas lectivas semanales (pasando a 16 horas lectivas directas de aula) para docentes que hayan cumplido los 55 años de edad.",
+    keyPoints: [
+      "Reducción automática de 2 horas lectivas semanales sin merma retributiva ni salarial.",
+      "Sustitución de las 2 horas lectivas por actividades complementarias en el centro (apoyo pedagógico, catalogación de talleres, mentoría).",
+      "Aplicación automática en SIGRE al marcar la casilla de verificación '>55 Años'.",
+    ],
+    applicabilityNotes:
+      "Reconocido en todos los centros públicos de Andalucía para el profesorado que alcance dicha edad antes o durante el curso escolar.",
+    legalArticles: "Cláusula 3ª del Acuerdo de Mesa Sectorial de Educación de Andalucía",
+    sourceUrl: "https://www.juntadeandalucia.es/eboja.html",
+  },
+  {
+    id: "norm_lo_3_2022",
+    code: "LO 3/2022 (Ley de FP)",
+    title: "Ley Orgánica 3/2022, de 31 de marzo, de ordenación e integración de la Formación Profesional",
+    category: "estatal",
+    officialScope: "Estatal (BOE)",
+    publicationRef: "BOE núm. 77, de 31/03/2022",
+    status: "vigente",
+    isVigenteAndalucia: true,
+    lastCheckedDate: "2026-08-26",
+    summary:
+      "Ley marco estatal que integra la FP del sistema educativo y la FP para el empleo en un único sistema con carácter dual, organizando los grados A a E y la estancia en empresa.",
+    keyPoints: [
+      "Generalización del carácter Dual de todas las enseñanzas de Formación Profesional.",
+      "Módulos formativos organizados en Resultados de Aprendizaje (RAs) y Criterios de Evaluación.",
+      "Reconocimiento de la figura del tutor/coordinador dual de centro y tutor de empresa.",
+    ],
+    applicabilityNotes:
+      "Marco normativo superior que rige el diseño curricular de los módulos formativos en SIGRE.",
+    legalArticles: "Artículos 55 a 67 (Régimen Dual y estancia en empresa)",
+    sourceUrl: "https://www.boe.es/eli/es/lo/2022/03/31/3",
+  },
+  {
+    id: "norm_rd_659_2023",
+    code: "RD 659/2023",
+    title: "Real Decreto 659/2023, de 18 de julio, por el que se desarrolla la ordenación del Sistema de Formación Profesional",
+    category: "estatal",
+    officialScope: "Estatal (BOE)",
+    publicationRef: "BOE núm. 174, de 22/07/2023",
+    status: "vigente",
+    isVigenteAndalucia: true,
+    lastCheckedDate: "2026-08-26",
+    summary:
+      "Desarrolla reglamentariamente la LO 3/2022, detallando los currículos base de los módulos profesionales y los requisitos de instalaciones y talleres.",
+    keyPoints: [
+      "Catálogo Nacional de Estándares de Competencias y módulos profesionales.",
+      "Regulación de los módulos de Itinerario Personal para la Empleabilidad (IP 1 e IP 2).",
+      "Definición de las horas de FFEoE en régimen general (20-35% de la duración del ciclo) e intensivo (>35%).",
+    ],
+    applicabilityNotes:
+      "Directamente aplicado en los códigos y nombres de asignaturas configuradas en el horario.",
+    legalArticles: "Artículos 80 a 115 (Desarrollo curricular y evaluación en FP)",
+    sourceUrl: "https://www.boe.es/eli/es/rd/2023/07/18/659",
+  },
+  {
+    id: "norm_roc_dec_327_2010",
+    code: "Decreto 327/2010 (ROC)",
+    title: "Decreto 327/2010, de 13 de julio, por el que se aprueba el Reglamento Orgánico de los IES en Andalucía",
+    category: "andalucia_autonomica",
+    officialScope: "Andalucía (BOJA)",
+    publicationRef: "BOJA núm. 139, de 16/07/2010",
+    status: "vigente",
+    isVigenteAndalucia: true,
+    lastCheckedDate: "2026-08-26",
+    summary:
+      "Reglamento Orgánico de Centro (ROC) para los centros de educación secundaria y FP de Andalucía, regulando órganos colegiados, equipos docentes y servicio de guardia.",
+    keyPoints: [
+      "Composición y funciones de los Departamentos de Familia Profesional.",
+      "Obligación del servicio de guardia de aula y recreo para garantizar la cobertura de incidencias.",
+      "Competencias de la Jefatura de Estudios en la confección y supervisión de los horarios docentes.",
+    ],
+    applicabilityNotes:
+      "Regula la asignación y obligatoriedad de los turnos de guardia (GUA/REC) en el cuadrante.",
+    legalArticles: "Artículos 68 (Departamentos), 74 (Guardias del profesorado) y 85 (Horarios)",
+    sourceUrl: "https://www.juntadeandalucia.es/eboja/2010/139/index.html",
+  },
+  {
+    id: "norm_desdobles_talleres",
+    code: "Orden Desdobles y Talleres FP",
+    title: "Orden de 28 de junio de 2011 y Criterios de Desdoble en Talleres Técnicos de la Junta de Andalucía",
+    category: "fp_dual_desdobles",
+    officialScope: "Andalucía (BOJA)",
+    publicationRef: "BOJA núm. 135, de 12/07/2011",
+    status: "vigente",
+    isVigenteAndalucia: true,
+    lastCheckedDate: "2026-08-26",
+    summary:
+      "Establece los criterios para autorizar desdobles y co-docencia con dos profesores simultáneos en talleres técnicos con riesgo físico, térmico o químico.",
+    keyPoints: [
+      "Desdoble autorizado en talleres de frío, calor, soldadura, fluidos a presión y electricidad cuando el grupo supere 15-20 alumnos.",
+      "Presencia obligatoria de dos docentes para supervisión práctica de máquinas y prevención de riesgos laborales.",
+      "Reflejado en SIGRE mediante la función de 'Co-docencia / Desdoble (+)' compartida en el horario.",
+    ],
+    applicabilityNotes:
+      "Base de la asignación conjunta en horas prácticas de taller (ej. DPA + DMA en nave de frío/calor).",
+    legalArticles: "Criterios técnicos de seguridad y ratios en talleres formativos",
+    sourceUrl: "https://www.juntadeandalucia.es/eboja.html",
+  },
+];
