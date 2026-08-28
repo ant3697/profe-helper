@@ -82,6 +82,8 @@ import {
   getOptimalTextColorForBg,
   getDistinctUdColor,
   MONTH_NAMES_ES,
+  getAcademicTrimestersStructure,
+  SigreAcademicTrimesterItem,
 } from "../../utils/sigreCalendarUtils";
 import { preparePrintableHtmlDocument } from "../../utils/topicPromptGenerator";
 
@@ -325,12 +327,16 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [contextMenuTab, setContextMenuTab] = useState<"uds" | "evals" | "festivos" | "especiales">("uds");
 
+  // Academic Trimesters and June Recuperation panel toggle
+  const [isTrimestersExpanded, setIsTrimestersExpanded] = useState<boolean>(false);
+
   const [notification, setNotification] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const portfolioFileInputRef = useRef<HTMLInputElement>(null);
 
   const stats = calculateAcademicCalendarStats(calendar);
   const academicMonths = getAcademicMonthsList(calendar.academicYear);
+  const trimestersStructure = getAcademicTrimestersStructure(calendar.academicYear);
 
   const showToast = (msg: string) => {
     setNotification(msg);
@@ -1026,11 +1032,11 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
       ];
       const updated = autoDistributeUdsToCalendar(calendar, demoUds, moduloCodigo);
       updateCurrentCalendar(updated);
-      showToast("Distribuidas automáticamente 8 Unidades Didácticas (RAs) a lo largo del curso escolar");
+      showToast("Distribución completada: UDs asignadas de Septiembre a Mayo. Semanas 1-3 de Junio reservadas para Recuperaciones y Semana 4 para Evaluación Extraordinaria y Planificación.");
     } else {
       const updated = autoDistributeUdsToCalendar(calendar, currentUds, moduloCodigo);
       updateCurrentCalendar(updated);
-      showToast(`Distribuidas automáticamente ${currentUds.length} Unidades Didácticas de SIGRE`);
+      showToast(`Distribuidas ${currentUds.length} UDs (Sep-May). Semanas 1-3 de Junio reservadas para Recuperaciones de aprendizajes no adquiridos y semana 4 para Evaluación Extraordinaria/Planificación.`);
     }
   };
 
@@ -1118,22 +1124,44 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     window.open(url, "_blank");
   };
 
-  // Print Official A4 (Matches authentic Junta de Andalucía resolution in 2-col x 5-row rigid vertical grid)
+  // Print Official A4 (Matches authentic Junta de Andalucía resolution in 5-col x 2-row rigid landscape grid)
   const handlePrintOfficialA4 = () => {
     const htmlA4 = renderOfficialSchoolCalendarA4Html(calendar);
 
-    // Strategy 1: Direct print on preview iframe if open and mounted
+    // Strategy 1: PostMessage and Direct print on preview iframe if open and mounted
     if (previewIframeRef.current && previewIframeRef.current.contentWindow) {
       try {
+        previewIframeRef.current.contentWindow.postMessage({ type: "PRINT" }, "*");
         previewIframeRef.current.contentWindow.focus();
         previewIframeRef.current.contentWindow.print();
+        showToast("Abriendo diálogo de impresión A4 apaisado...");
         return;
       } catch (err) {
         console.warn("Direct iframe print fallback triggered:", err);
       }
     }
 
-    // Strategy 2: Blob URL in a new window/tab
+    // Strategy 2: Clean window write for guaranteed cross-origin printing
+    try {
+      const printWin = window.open("", "_blank");
+      if (printWin) {
+        printWin.document.open();
+        printWin.document.write(htmlA4);
+        printWin.document.close();
+        printWin.focus();
+        setTimeout(() => {
+          try {
+            printWin.print();
+          } catch (e) {}
+        }, 300);
+        showToast("Abriendo diálogo de impresión A4 apaisado...");
+        return;
+      }
+    } catch (e) {
+      console.warn("Window open print failed:", e);
+    }
+
+    // Strategy 3: Blob URL fallback
     try {
       const blob = new Blob([htmlA4], { type: "text/html;charset=utf-8" });
       const blobUrl = URL.createObjectURL(blob);
@@ -1148,13 +1176,14 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
           }, 300);
         };
         setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+        showToast("Abriendo vista de impresión en nueva pestaña...");
         return;
       }
     } catch (e) {
       console.warn("Blob URL window open failed:", e);
     }
 
-    // Strategy 3: Dynamic hidden iframe fallback
+    // Strategy 4: Dynamic hidden iframe fallback
     try {
       let iframe = document.getElementById("sigre-official-print-iframe") as HTMLIFrameElement | null;
       if (iframe) {
@@ -1165,8 +1194,8 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
       iframe.style.position = "fixed";
       iframe.style.right = "-9999px";
       iframe.style.bottom = "-9999px";
-      iframe.style.width = "210mm";
-      iframe.style.height = "297mm";
+      iframe.style.width = "297mm";
+      iframe.style.height = "210mm";
       iframe.style.border = "none";
       document.body.appendChild(iframe);
 
@@ -2594,6 +2623,113 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
         </div>
       )}
 
+      {/* ACADEMIC TRIMESTERS & JUNE ASSESSMENT STRUCTURE ACCORDION */}
+      <div className="bg-[#0b1120] border border-slate-800/90 rounded-2xl overflow-hidden shadow-lg transition-all">
+        <div
+          onClick={() => setIsTrimestersExpanded(!isTrimestersExpanded)}
+          className="p-3.5 bg-slate-900/90 hover:bg-slate-800/80 cursor-pointer flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 select-none transition-colors"
+        >
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold">
+              <CalendarRange className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-white text-xs sm:text-sm">
+                  Estructura Trimestral, Sesiones de Evaluación y Periodo de Recuperación (Junio)
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700/50">
+                  Régimen Oficial FP Andalucía
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Organización de 3 trimestres, sesiones de evaluación ordinarias/extraordinarias y reserva pedagógica de Junio
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+              {isTrimestersExpanded ? "Ocultar detalle" : "Ver detalle de fechas"}
+            </span>
+            <button
+              type="button"
+              className="p-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+            >
+              {isTrimestersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        {isTrimestersExpanded && (
+          <div className="p-4 bg-slate-950/60 grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs animate-in fade-in duration-200">
+            {trimestersStructure.map((trim) => (
+              <div
+                key={trim.id}
+                className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between space-y-3"
+              >
+                <div>
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <span className="font-black text-emerald-400 text-xs sm:text-sm">{trim.name}</span>
+                    <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
+                      {trim.periodText}
+                    </span>
+                  </div>
+
+                  <div className="mt-2.5 space-y-2 text-[11px]">
+                    <div className="flex items-start gap-2 bg-slate-800/60 p-2 rounded-lg border border-slate-700/50">
+                      <Clock className="w-3.5 h-3.5 text-sky-400 mt-0.5 shrink-0" />
+                      <div>
+                        <div className="text-slate-400 text-[10px] uppercase font-bold">Sesión de Evaluación:</div>
+                        <div className="font-semibold text-sky-300">
+                          {trim.evalSessionDate.split("-").reverse().join("/")} &bull; {trim.evalSessionLabel}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2 bg-slate-800/60 p-2 rounded-lg border border-slate-700/50">
+                      <FileText className="w-3.5 h-3.5 text-cyan-400 mt-0.5 shrink-0" />
+                      <div>
+                        <div className="text-slate-400 text-[10px] uppercase font-bold">Entrega de Calificaciones:</div>
+                        <div className="font-semibold text-cyan-300">
+                          {trim.reportCardDeliveryDate.split("-").reverse().join("/")} &bull; {trim.reportCardDeliveryLabel}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {trim.juneStructure && (
+                  <div className="pt-2 border-t border-slate-800/80 space-y-1.5 text-[10px]">
+                    <div className="bg-amber-950/40 border border-amber-800/50 p-2 rounded-lg text-amber-200">
+                      <div className="font-black text-amber-300 flex items-center gap-1 mb-0.5">
+                        <RefreshCw className="w-3 h-3 text-amber-400" />
+                        <span>Semanas 1-3 de Junio (01 al 19 Jun):</span>
+                      </div>
+                      <p className="text-[10px] text-amber-100/90 leading-tight">
+                        Periodo de recuperación de aprendizajes no adquiridos y refuerzo curricular para el alumnado.
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-950/40 border border-purple-800/50 p-2 rounded-lg text-purple-200 space-y-1">
+                      <div className="font-black text-purple-300 flex items-center gap-1">
+                        <GraduationCap className="w-3 h-3 text-purple-400" />
+                        <span>4ª Semana de Junio (20 al 24 Jun y cierre):</span>
+                      </div>
+                      <div className="text-[10px] text-purple-100/90 leading-tight">
+                        &bull; <strong>22 Jun:</strong> 2ª Evaluación Final Extraordinaria<br />
+                        &bull; <strong>24 Jun:</strong> Fin de Clases y Calificaciones Finales<br />
+                        &bull; <strong>25-30 Jun:</strong> Planificación curso siguiente y memorias
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Main Grid: Months Grid (Full Width 2-Column Responsive Layout) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {academicMonths.map(({ year, month, monthName }, mIdx) => {
@@ -2788,23 +2924,29 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                                           d.override?.type === highlightedLegendId.replace("auto_period_", ""))));
 
                                   let cellBg = d.isWeekend ? "#111827" : "transparent";
-                                  let cellTextColor = d.isCurrentMonth
-                                    ? d.isWeekend
-                                      ? "#f87171"
-                                      : "#cbd5e1"
-                                    : "#475569";
                                   let isCustomStyled = false;
 
                                   if (d.isCurrentMonth) {
                                     if (d.hasSpecialPrevalence) {
                                       cellBg = d.displayBgColor;
-                                      cellTextColor = d.displayTextColor;
                                       isCustomStyled = true;
-                                    } else if (d.displayBgColor !== "transparent") {
+                                    } else if (d.displayBgColor && d.displayBgColor !== "transparent") {
                                       cellBg = d.displayBgColor;
-                                      cellTextColor = d.displayTextColor;
                                       isCustomStyled = true;
                                     }
+                                  }
+
+                                  // Guaranteed high-contrast text color resolution
+                                  let cellTextColor = "#cbd5e1";
+                                  if (!d.isCurrentMonth) {
+                                    cellTextColor = "#475569";
+                                  } else if (isCustomStyled && cellBg && cellBg !== "transparent") {
+                                    cellTextColor =
+                                      d.displayTextColor && d.displayTextColor !== "#0f172a"
+                                        ? d.displayTextColor
+                                        : getOptimalTextColorForBg(cellBg);
+                                  } else {
+                                    cellTextColor = d.isWeekend ? "#f87171" : "#f1f5f9";
                                   }
 
                                   const tooltipText = d.isCurrentMonth
@@ -2877,19 +3019,15 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                                       }`}
                                     >
                                       <div
-                                        className={`w-full h-full flex flex-col items-center justify-center rounded-none text-[10.5px] font-bold relative transition-colors ${
-                                          isCustomStyled ? "" : cellTextColor
-                                        }`}
-                                        style={
-                                          isCustomStyled
-                                            ? {
-                                                backgroundColor: cellBg,
-                                                color: cellTextColor,
-                                              }
-                                            : {
-                                                backgroundColor: d.isWeekend && d.isCurrentMonth ? "rgba(30, 41, 59, 0.6)" : "transparent",
-                                              }
-                                        }
+                                        className="w-full h-full flex flex-col items-center justify-center rounded-none text-[10.5px] font-bold relative transition-colors"
+                                        style={{
+                                          backgroundColor: isCustomStyled
+                                            ? cellBg
+                                            : d.isWeekend && d.isCurrentMonth
+                                            ? "rgba(30, 41, 59, 0.6)"
+                                            : "transparent",
+                                          color: cellTextColor,
+                                        }}
                                         title={
                                           isCopiedSource
                                             ? `📌 Celda de origen copiada (${d.dateString}). Haz clic en las celdas destino para pintar su formato.`
@@ -5138,10 +5276,10 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
         </div>
       )}
 
-      {/* MODAL: VISTA PREVIA OFICIAL A4 (2 COLUMNAS X 5 FILAS) */}
+      {/* MODAL: VISTA PREVIA OFICIAL A4 (5 COLUMNAS X 2 FILAS APAISADO) */}
       {isPreviewA4Open && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-[96vw] xl:max-w-[1400px] h-[94vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="px-5 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
@@ -5152,11 +5290,11 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
                     Vista Previa de Impresión Oficial A4
                     <span className="px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-700/50 rounded-md text-[10px] font-semibold">
-                      Cuadrícula 2x5 &bull; Cabeceras Verdes
+                      Cuadrícula 5x2 Apaisada &bull; Cabeceras Verdes
                     </span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Resolución oficial de la Delegación Territorial de la Junta de Andalucía &bull; Curso {calendar.academicYear}
+                    Resolución oficial de la Delegación Territorial de la Junta de Andalucía &bull; Curso {calendar.academicYear} (Formato Apaisado / Landscape)
                   </p>
                 </div>
               </div>
@@ -5186,7 +5324,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                   type="button"
                   onClick={handlePrintOfficialA4}
                   className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/20 active:scale-95"
-                  title="Imprimir o guardar como PDF en orientación vertical A4"
+                  title="Imprimir o guardar como PDF en orientación apaisada A4"
                 >
                   <Printer className="w-4 h-4" />
                   <span>Imprimir / PDF</span>
@@ -5203,14 +5341,14 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               </div>
             </div>
 
-            {/* A4 Sheet Display Container (Aligned from the top with vertical scrolling) */}
-            <div className="flex-1 bg-slate-950 p-3 sm:p-5 overflow-y-auto flex flex-col items-center justify-start">
-              <div className="bg-white rounded shadow-2xl w-full max-w-[204mm] p-1 sm:p-2 border border-slate-300 my-2 flex-shrink-0">
+            {/* A4 Landscape Sheet Display Container */}
+            <div className="flex-1 bg-slate-950 p-2 sm:p-4 overflow-y-auto flex flex-col items-center justify-start">
+              <div className="bg-white rounded-lg shadow-2xl w-full max-w-[292mm] p-1 border border-slate-300 my-1 flex-shrink-0">
                 <iframe
                   ref={previewIframeRef}
-                  title="A4 Preview"
+                  title="A4 Preview Landscape"
                   srcDoc={renderOfficialSchoolCalendarA4Html(calendar)}
-                  className="w-full h-[1040px] border-0 block"
+                  className="w-full h-[760px] border-0 block"
                 />
               </div>
             </div>

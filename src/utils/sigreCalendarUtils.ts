@@ -746,14 +746,17 @@ export function generateMonthGrid(
         // Special events PREVAIL visually
         const style = getOfficialEventStyle(effectiveType);
         displayBgColor = override?.customColor || specialEvent?.color || style.bgColor;
-        displayTextColor = override?.customTextColor || style.textColor;
+        displayTextColor = override?.customTextColor || style.textColor || getOptimalTextColorForBg(displayBgColor);
         hasSpecialPrevalence = true;
-      } else if (override?.customColor) {
+      } else if (override?.customColor && override.customColor !== "transparent") {
         displayBgColor = override.customColor;
-        displayTextColor = override.customTextColor || "#0f172a";
-      } else if (legendItem) {
+        displayTextColor = override.customTextColor || getOptimalTextColorForBg(displayBgColor);
+      } else if (legendItem && legendItem.color && legendItem.color !== "transparent") {
         displayBgColor = legendItem.color;
-        displayTextColor = legendItem.textColor || "#0f172a";
+        displayTextColor = legendItem.textColor || getOptimalTextColorForBg(displayBgColor);
+      } else {
+        displayBgColor = "transparent";
+        displayTextColor = isWeekend ? "#ef4444" : "#cbd5e1";
       }
     }
 
@@ -963,13 +966,109 @@ export function assignRangeToCalendar(
   };
 }
 
+// Academic Trimesters and Assessment Milestones Structure
+export interface SigreAcademicTrimesterItem {
+  id: "1T" | "2T" | "3T";
+  name: string;
+  shortName: string;
+  periodText: string;
+  startDate: string;
+  endDate: string;
+  evalSessionDate: string;
+  evalSessionLabel: string;
+  reportCardDeliveryDate: string;
+  reportCardDeliveryLabel: string;
+  totalLectivosEstimated?: number;
+  juneStructure?: {
+    recuperacionStart: string;
+    recuperacionEnd: string;
+    recuperacionLabel: string;
+    evalExtraordinariaDate: string;
+    evalExtraordinariaLabel: string;
+    finClasesDate: string;
+    finClasesLabel: string;
+    planificacionNextStart: string;
+    planificacionNextEnd: string;
+    planificacionNextLabel: string;
+  };
+}
+
+export function getAcademicTrimestersStructure(academicYear: string): SigreAcademicTrimesterItem[] {
+  const parts = academicYear.split("-");
+  const startYear = parseInt(parts[0], 10) || 2026;
+  const endYear = parseInt(parts[1], 10) || startYear + 1;
+
+  return [
+    {
+      id: "1T",
+      name: "1º Trimestre",
+      shortName: "1T",
+      periodText: `15 Sep ${startYear} - 22 Dic ${startYear}`,
+      startDate: `${startYear}-09-15`,
+      endDate: `${startYear}-12-22`,
+      evalSessionDate: `${startYear}-12-16`,
+      evalSessionLabel: "Sesión de Evaluación 1º Trimestre",
+      reportCardDeliveryDate: `${startYear}-12-21`,
+      reportCardDeliveryLabel: "Entrega de Calificaciones / Boletines 1T",
+      totalLectivosEstimated: 68,
+    },
+    {
+      id: "2T",
+      name: "2º Trimestre",
+      shortName: "2T",
+      periodText: `08 Ene ${endYear} - 19 Mar ${endYear}`,
+      startDate: `${endYear}-01-08`,
+      endDate: `${endYear}-03-19`,
+      evalSessionDate: `${endYear}-03-17`,
+      evalSessionLabel: "Sesión de Evaluación 2º Trimestre",
+      reportCardDeliveryDate: `${endYear}-03-22`,
+      reportCardDeliveryLabel: "Entrega de Calificaciones / Boletines 2T",
+      totalLectivosEstimated: 52,
+    },
+    {
+      id: "3T",
+      name: "3º Trimestre y Periodo de Recuperación",
+      shortName: "3T",
+      periodText: `29 Mar ${endYear} - 24 Jun ${endYear}`,
+      startDate: `${endYear}-03-29`,
+      endDate: `${endYear}-06-24`,
+      evalSessionDate: `${endYear}-05-28`,
+      evalSessionLabel: "1ª Sesión de Evaluación Final Ordinaria",
+      reportCardDeliveryDate: `${endYear}-06-01`,
+      reportCardDeliveryLabel: "Entrega de Calificaciones Evaluación Ordinaria",
+      totalLectivosEstimated: 55,
+      juneStructure: {
+        recuperacionStart: `${endYear}-06-01`,
+        recuperacionEnd: `${endYear}-06-19`,
+        recuperacionLabel: "Periodo de Recuperación de Aprendizajes No Adquiridos y Refuerzo (Semanas 1-3)",
+        evalExtraordinariaDate: `${endYear}-06-22`,
+        evalExtraordinariaLabel: "2ª Sesión de Evaluación Final Extraordinaria",
+        finClasesDate: `${endYear}-06-24`,
+        finClasesLabel: "Fin de Régimen de Clases y Entrega de Calificaciones Finales",
+        planificacionNextStart: `${endYear}-06-25`,
+        planificacionNextEnd: `${endYear}-06-30`,
+        planificacionNextLabel: "Reclamaciones, Planificación para el Curso Siguiente y Memorias",
+      },
+    },
+  ];
+}
+
 // Auto-distribute SIGRE UDs evenly across teaching weeks
+// Pedagogically distributes ordinary UDs from September to late May (avoiding June),
+// and establishes the June Recuperation Period (weeks 1-3) & Final Assessment / Planning (week 4)
 export function autoDistributeUdsToCalendar(
   calendar: SigreAcademicCalendar,
   uds: SigreUDItem[],
   moduloCodigo: string = "TEMINS 0037"
 ): SigreAcademicCalendar {
   if (!uds || uds.length === 0) return calendar;
+
+  const parts = calendar.academicYear.split("-");
+  const startYear = parseInt(parts[0], 10) || 2026;
+  const endYear = parseInt(parts[1], 10) || startYear + 1;
+
+  // Cut-off date for ordinary teaching: May 31st (June is strictly reserved for Recuperation & Final Evals)
+  const cutoffOrdinaryTeaching = `${endYear}-05-31`;
 
   const validSchoolDays: string[] = [];
   const months = getAcademicMonthsList(calendar.academicYear);
@@ -979,7 +1078,8 @@ export function autoDistributeUdsToCalendar(
     monthData.days
       .filter((d) => d.isCurrentMonth && !d.isWeekend)
       .forEach((d) => {
-        if (d.dateString >= calendar.startDate && d.dateString <= calendar.endDate) {
+        // Collect ordinary school days between calendar.startDate and May 31st
+        if (d.dateString >= calendar.startDate && d.dateString <= cutoffOrdinaryTeaching) {
           const type = d.override?.type;
           const isHoliday =
             type === "festivo_nacional" ||
@@ -1003,10 +1103,15 @@ export function autoDistributeUdsToCalendar(
 
   const daysPerUd = Math.max(1, Math.floor(totalLectivos / uds.length));
   const newOverrides = { ...calendar.dayOverrides };
-  const updatedLegendItems: SigreCalendarLegendItem[] = [
-    ...calendar.legendItems.filter((l) => l.type !== "ud_ra"),
-  ];
 
+  // Retain non-UD legend items and non-auto items
+  const preservedLegendItems: SigreCalendarLegendItem[] = calendar.legendItems.filter(
+    (l) => l.type !== "ud_ra" && !l.id.startsWith("leg_auto_") && !l.id.startsWith("leg_recup_")
+  );
+
+  const updatedLegendItems: SigreCalendarLegendItem[] = [...preservedLegendItems];
+
+  // 1. Distribute ordinary UDs from September to May
   uds.forEach((ud, index) => {
     const startIdx = index * daysPerUd;
     const endIdx = index === uds.length - 1 ? totalLectivos : Math.min(totalLectivos, (index + 1) * daysPerUd);
@@ -1068,6 +1173,212 @@ export function autoDistributeUdsToCalendar(
     });
   });
 
+  // 2. Establish Trimester Assessment Sessions & Report Card Deliveries (1T, 2T, 3T)
+  const ensureMilestone = (
+    dateStr: string,
+    type: SigreCalendarDayType,
+    legId: string,
+    code: string,
+    title: string,
+    color: string,
+    textColor: string,
+    monthTarget: number,
+    sidePosition: "left" | "right" = "right"
+  ) => {
+    newOverrides[dateStr] = {
+      date: dateStr,
+      type,
+      legendItemId: legId,
+      customColor: color,
+      customTextColor: textColor,
+      title,
+    };
+    if (!updatedLegendItems.some((l) => l.id === legId)) {
+      updatedLegendItems.push({
+        id: legId,
+        code,
+        title,
+        type: type === "periodo_recuperacion" ? "recuperacion" : type === "inicio_fin_curso" ? "hito" : "evaluacion",
+        color,
+        textColor,
+        monthTarget,
+        sidePosition,
+      });
+    }
+  };
+
+  // 1º Trimestre Milestones
+  ensureMilestone(
+    `${startYear}-12-16`,
+    "evaluacion_trimestral",
+    "leg_eval_1",
+    "16 Dic",
+    "Sesión de Evaluación 1º Trimestre",
+    "#0080ff",
+    "#ffffff",
+    12,
+    "right"
+  );
+  ensureMilestone(
+    `${startYear}-12-21`,
+    "otro_evento",
+    "leg_notas_1",
+    "21 Dic",
+    "Entrega de Calificaciones y Boletines 1º Trimestre",
+    "#38bdf8",
+    "#0f172a",
+    12,
+    "right"
+  );
+
+  // 2º Trimestre Milestones
+  ensureMilestone(
+    `${endYear}-03-17`,
+    "evaluacion_trimestral",
+    "leg_eval_2",
+    "17 Mar",
+    "Sesión de Evaluación 2º Trimestre",
+    "#0080ff",
+    "#ffffff",
+    3,
+    "right"
+  );
+  ensureMilestone(
+    `${endYear}-03-22`,
+    "otro_evento",
+    "leg_notas_2",
+    "22 Mar",
+    "Entrega de Calificaciones y Boletines 2º Trimestre",
+    "#38bdf8",
+    "#0f172a",
+    3,
+    "right"
+  );
+
+  // 3º Trimestre: 1ª Sesión Evaluación Final Ordinaria & Entrega de Notas
+  ensureMilestone(
+    `${endYear}-05-28`,
+    "evaluacion_final",
+    "leg_eval_fin1",
+    "28 May",
+    "1ª Sesión de Evaluación Final Ordinaria",
+    "#0080ff",
+    "#ffffff",
+    5,
+    "right"
+  );
+  ensureMilestone(
+    `${endYear}-06-01`,
+    "otro_evento",
+    "leg_notas_ord",
+    "1 Jun",
+    "Entrega de Calificaciones Evaluación Final Ordinaria",
+    "#38bdf8",
+    "#0f172a",
+    6,
+    "right"
+  );
+
+  // 3. JUNE: Weeks 1, 2 and 3 (1 al 19 de Junio) -> PERIOD OF RECOVERY OF NON-ACQUIRED LEARNING (Recuperación)
+  const juneRecupStart = new Date(endYear, 5, 1); // 1 de Junio
+  const juneRecupEnd = new Date(endYear, 5, 19); // 19 de Junio
+
+  for (let d = new Date(juneRecupStart); d <= juneRecupEnd; d.setDate(d.getDate() + 1)) {
+    const dayOfWeek = d.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Skip weekends
+
+    const dateStr = `${endYear}-06-${String(d.getDate()).padStart(2, "0")}`;
+    // Don't overwrite the June 1st note delivery milestone if it's there
+    if (dateStr === `${endYear}-06-01`) {
+      newOverrides[dateStr] = {
+        date: dateStr,
+        type: "periodo_recuperacion",
+        legendItemId: "leg_recup_junio",
+        customColor: "#f8cb9c",
+        customTextColor: "#7c2d12",
+        title: "Inicio Periodo de Recuperación y Entrega Calificaciones Ordinarias",
+      };
+    } else {
+      newOverrides[dateStr] = {
+        date: dateStr,
+        type: "periodo_recuperacion",
+        legendItemId: "leg_recup_junio",
+        customColor: "#f8cb9c",
+        customTextColor: "#7c2d12",
+        title: "Periodo de Recuperación de Aprendizajes No Adquiridos y Refuerzo (Sem. 1-3)",
+      };
+    }
+  }
+
+  if (!updatedLegendItems.some((l) => l.id === "leg_recup_junio")) {
+    updatedLegendItems.push({
+      id: "leg_recup_junio",
+      code: "1-19 Jun",
+      title: "Periodo de Recuperación de Aprendizajes No Adquiridos (Semanas 1-3)",
+      type: "recuperacion",
+      color: "#f8cb9c",
+      textColor: "#7c2d12",
+      monthTarget: 6,
+      sidePosition: "left",
+      dayRangeText: "01-19 JUN",
+    });
+  }
+
+  // 4. JUNE: 4th Week (20-24 de Junio y cierre) -> 2ª Evaluación Final Extraordinaria, Fin de Clases y Planificación
+  ensureMilestone(
+    `${endYear}-06-22`,
+    "evaluacion_extraordinaria",
+    "leg_eval_ext",
+    "22 Jun",
+    "2ª Sesión de Evaluación Final Extraordinaria",
+    "#0080ff",
+    "#ffffff",
+    6,
+    "right"
+  );
+
+  ensureMilestone(
+    `${endYear}-06-24`,
+    "inicio_fin_curso",
+    "leg_fin_fp",
+    "24 Jun",
+    "Fin de Régimen de Clases y Entrega de Calificaciones Finales",
+    "#d946ef",
+    "#ffffff",
+    6,
+    "right"
+  );
+
+  // June 25 to 30: Planificación para el curso siguiente y memorias de departamento
+  const junePlanStart = new Date(endYear, 5, 25);
+  const junePlanEnd = new Date(endYear, 5, 30);
+  for (let d = new Date(junePlanStart); d <= junePlanEnd; d.setDate(d.getDate() + 1)) {
+    const dayOfWeek = d.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+    const dateStr = `${endYear}-06-${String(d.getDate()).padStart(2, "0")}`;
+    newOverrides[dateStr] = {
+      date: dateStr,
+      type: "no_lectivo",
+      customColor: "#e2e8f0",
+      customTextColor: "#334155",
+      title: "Planificación para el curso siguiente y memorias de departamento",
+    };
+  }
+
+  if (!updatedLegendItems.some((l) => l.id === "leg_plan_siguiente")) {
+    updatedLegendItems.push({
+      id: "leg_plan_siguiente",
+      code: "25-30 Jun",
+      title: "Planificación curso siguiente, memorias y reclamaciones",
+      type: "hito",
+      color: "#cbd5e1",
+      textColor: "#1e293b",
+      monthTarget: 6,
+      sidePosition: "right",
+      dayRangeText: "25-30 JUN",
+    });
+  }
+
   return {
     ...calendar,
     legendItems: updatedLegendItems,
@@ -1124,10 +1435,16 @@ export function createNewAcademicCalendarTemplate(
     totalLectivosEstimated: 175,
     legendItems: [
       { id: "leg_ini_fp", code: "15 Sep", title: "Inicio Régimen Ordinario Formación Profesional", type: "hito", color: "#d8b4fe", sidePosition: "left", monthTarget: 9 },
-      { id: "leg_eval_1", code: "16 Dic", title: "Sesión de Evaluación 1º Trimestre", type: "evaluacion", color: "#0284c7", textColor: "#ffffff", sidePosition: "right", monthTarget: 12 },
-      { id: "leg_eval_2", code: "17 Mar", title: "Sesión de Evaluación 2º Trimestre", type: "evaluacion", color: "#0284c7", textColor: "#ffffff", sidePosition: "right", monthTarget: 3 },
-      { id: "leg_eval_fin1", code: "28 May", title: "Sesión de Evaluación Final Ordinaria (1ª Final)", type: "evaluacion", color: "#0284c7", textColor: "#ffffff", sidePosition: "right", monthTarget: 5 },
-      { id: "leg_fin_fp", code: "24 Jun", title: "Fin de clases y 2ª Sesión Final Extraordinaria", type: "hito", color: "#d946ef", textColor: "#ffffff", sidePosition: "right", monthTarget: 6 },
+      { id: "leg_eval_1", code: "16 Dic", title: "Sesión de Evaluación 1º Trimestre", type: "evaluacion", color: "#0080ff", textColor: "#ffffff", sidePosition: "right", monthTarget: 12 },
+      { id: "leg_notas_1", code: "21 Dic", title: "Entrega Calificaciones 1º Trimestre", type: "hito", color: "#38bdf8", textColor: "#0f172a", sidePosition: "right", monthTarget: 12 },
+      { id: "leg_eval_2", code: "17 Mar", title: "Sesión de Evaluación 2º Trimestre", type: "evaluacion", color: "#0080ff", textColor: "#ffffff", sidePosition: "right", monthTarget: 3 },
+      { id: "leg_notas_2", code: "22 Mar", title: "Entrega Calificaciones 2º Trimestre", type: "hito", color: "#38bdf8", textColor: "#0f172a", sidePosition: "right", monthTarget: 3 },
+      { id: "leg_eval_fin1", code: "28 May", title: "1ª Sesión de Evaluación Final Ordinaria", type: "evaluacion", color: "#0080ff", textColor: "#ffffff", sidePosition: "right", monthTarget: 5 },
+      { id: "leg_notas_ord", code: "1 Jun", title: "Entrega Calificaciones Evaluación Ordinaria", type: "hito", color: "#38bdf8", textColor: "#0f172a", sidePosition: "right", monthTarget: 6 },
+      { id: "leg_recup_junio", code: "1-19 Jun", title: "Periodo de Recuperación de Aprendizajes No Adquiridos (Semanas 1-3)", type: "recuperacion", color: "#f8cb9c", textColor: "#7c2d12", sidePosition: "left", monthTarget: 6, dayRangeText: "01-19 JUN" },
+      { id: "leg_eval_ext", code: "22 Jun", title: "2ª Sesión de Evaluación Final Extraordinaria", type: "evaluacion", color: "#0080ff", textColor: "#ffffff", sidePosition: "right", monthTarget: 6 },
+      { id: "leg_fin_fp", code: "24 Jun", title: "Fin de clases y entrega final de calificaciones", type: "hito", color: "#d946ef", textColor: "#ffffff", sidePosition: "right", monthTarget: 6 },
+      { id: "leg_plan_siguiente", code: "25-30 Jun", title: "Planificación curso siguiente y memorias", type: "hito", color: "#cbd5e1", textColor: "#1e293b", sidePosition: "right", monthTarget: 6, dayRangeText: "25-30 JUN" },
     ],
     dayOverrides: {
       [`${startYear}-09-15`]: { date: `${startYear}-09-15`, type: "inicio_fin_curso", customColor: "#d8b4fe", title: "Inicio de clases FP" },
@@ -1135,14 +1452,33 @@ export function createNewAcademicCalendarTemplate(
       [`${startYear}-11-01`]: { date: `${startYear}-11-01`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Todos los Santos" },
       [`${startYear}-12-06`]: { date: `${startYear}-12-06`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Día de la Constitución" },
       [`${startYear}-12-08`]: { date: `${startYear}-12-08`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Inmaculada Concepción" },
-      [`${startYear}-12-16`]: { date: `${startYear}-12-16`, type: "evaluacion_trimestral", customColor: "#0284c7", customTextColor: "#fff", title: "Sesión Evaluación 1T" },
+      [`${startYear}-12-16`]: { date: `${startYear}-12-16`, type: "evaluacion_trimestral", customColor: "#0080ff", customTextColor: "#fff", title: "Sesión Evaluación 1T" },
+      [`${startYear}-12-21`]: { date: `${startYear}-12-21`, type: "otro_evento", customColor: "#38bdf8", customTextColor: "#0f172a", title: "Entrega Calificaciones 1T" },
       [`${startYear}-12-25`]: { date: `${startYear}-12-25`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Natividad del Señor" },
       [`${endYear}-01-01`]: { date: `${endYear}-01-01`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Año Nuevo" },
       [`${endYear}-01-06`]: { date: `${endYear}-01-06`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Epifanía del Señor" },
       [`${endYear}-02-27`]: { date: `${endYear}-02-27`, type: "dia_comunidad_educativa", customColor: "#f59e0b", customTextColor: "#fff", title: "Día de la Comunidad Educativa" },
       [`${endYear}-02-28`]: { date: `${endYear}-02-28`, type: "festivo_autonomico", customColor: "#16a34a", customTextColor: "#fff", title: "Día de Andalucía" },
+      [`${endYear}-03-17`]: { date: `${endYear}-03-17`, type: "evaluacion_trimestral", customColor: "#0080ff", customTextColor: "#fff", title: "Sesión Evaluación 2T" },
+      [`${endYear}-03-22`]: { date: `${endYear}-03-22`, type: "otro_evento", customColor: "#38bdf8", customTextColor: "#0f172a", title: "Entrega Calificaciones 2T" },
       [`${endYear}-05-01`]: { date: `${endYear}-05-01`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Fiesta del Trabajo" },
-      [`${endYear}-06-24`]: { date: `${endYear}-06-24`, type: "inicio_fin_curso", customColor: "#d946ef", customTextColor: "#fff", title: "Fin de clases" },
+      [`${endYear}-05-28`]: { date: `${endYear}-05-28`, type: "evaluacion_final", customColor: "#0080ff", customTextColor: "#fff", title: "1ª Sesión Evaluación Final Ordinaria" },
+      [`${endYear}-06-01`]: { date: `${endYear}-06-01`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Inicio Periodo de Recuperación y Entrega Calificaciones Ordinarias" },
+      [`${endYear}-06-02`]: { date: `${endYear}-06-02`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
+      [`${endYear}-06-03`]: { date: `${endYear}-06-03`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
+      [`${endYear}-06-04`]: { date: `${endYear}-06-04`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
+      [`${endYear}-06-07`]: { date: `${endYear}-06-07`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
+      [`${endYear}-06-08`]: { date: `${endYear}-06-08`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
+      [`${endYear}-06-09`]: { date: `${endYear}-06-09`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
+      [`${endYear}-06-10`]: { date: `${endYear}-06-10`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
+      [`${endYear}-06-11`]: { date: `${endYear}-06-11`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
+      [`${endYear}-06-14`]: { date: `${endYear}-06-14`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
+      [`${endYear}-06-15`]: { date: `${endYear}-06-15`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
+      [`${endYear}-06-16`]: { date: `${endYear}-06-16`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
+      [`${endYear}-06-17`]: { date: `${endYear}-06-17`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
+      [`${endYear}-06-18`]: { date: `${endYear}-06-18`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
+      [`${endYear}-06-22`]: { date: `${endYear}-06-22`, type: "evaluacion_extraordinaria", customColor: "#0080ff", customTextColor: "#fff", title: "2ª Sesión Evaluación Final Extraordinaria" },
+      [`${endYear}-06-24`]: { date: `${endYear}-06-24`, type: "inicio_fin_curso", customColor: "#d946ef", customTextColor: "#fff", title: "Fin de clases y entrega final de calificaciones" },
     },
     specialEvents: [],
     notes: `Calendario Escolar Oficial del curso ${startYear}/${endYear} para la comunidad autónoma de Andalucía.`,
@@ -1649,7 +1985,15 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
           <span><strong>Evaluaciones:</strong> Sesiones trimestrales y finales</span>
         </div>
         <div class="legend-chip">
-          <span class="chip-color" style="background: #ff00ff;"></span>
+          <span class="chip-color" style="background: #38bdf8;"></span>
+          <span><strong>Entrega de Calificaciones:</strong> Boletines oficiales</span>
+        </div>
+        <div class="legend-chip">
+          <span class="chip-color" style="background: #f8cb9c;"></span>
+          <span><strong>Recuperación (Junio):</strong> Aprendizajes no adquiridos</span>
+        </div>
+        <div class="legend-chip">
+          <span class="chip-color" style="background: #d946ef;"></span>
           <span><strong>Inicio / Fin de Clases:</strong> Hito escolar</span>
         </div>
         <div class="legend-chip">
@@ -1658,7 +2002,7 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
         </div>
         <div class="legend-chip">
           <span class="chip-color" style="background: #fcd5b4;"></span>
-          <span><strong>UDs / RAs:</strong> Temporalización de unidades</span>
+          <span><strong>UDs / RAs:</strong> Temporalización ordinaria (Sep-May)</span>
         </div>
       </div>
       <div class="official-footer">
