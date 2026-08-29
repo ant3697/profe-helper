@@ -48,6 +48,7 @@ import {
   Eraser,
   Landmark,
   Eye,
+  Filter,
 } from "lucide-react";
 import {
   SigreAcademicCalendar,
@@ -84,6 +85,11 @@ import {
   MONTH_NAMES_ES,
   getAcademicTrimestersStructure,
   SigreAcademicTrimesterItem,
+  getMonthTrimesterInfo,
+  MonthTrimesterInfo,
+  shiftCalendarToAcademicYear,
+  sanitizeAcademicCalendar,
+  buildUdLegendTitleAndCode,
 } from "../../utils/sigreCalendarUtils";
 import { preparePrintableHtmlDocument } from "../../utils/topicPromptGenerator";
 
@@ -138,13 +144,13 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.map(sanitizeAcademicCalendar);
         }
       }
     } catch (e) {
       console.error("Error loading calendars from storage:", e);
     }
-    return ALL_PRESET_ACADEMIC_CALENDARS;
+    return ALL_PRESET_ACADEMIC_CALENDARS.map(sanitizeAcademicCalendar);
   });
 
   const [activeCalendarId, setActiveCalendarId] = useState<string>(() => {
@@ -329,6 +335,33 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
 
   // Academic Trimesters and June Recuperation panel toggle
   const [isTrimestersExpanded, setIsTrimestersExpanded] = useState<boolean>(false);
+
+  // Dedicated Academic Year Switcher & Modal state
+  const [isChangeYearModalOpen, setIsChangeYearModalOpen] = useState<boolean>(false);
+  const [targetAcademicYear, setTargetAcademicYear] = useState<string>("2026-2027");
+  const [customAcademicYearInput, setCustomAcademicYearInput] = useState<string>("");
+  const [changeYearMode, setChangeYearMode] = useState<"shift_dates" | "load_official_preset" | "update_label_only">("shift_dates");
+  const [changeYearCreateCopy, setChangeYearCreateCopy] = useState<boolean>(false);
+  const [portfolioYearFilter, setPortfolioYearFilter] = useState<string>("all");
+
+  // Drag & Drop state for moving assigned formats / milestones / evaluations between calendar cells
+  const [draggedDayData, setDraggedDayData] = useState<{
+    sourceDateStr: string;
+    sourceDayNumber: number;
+    sourceMonthName: string;
+    title: string;
+    override?: SigreCalendarDayOverride;
+    assignedUdId?: string;
+    assignedUdCode?: string;
+    specialEventType?: SigreCalendarDayType;
+    specialEventLabel?: string;
+    displayBgColor?: string;
+    displayTextColor?: string;
+    legendItemId?: string;
+  } | null>(null);
+  const [dragOverTargetDate, setDragOverTargetDate] = useState<string | null>(null);
+  const draggedDayDataRef = useRef(draggedDayData);
+  draggedDayDataRef.current = draggedDayData;
 
   const [notification, setNotification] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -531,14 +564,15 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
   ]);
 
   const updateCurrentCalendar = (newCal: SigreAcademicCalendar, recordHistory: boolean = true) => {
+    const sanitized = sanitizeAcademicCalendar(newCal);
     if (recordHistory) {
       setHistory((prev) => [...prev.slice(-50), calendarRef.current]);
       setFuture([]);
     }
-    const updatedList = calendarsList.map((c) => (c.id === newCal.id ? newCal : c));
+    const updatedList = calendarsList.map((c) => (c.id === sanitized.id ? sanitized : c));
     setCalendarsList(updatedList);
     if (onCalendarChange) {
-      onCalendarChange(newCal);
+      onCalendarChange(sanitized);
     }
   };
 
@@ -586,7 +620,8 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
 
   // Undo specifically for a single monthly window
   const handleUndoForMonth = (year: number, month: number, monthName: string) => {
-    const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
+    const monthNum1Indexed = month + 1;
+    const monthPrefix = `${year}-${String(monthNum1Indexed).padStart(2, "0")}`;
     const currentCal = calendarRef.current;
     const currentHistory = historyRef.current;
 
@@ -598,10 +633,14 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     let targetIndex = -1;
     for (let i = currentHistory.length - 1; i >= 0; i--) {
       const snap = currentHistory[i];
-      const snapMonthOverrides = Object.entries(snap.dayOverrides).filter(([k]) => k.startsWith(monthPrefix));
-      const currMonthOverrides = Object.entries(currentCal.dayOverrides).filter(([k]) => k.startsWith(monthPrefix));
-      const snapMonthLegends = snap.legendItems.filter((l) => l.monthTarget === month);
-      const currMonthLegends = currentCal.legendItems.filter((l) => l.monthTarget === month);
+      const snapMonthOverrides = Object.entries(snap.dayOverrides || {}).filter(([k]) => k.startsWith(monthPrefix));
+      const currMonthOverrides = Object.entries(currentCal.dayOverrides || {}).filter(([k]) => k.startsWith(monthPrefix));
+      const snapMonthLegends = (snap.legendItems || []).filter(
+        (l) => l.monthTarget === monthNum1Indexed || l.monthTarget === month
+      );
+      const currMonthLegends = (currentCal.legendItems || []).filter(
+        (l) => l.monthTarget === monthNum1Indexed || l.monthTarget === month
+      );
 
       const isOverridesDiff = JSON.stringify(snapMonthOverrides) !== JSON.stringify(currMonthOverrides);
       const isLegendsDiff = JSON.stringify(snapMonthLegends) !== JSON.stringify(currMonthLegends);
@@ -613,8 +652,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     }
 
     if (targetIndex === -1) {
-      showToast(`No hay cambios previos registrados para ${monthName}`);
-      return;
+      targetIndex = currentHistory.length - 1;
     }
 
     const previousSnap = currentHistory[targetIndex];
@@ -623,12 +661,16 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     Object.keys(newOverrides).forEach((k) => {
       if (k.startsWith(monthPrefix)) delete newOverrides[k];
     });
-    Object.entries(previousSnap.dayOverrides).forEach(([k, v]) => {
+    Object.entries(previousSnap.dayOverrides || {}).forEach(([k, v]) => {
       if (k.startsWith(monthPrefix)) newOverrides[k] = v;
     });
 
-    const otherLegends = currentCal.legendItems.filter((l) => l.monthTarget !== month);
-    const targetMonthLegends = previousSnap.legendItems.filter((l) => l.monthTarget === month);
+    const otherLegends = (currentCal.legendItems || []).filter(
+      (l) => l.monthTarget !== monthNum1Indexed && l.monthTarget !== month
+    );
+    const targetMonthLegends = (previousSnap.legendItems || []).filter(
+      (l) => l.monthTarget === monthNum1Indexed || l.monthTarget === month
+    );
 
     const updatedCal: SigreAcademicCalendar = {
       ...currentCal,
@@ -649,7 +691,8 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
 
   // Redo specifically for a single monthly window
   const handleRedoForMonth = (year: number, month: number, monthName: string) => {
-    const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
+    const monthNum1Indexed = month + 1;
+    const monthPrefix = `${year}-${String(monthNum1Indexed).padStart(2, "0")}`;
     const currentCal = calendarRef.current;
     const currentFuture = futureRef.current;
 
@@ -661,10 +704,14 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     let targetIndex = -1;
     for (let i = 0; i < currentFuture.length; i++) {
       const snap = currentFuture[i];
-      const snapMonthOverrides = Object.entries(snap.dayOverrides).filter(([k]) => k.startsWith(monthPrefix));
-      const currMonthOverrides = Object.entries(currentCal.dayOverrides).filter(([k]) => k.startsWith(monthPrefix));
-      const snapMonthLegends = snap.legendItems.filter((l) => l.monthTarget === month);
-      const currMonthLegends = currentCal.legendItems.filter((l) => l.monthTarget === month);
+      const snapMonthOverrides = Object.entries(snap.dayOverrides || {}).filter(([k]) => k.startsWith(monthPrefix));
+      const currMonthOverrides = Object.entries(currentCal.dayOverrides || {}).filter(([k]) => k.startsWith(monthPrefix));
+      const snapMonthLegends = (snap.legendItems || []).filter(
+        (l) => l.monthTarget === monthNum1Indexed || l.monthTarget === month
+      );
+      const currMonthLegends = (currentCal.legendItems || []).filter(
+        (l) => l.monthTarget === monthNum1Indexed || l.monthTarget === month
+      );
 
       const isOverridesDiff = JSON.stringify(snapMonthOverrides) !== JSON.stringify(currMonthOverrides);
       const isLegendsDiff = JSON.stringify(snapMonthLegends) !== JSON.stringify(currMonthLegends);
@@ -676,8 +723,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     }
 
     if (targetIndex === -1) {
-      showToast(`No hay cambios pendientes de rehacer para ${monthName}`);
-      return;
+      targetIndex = 0;
     }
 
     const nextSnap = currentFuture[targetIndex];
@@ -686,12 +732,16 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     Object.keys(newOverrides).forEach((k) => {
       if (k.startsWith(monthPrefix)) delete newOverrides[k];
     });
-    Object.entries(nextSnap.dayOverrides).forEach(([k, v]) => {
+    Object.entries(nextSnap.dayOverrides || {}).forEach(([k, v]) => {
       if (k.startsWith(monthPrefix)) newOverrides[k] = v;
     });
 
-    const otherLegends = currentCal.legendItems.filter((l) => l.monthTarget !== month);
-    const targetMonthLegends = nextSnap.legendItems.filter((l) => l.monthTarget === month);
+    const otherLegends = (currentCal.legendItems || []).filter(
+      (l) => l.monthTarget !== monthNum1Indexed && l.monthTarget !== month
+    );
+    const targetMonthLegends = (nextSnap.legendItems || []).filter(
+      (l) => l.monthTarget === monthNum1Indexed || l.monthTarget === month
+    );
 
     const updatedCal: SigreAcademicCalendar = {
       ...currentCal,
@@ -869,6 +919,120 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     updateCurrentCalendar(updated);
     setEditingModuleModal(null);
     showToast("Datos de la asignatura y módulo actualizados con éxito");
+  };
+
+  // Quick Academic Year Switcher from header dropdown
+  const handleQuickChangeAcademicYear = (newYearValue: string) => {
+    if (newYearValue === "custom" || newYearValue === "advanced_options") {
+      setTargetAcademicYear(calendar.academicYear || "2026-2027");
+      setCustomAcademicYearInput(calendar.academicYear || "2026-2027");
+      setIsChangeYearModalOpen(true);
+      return;
+    }
+
+    if (newYearValue === calendar.academicYear) return;
+
+    // Apply smart date shift
+    const shifted = shiftCalendarToAcademicYear(calendar, newYearValue, "shift_dates");
+    updateCurrentCalendar(shifted);
+    showToast(`Curso escolar actualizado a ${newYearValue} con adaptación de fechas y trimestres`);
+  };
+
+  // Full Change Academic Year Confirmation from Modal
+  const handleApplyChangeAcademicYear = () => {
+    const finalYear = targetAcademicYear === "custom" ? customAcademicYearInput.trim() : targetAcademicYear.trim();
+    if (!finalYear || !/^\d{4}-\d{4}$/.test(finalYear)) {
+      alert("Introduce un curso escolar válido en formato AAAA-AAAA (ej. 2025-2026 o 2027-2028)");
+      return;
+    }
+
+    if (changeYearCreateCopy) {
+      // Create new calendar in portfolio with this year
+      let newCal: SigreAcademicCalendar;
+      if (changeYearMode === "load_official_preset") {
+        if (finalYear === "2025-2026") {
+          newCal = {
+            ...PRESET_CALENDAR_2025_2026,
+            moduloFormativo: calendar.moduloFormativo,
+            codigoModulo: `${calendar.codigoModulo || "MOD"}_2526`,
+            cicloFormativo: calendar.cicloFormativo,
+            docente: calendar.docente,
+            province: calendar.province || "Málaga",
+          };
+        } else if (finalYear === "2026-2027") {
+          newCal = {
+            ...PRESET_CALENDAR_2026_2027,
+            moduloFormativo: calendar.moduloFormativo,
+            codigoModulo: `${calendar.codigoModulo || "MOD"}_2627`,
+            cicloFormativo: calendar.cicloFormativo,
+            docente: calendar.docente,
+            province: calendar.province || "Málaga",
+          };
+        } else {
+          newCal = createNewAcademicCalendarTemplate(
+            finalYear,
+            calendar.province || "Málaga",
+            calendar.moduloFormativo,
+            calendar.codigoModulo,
+            calendar.cicloFormativo,
+            calendar.docente
+          );
+        }
+      } else {
+        newCal = shiftCalendarToAcademicYear(calendar, finalYear, changeYearMode);
+      }
+      const cleanCode = `${calendar.codigoModulo || "MOD"}_${finalYear.replace("-", "_")}`;
+      newCal.id = `cal_${cleanCode.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_${Date.now()}`;
+      newCal.codigoModulo = cleanCode;
+
+      setCalendarsList([...calendarsList, newCal]);
+      setActiveCalendarId(newCal.id);
+      setIsChangeYearModalOpen(false);
+      if (onCalendarChange) onCalendarChange(newCal);
+      showToast(`Nueva asignatura para el curso ${finalYear} creada y activada en tu cartera`);
+    } else {
+      // Apply to current active calendar
+      let updatedCal: SigreAcademicCalendar;
+      if (changeYearMode === "load_official_preset") {
+        if (finalYear === "2025-2026") {
+          updatedCal = {
+            ...PRESET_CALENDAR_2025_2026,
+            id: calendar.id,
+            moduloFormativo: calendar.moduloFormativo,
+            codigoModulo: calendar.codigoModulo,
+            cicloFormativo: calendar.cicloFormativo,
+            docente: calendar.docente,
+            province: calendar.province || "Málaga",
+          };
+        } else if (finalYear === "2026-2027") {
+          updatedCal = {
+            ...PRESET_CALENDAR_2026_2027,
+            id: calendar.id,
+            moduloFormativo: calendar.moduloFormativo,
+            codigoModulo: calendar.codigoModulo,
+            cicloFormativo: calendar.cicloFormativo,
+            docente: calendar.docente,
+            province: calendar.province || "Málaga",
+          };
+        } else {
+          updatedCal = createNewAcademicCalendarTemplate(
+            finalYear,
+            calendar.province || "Málaga",
+            calendar.moduloFormativo,
+            calendar.codigoModulo,
+            calendar.cicloFormativo,
+            calendar.docente
+          );
+          updatedCal.id = calendar.id;
+        }
+      } else {
+        updatedCal = shiftCalendarToAcademicYear(calendar, finalYear, changeYearMode);
+      }
+
+      updateCurrentCalendar(updatedCal);
+      setIsChangeYearModalOpen(false);
+      showToast(`Curso escolar actualizado a ${finalYear} con éxito`);
+    }
   };
 
   // Clone Current Calendar for another Subject or Group
@@ -1476,6 +1640,16 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
   const applyCopiedFormatToDate = (dateStr: string) => {
     if (!copiedFormat) return;
 
+    const [y, m, dNum] = dateStr.split("-").map(Number);
+    const targetDate = new Date(y, m - 1, dNum);
+    const isWeekend = targetDate.getDay() === 0 || targetDate.getDay() === 6;
+
+    // Strict protection: Weekends (Saturdays and Sundays) cannot have UDs or lectivo format applied
+    if (isWeekend && (copiedFormat.type === "lectivo" || copiedFormat.assignedUdId || copiedFormat.legendItemId)) {
+      showToast("⚠️ Los fines de semana (sábados y domingos) son días no lectivos. No se pueden asignar unidades didácticas.");
+      return;
+    }
+
     const newOverrides = { ...calendar.dayOverrides };
     const existing = calendar.dayOverrides[dateStr];
 
@@ -1593,6 +1767,15 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     let count = 0;
 
     dateArr.forEach((dateStr) => {
+      const [y, m, dNum] = dateStr.split("-").map(Number);
+      const targetDate = new Date(y, m - 1, dNum);
+      const isWeekend = targetDate.getDay() === 0 || targetDate.getDay() === 6;
+
+      // Strict protection: Weekends cannot receive UDs or lectivo formatting
+      if (isWeekend && (activeCopied.type === "lectivo" || activeCopied.assignedUdId || activeCopied.legendItemId)) {
+        return;
+      }
+
       const existing = newOverrides[dateStr];
       if (
         existing &&
@@ -1823,6 +2006,204 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     }
   };
 
+  // --- DRAG AND DROP ENGINE FOR MOVING ASSIGNED FORMATS / MILESTONES / EVALUATIONS ---
+
+  // Drag Start on a Day Cell with assigned format / milestone / UD / evaluation
+  const handleDayCellDragStart = (
+    e: React.DragEvent,
+    d: CalendarGridDay,
+    monthName: string
+  ) => {
+    if (!d.isCurrentMonth) {
+      e.preventDefault();
+      return;
+    }
+
+    const hasContent = Boolean(
+      d.override ||
+        d.assignedUdId ||
+        d.specialEventType ||
+        (d.displayBgColor && d.displayBgColor !== "transparent") ||
+        d.hasSpecialPrevalence
+    );
+
+    if (!hasContent) {
+      e.preventDefault();
+      return;
+    }
+
+    const title =
+      d.override?.title ||
+      d.specialEventLabel ||
+      d.legendItem?.title ||
+      d.assignedUdCode ||
+      (d.override?.type ? getOfficialEventStyle(d.override.type).label : "Asignación");
+
+    const dragPayload = {
+      sourceDateStr: d.dateString,
+      sourceDayNumber: d.dayNumber,
+      sourceMonthName: monthName,
+      title,
+      override: d.override ? { ...d.override } : undefined,
+      assignedUdId: d.assignedUdId,
+      assignedUdCode: d.assignedUdCode,
+      specialEventType: d.specialEventType,
+      specialEventLabel: d.specialEventLabel,
+      displayBgColor: d.displayBgColor,
+      displayTextColor: d.displayTextColor,
+      legendItemId: d.override?.legendItemId || d.legendItem?.id,
+    };
+
+    setDraggedDayData(dragPayload);
+    draggedDayDataRef.current = dragPayload;
+
+    try {
+      e.dataTransfer.setData("application/sigre-day-format", JSON.stringify(dragPayload));
+      e.dataTransfer.setData("text/plain", d.dateString);
+      e.dataTransfer.effectAllowed = "move";
+    } catch (err) {
+      console.warn("Drag setData error", err);
+    }
+  };
+
+  const handleDayCellDragOver = (e: React.DragEvent, d: CalendarGridDay) => {
+    if (!d.isCurrentMonth) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDayCellDragEnter = (e: React.DragEvent, d: CalendarGridDay) => {
+    if (!d.isCurrentMonth) return;
+    e.preventDefault();
+    setDragOverTargetDate(d.dateString);
+  };
+
+  const handleDayCellDragLeave = (e: React.DragEvent, d: CalendarGridDay) => {
+    if (dragOverTargetDate === d.dateString) {
+      setDragOverTargetDate(null);
+    }
+  };
+
+  const handleDayCellDragEnd = () => {
+    setDraggedDayData(null);
+    draggedDayDataRef.current = null;
+    setDragOverTargetDate(null);
+  };
+
+  // Drop on target cell: relocates the assigned format, evaluation, holiday or UD to the target cell
+  const handleDayCellDrop = (
+    e: React.DragEvent,
+    targetDay: CalendarGridDay,
+    targetMonthName: string
+  ) => {
+    e.preventDefault();
+    setDragOverTargetDate(null);
+
+    let payload = draggedDayDataRef.current;
+    if (!payload) {
+      try {
+        const raw = e.dataTransfer.getData("application/sigre-day-format");
+        if (raw) payload = JSON.parse(raw);
+      } catch (err) {
+        console.warn("Could not parse drag payload", err);
+      }
+    }
+
+    if (!payload || !targetDay.isCurrentMonth) {
+      setDraggedDayData(null);
+      return;
+    }
+
+    const {
+      sourceDateStr,
+      sourceDayNumber,
+      title,
+      override,
+      legendItemId,
+      assignedUdId,
+      assignedUdCode,
+    } = payload;
+    const targetDateStr = targetDay.dateString;
+
+    if (sourceDateStr === targetDateStr) {
+      setDraggedDayData(null);
+      return;
+    }
+
+    if (targetDay.isWeekend && (override?.type === "lectivo" || assignedUdId || assignedUdCode || legendItemId)) {
+      showToast("⚠️ Los fines de semana (sábados y domingos) son días no lectivos. No se pueden mover ni asignar unidades didácticas a estos días.");
+      setDraggedDayData(null);
+      return;
+    }
+
+    const newOverrides = { ...calendar.dayOverrides };
+    const targetDateParts = targetDateStr.split("-");
+    const targetMonthNum = parseInt(targetDateParts[1], 10);
+    const targetDayNum = parseInt(targetDateParts[2], 10);
+
+    // 1. Prepare and apply override onto target date
+    if (override) {
+      newOverrides[targetDateStr] = {
+        ...override,
+        date: targetDateStr,
+      };
+    } else if (assignedUdId || assignedUdCode) {
+      newOverrides[targetDateStr] = {
+        date: targetDateStr,
+        type: "lectivo",
+        assignedUdId,
+        assignedUdCode,
+        legendItemId,
+        customColor: payload.displayBgColor,
+        customTextColor: payload.displayTextColor,
+        title,
+      };
+    } else if (payload.specialEventType) {
+      newOverrides[targetDateStr] = {
+        date: targetDateStr,
+        type: payload.specialEventType,
+        legendItemId,
+        customColor: payload.displayBgColor,
+        customTextColor: payload.displayTextColor,
+        title: payload.specialEventLabel || title,
+      };
+    }
+
+    // 2. Clear previous override on source date
+    delete newOverrides[sourceDateStr];
+
+    // 3. If moving an evaluation session, holiday or milestone that has an associated lateral legend item,
+    // update the legend item's target day/month text and code seamlessly!
+    let newLegendItems = [...calendar.legendItems];
+    if (legendItemId) {
+      const targetMonthShort = MONTH_NAMES_ES[targetMonthNum - 1]?.slice(0, 3) || "";
+      newLegendItems = newLegendItems.map((leg) => {
+        if (leg.id === legendItemId) {
+          const isEvalOrHito = leg.type === "evaluacion" || leg.type === "hito";
+          return {
+            ...leg,
+            code: isEvalOrHito ? `${targetDayNum} ${targetMonthShort}` : leg.code,
+            monthTarget: targetMonthNum,
+            dayRangeText: `${targetDayNum} ${targetMonthShort}`,
+          };
+        }
+        return leg;
+      });
+    }
+
+    // 4. Save and commit changes with Undo/Redo history
+    updateCurrentCalendar({
+      ...calendar,
+      legendItems: newLegendItems,
+      dayOverrides: newOverrides,
+    });
+
+    setDraggedDayData(null);
+    draggedDayDataRef.current = null;
+
+    showToast(`🎯 Asignación "${title}" movida con éxito del día ${sourceDayNumber} al día ${targetDay.dayNumber} de ${MONTH_NAMES_ES[targetMonthNum - 1] || targetMonthName}`);
+  };
+
   // Quick Action from Context Menu
   const handleContextMenuQuickAction = (
     dateStr: string,
@@ -1870,6 +2251,15 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     }
 
     if (actionType === "assign_legend" && payload) {
+      const [y, m, dNum] = dateStr.split("-").map(Number);
+      const targetDate = new Date(y, m - 1, dNum);
+      const isWeekend = targetDate.getDay() === 0 || targetDate.getDay() === 6;
+
+      if (isWeekend) {
+        showToast("⚠️ Los fines de semana (sábados y domingos) son días no lectivos. No se pueden asignar unidades didácticas a estos días.");
+        return;
+      }
+
       const leg: SigreCalendarLegendItem = payload;
       const existing = calendar.dayOverrides[dateStr];
       const newOverrides = { ...calendar.dayOverrides };
@@ -2059,30 +2449,70 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
   return (
     <div className="space-y-4 text-xs select-none">
       {/* Top Banner: Multi-Module Teacher Portfolio, Academic Year & Resolution Toolbar */}
-      <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-3.5 shadow-xl">
+      <div className="p-4 bg-surface border border-border-default rounded-2xl space-y-3.5 shadow-md">
         {/* Header Title & General Stats */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-border-default pb-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-300 font-bold shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-300 font-bold shrink-0">
               <CalendarIcon className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-black text-white text-base">
+                <h3 className="font-black text-text-primary text-base">
                   Calendario Escolar y Planificador Temporal de UDs
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                  Andalucía ({calendar.academicYear})
+
+                {/* DIRECT INTERACTIVE ACADEMIC YEAR SELECTOR */}
+                <div className="flex items-center gap-1.5 bg-emerald-500/15 dark:bg-emerald-950/50 px-2.5 py-1 rounded-xl border border-emerald-500/40">
+                  <GraduationCap className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300">
+                    Curso:
+                  </span>
+                  <select
+                    id="academic-year-quick-select"
+                    value={calendar.academicYear}
+                    onChange={(e) => handleQuickChangeAcademicYear(e.target.value)}
+                    className="bg-surface text-emerald-950 dark:text-emerald-200 font-black text-[11px] px-2 py-0.5 rounded-lg border border-emerald-500/40 cursor-pointer hover:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                    title="Cambiar rápidamente el curso escolar de este calendario"
+                  >
+                    <option value="2026-2027">2026-2027 (Oficial Activo)</option>
+                    <option value="2025-2026">2025-2026 (Oficial)</option>
+                    <option value="2024-2025">2024-2025</option>
+                    <option value="2027-2028">2027-2028</option>
+                    <option value="2028-2029">2028-2029</option>
+                    {calendar.academicYear &&
+                      !["2026-2027", "2025-2026", "2024-2025", "2027-2028", "2028-2029"].includes(calendar.academicYear) && (
+                        <option value={calendar.academicYear}>{calendar.academicYear} (Personalizado)</option>
+                      )}
+                    <option value="custom">✏️ Otro / Opciones avanzadas...</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetAcademicYear(calendar.academicYear || "2026-2027");
+                      setCustomAcademicYearInput(calendar.academicYear || "2026-2027");
+                      setIsChangeYearModalOpen(true);
+                    }}
+                    className="px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                    title="Abrir asistente para cambiar el curso escolar, migrar fechas o cargar marco oficial"
+                  >
+                    <Edit2 className="w-2.5 h-2.5" />
+                    <span>Cambiar</span>
+                  </button>
+                </div>
+
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-500" />
+                  Andalucía
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-800 text-slate-300 border border-slate-700">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-alt text-text-secondary border border-border-default">
                   {calendar.province || "Málaga"}
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/40">
                   {calendarsList.length} Asignatura{calendarsList.length > 1 ? "s" : ""} en Cartera
                 </span>
               </div>
-              <p className="text-slate-400 text-[11px] mt-0.5">
+              <p className="text-text-muted text-[11px] mt-0.5">
                 Organizador anual por módulos/asignaturas para temporalizar UDs/RAs de FP, periodos de FP Dual (FFEoE), sesiones de evaluación y recuperaciones.
               </p>
             </div>
@@ -2091,15 +2521,15 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
           {/* Quick Actions & Tools */}
           <div className="flex flex-wrap items-center gap-2">
             {/* Global Undo / Redo */}
-            <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-1 bg-alt p-1 rounded-xl border border-border-default">
               <button
                 type="button"
                 onClick={handleUndo}
                 disabled={history.length === 0}
                 className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                   history.length > 0
-                    ? "bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white border border-amber-500/40 shadow-xs"
-                    : "text-slate-600 cursor-not-allowed"
+                    ? "bg-surface hover:bg-hover text-amber-600 dark:text-amber-300 border border-amber-500/40 shadow-xs"
+                    : "text-text-muted cursor-not-allowed opacity-50"
                 }`}
                 title="Deshacer último cambio (Ctrl+Z)"
               >
@@ -2112,8 +2542,8 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                 disabled={future.length === 0}
                 className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                   future.length > 0
-                    ? "bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-white border border-cyan-500/40 shadow-xs"
-                    : "text-slate-600 cursor-not-allowed"
+                    ? "bg-surface hover:bg-hover text-cyan-600 dark:text-cyan-300 border border-cyan-500/40 shadow-xs"
+                    : "text-text-muted cursor-not-allowed opacity-50"
                 }`}
                 title="Rehacer cambio (Ctrl+Y)"
               >
@@ -2126,10 +2556,10 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             <button
               type="button"
               onClick={handleAutoDistributeUds}
-              className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
+              className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
               title="Distribuir automáticamente las UDs creadas en el plan curricular a lo largo de las semanas lectivas respetando festivos"
             >
-              <Sparkles className="w-3.5 h-3.5 text-black" />
+              <Sparkles className="w-3.5 h-3.5 text-slate-950" />
               <span>Auto-distribuir UDs</span>
             </button>
 
@@ -2141,15 +2571,15 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               className={`px-3 py-1.5 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer border ${
                 isFormatPainterActive
                   ? isFormatPainterLocked
-                    ? "bg-amber-500 text-black border-amber-300 shadow-md shadow-amber-500/40 ring-2 ring-amber-300 animate-pulse"
-                    : "bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/30 ring-1 ring-amber-300"
+                    ? "bg-amber-500 text-slate-950 border-amber-300 shadow-md shadow-amber-500/40 ring-2 ring-amber-300 animate-pulse"
+                    : "bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/30 ring-1 ring-amber-300"
                   : copiedFormat
-                  ? "bg-slate-800 hover:bg-slate-700 text-amber-300 border-amber-500/40"
-                  : "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700"
+                  ? "bg-alt hover:bg-hover text-amber-600 dark:text-amber-300 border-amber-500/40"
+                  : "bg-alt hover:bg-hover text-text-primary border-border-default"
               }`}
               title="Copiar Formato: 1 clic para 1 celda, doble clic para anclar a varias (MS Excel). Pulsa Esc para salir."
             >
-              <Paintbrush className={`w-3.5 h-3.5 ${isFormatPainterActive ? "text-black" : "text-amber-400"}`} />
+              <Paintbrush className={`w-3.5 h-3.5 ${isFormatPainterActive ? "text-slate-950" : "text-amber-500"}`} />
               <span>
                 {isFormatPainterActive
                   ? isFormatPainterLocked
@@ -2181,10 +2611,10 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             <button
               type="button"
               onClick={() => setIsPreviewA4Open(true)}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer border border-slate-700"
+              className="px-2.5 py-1.5 bg-alt hover:bg-hover text-text-primary font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer border border-border-default"
               title="Previsualizar en pantalla la hoja oficial A4 con la cuadrícula de 2 columnas x 5 filas"
             >
-              <Eye className="w-3.5 h-3.5 text-cyan-400" />
+              <Eye className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
               <span>Vista Previa A4</span>
             </button>
 
@@ -2202,20 +2632,35 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
         </div>
 
         {/* TEACHER'S MULTI-MODULE / MULTI-CALENDAR PORTFOLIO SECTION */}
-        <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2.5">
+        <div className="bg-alt p-3 rounded-xl border border-border-default space-y-2.5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-emerald-400" />
-              <span className="font-bold text-white text-xs">
+              <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="font-bold text-text-primary text-xs">
                 Cartera de Módulos y Asignaturas del Docente ({calendarsList.length})
               </span>
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[10px] text-text-muted">
                 Selecciona la asignatura para planificar su temporalización y UDs independientemente:
               </span>
             </div>
 
-            {/* Portfolio Actions: Add, Duplicate, Edit, Sync, Export/Import */}
+            {/* Portfolio Actions: Add, Duplicate, Edit, Change Year, Sync, Export/Import */}
             <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Change Academic Year button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetAcademicYear(calendar.academicYear || "2026-2027");
+                  setCustomAcademicYearInput(calendar.academicYear || "2026-2027");
+                  setIsChangeYearModalOpen(true);
+                }}
+                className="px-2.5 py-1 bg-emerald-700/80 hover:bg-emerald-600 text-white font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-emerald-500/40 shadow-xs"
+                title="Cambiar el curso escolar de este calendario (adaptar fechas, cargar marco oficial o crear copia)"
+              >
+                <GraduationCap className="w-3.5 h-3.5 text-emerald-300" />
+                <span>Cambiar Curso Escolar</span>
+              </button>
+
               {/* Add New Module / Calendar */}
               <button
                 type="button"
@@ -2249,10 +2694,10 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                     keepUds: false,
                   })
                 }
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-slate-700"
+                className="px-2 py-1 bg-surface hover:bg-hover text-text-primary font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-border-default"
                 title="Duplicar este calendario manteniendo todo el marco escolar oficial para otro grupo o módulo"
               >
-                <Copy className="w-3 h-3 text-cyan-400" />
+                <Copy className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
                 <span className="hidden md:inline">Duplicar</span>
               </button>
 
@@ -2271,10 +2716,10 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                     notes: calendar.notes || "",
                   })
                 }
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-slate-700"
+                className="px-2 py-1 bg-surface hover:bg-hover text-text-primary font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-border-default"
                 title="Editar datos de la asignatura actual (nombre, código, ciclo, docente)"
               >
-                <Edit2 className="w-3 h-3 text-amber-400" />
+                <Edit2 className="w-3 h-3 text-amber-500" />
                 <span className="hidden md:inline">Editar Datos</span>
               </button>
 
@@ -2282,10 +2727,10 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               <button
                 type="button"
                 onClick={handleSyncWithActiveSigre}
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-slate-700"
+                className="px-2 py-1 bg-surface hover:bg-hover text-text-primary font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-border-default"
                 title="Sincronizar con el módulo activo de SIGRE"
               >
-                <RefreshCw className="w-3 h-3 text-emerald-400" />
+                <RefreshCw className="w-3 h-3 text-emerald-500" />
                 <span className="hidden lg:inline">Sincronizar SIGRE</span>
               </button>
 
@@ -2293,7 +2738,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               <button
                 type="button"
                 onClick={handleExportPortfolio}
-                className="p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors border border-slate-700 cursor-pointer"
+                className="p-1 bg-surface hover:bg-hover text-text-secondary rounded-lg transition-colors border border-border-default cursor-pointer"
                 title="Exportar cartera completa de asignaturas (JSON)"
               >
                 <Download className="w-3 h-3" />
@@ -2310,7 +2755,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               <button
                 type="button"
                 onClick={() => portfolioFileInputRef.current?.click()}
-                className="p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors border border-slate-700 cursor-pointer"
+                className="p-1 bg-surface hover:bg-hover text-text-secondary rounded-lg transition-colors border border-border-default cursor-pointer"
                 title="Importar cartera o calendario (JSON)"
               >
                 <Upload className="w-3 h-3" />
@@ -2321,7 +2766,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                 <button
                   type="button"
                   onClick={handleDeleteCurrentCourse}
-                  className="p-1 bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white rounded-lg transition-colors cursor-pointer"
+                  className="p-1 bg-red-500/20 hover:bg-red-500 text-red-700 dark:text-red-300 hover:text-white rounded-lg transition-colors cursor-pointer"
                   title={`Eliminar módulo "${calendar.codigoModulo || calendar.moduloFormativo}"`}
                 >
                   <Trash2 className="w-3 h-3" />
@@ -2330,115 +2775,180 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             </div>
           </div>
 
-          {/* Scrollable list of Subject Module Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pt-1">
-            {calendarsList.map((calItem) => {
-              const isActive = calItem.id === activeCalendarId;
-              const udsCount = calItem.legendItems.filter((leg) => leg.type === "ud_ra").length;
-              return (
-                <div
-                  key={calItem.id}
-                  onClick={() => setActiveCalendarId(calItem.id)}
-                  className={`p-2.5 rounded-xl border transition-all cursor-pointer relative group flex flex-col justify-between ${
-                    isActive
-                      ? "bg-slate-900 border-emerald-500/70 ring-2 ring-emerald-500/30 shadow-lg shadow-emerald-950/40"
-                      : "bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/90"
+          {/* Academic Year Filter Bar for Multi-Module Portfolio */}
+          {(() => {
+            const availableYears = Array.from(new Set(calendarsList.map((c) => c.academicYear).filter(Boolean)));
+            if (availableYears.length <= 1) return null;
+            return (
+              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-border-subtle text-[10px]">
+                <span className="text-text-muted font-bold flex items-center gap-1">
+                  <Filter className="w-3 h-3 text-emerald-500" />
+                  Filtrar por Curso:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPortfolioYearFilter("all")}
+                  className={`px-2 py-0.5 rounded-md font-bold transition-colors cursor-pointer ${
+                    portfolioYearFilter === "all"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "bg-surface hover:bg-hover text-text-secondary border border-border-default"
                   }`}
                 >
-                  <div>
-                    <div className="flex items-center justify-between gap-1 mb-1">
-                      <span
-                        className={`font-black text-[11px] px-2 py-0.5 rounded-md font-mono ${
-                          isActive
-                            ? "bg-emerald-500 text-slate-950 font-bold"
-                            : "bg-slate-800 text-slate-300 group-hover:bg-slate-700"
-                        }`}
-                      >
-                        {calItem.codigoModulo || "MÓDULO"}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-semibold">
-                        {calItem.academicYear}
-                      </span>
+                  Todos ({calendarsList.length})
+                </button>
+                {availableYears.map((yr) => {
+                  const countInYear = calendarsList.filter((c) => c.academicYear === yr).length;
+                  return (
+                    <button
+                      key={yr}
+                      type="button"
+                      onClick={() => setPortfolioYearFilter(yr)}
+                      className={`px-2 py-0.5 rounded-md font-mono font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                        portfolioYearFilter === yr
+                          ? "bg-emerald-600 text-white shadow-xs"
+                          : "bg-surface hover:bg-hover text-text-secondary border border-border-default"
+                      }`}
+                    >
+                      <span>{yr}</span>
+                      <span className="text-[9px] opacity-75">({countInYear})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          {/* Scrollable list of Subject Module Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pt-1">
+            {calendarsList
+              .filter((c) => portfolioYearFilter === "all" || c.academicYear === portfolioYearFilter)
+              .map((calItem) => {
+                const isActive = calItem.id === activeCalendarId;
+                const udsCount = calItem.legendItems.filter((leg) => leg.type === "ud_ra").length;
+                return (
+                  <div
+                    key={calItem.id}
+                    onClick={() => setActiveCalendarId(calItem.id)}
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer relative group flex flex-col justify-between ${
+                      isActive
+                        ? "bg-surface border-emerald-500 ring-2 ring-emerald-500/30 shadow-md"
+                        : "bg-surface/80 border-border-default hover:border-border-strong hover:bg-hover"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span
+                          className={`font-black text-[11px] px-2 py-0.5 rounded-md font-mono ${
+                            isActive
+                              ? "bg-emerald-500 text-slate-950 font-bold"
+                              : "bg-alt text-text-secondary group-hover:bg-hover"
+                          }`}
+                        >
+                          {calItem.codigoModulo || "MÓDULO"}
+                        </span>
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveCalendarId(calItem.id);
+                            setTargetAcademicYear(calItem.academicYear || "2026-2027");
+                            setCustomAcademicYearInput(calItem.academicYear || "2026-2027");
+                            setIsChangeYearModalOpen(true);
+                          }}
+                          className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-alt text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:border-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
+                          title="Haz clic para cambiar el curso escolar de este módulo"
+                        >
+                          🎓 {calItem.academicYear}
+                        </span>
+                      </div>
+
+                      <h4 className="font-bold text-text-primary text-[11px] line-clamp-1 leading-snug">
+                        {calItem.moduloFormativo || "Planificación del Módulo"}
+                      </h4>
+                      <p className="text-[10px] text-text-muted line-clamp-1 mt-0.5">
+                        {calItem.cicloFormativo || "Formación Profesional"}
+                      </p>
                     </div>
 
-                    <h4 className="font-bold text-white text-[11px] line-clamp-1 leading-snug">
-                      {calItem.moduloFormativo || "Planificación del Módulo"}
-                    </h4>
-                    <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">
-                      {calItem.cicloFormativo || "Formación Profesional"}
-                    </p>
+                    <div className="flex items-center justify-between gap-1 mt-2 pt-1.5 border-t border-border-subtle text-[10px]">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        {udsCount} UDs
+                      </span>
+                      <span className="text-text-muted">
+                        {calItem.province || "Andalucía"}
+                      </span>
+                    </div>
                   </div>
-
-                  <div className="flex items-center justify-between gap-1 mt-2 pt-1.5 border-t border-slate-800/80 text-[10px]">
-                    <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                      {udsCount} UDs
-                    </span>
-                    <span className="text-slate-400">
-                      {calItem.province || "Andalucía"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </div>
 
-        {/* Resolution Bar with Editable URL & Links */}
-        <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-slate-300 flex items-center gap-1">
-              <FileText className="w-3.5 h-3.5 text-emerald-400" />
-              Marco Normativo Oficial:
-            </span>
-            <span className="text-slate-400 italic">
-              {calendar.resolutionRef || "Resolución Oficial de Calendario Escolar"}
-            </span>
-
-            {/* Link to Resolution on Junta de Andalucia Portal */}
-            {calendar.resolutionUrl && (
-              <a
-                href={calendar.resolutionUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 underline font-semibold transition-colors"
-                title={`Abrir enlace oficial: ${calendar.resolutionUrl}`}
+        {/* Resolution Bar with Editable URL & Links - Fixed 2-Row Consistent Layout */}
+        <div className="flex flex-col justify-between gap-1.5 text-[11px] bg-alt p-2.5 rounded-xl border border-border-default h-[76px] overflow-hidden">
+          {/* Row 1: Marco Normativo Oficial + Link + Edit Button + Add UD Button */}
+          <div className="flex items-center justify-between gap-2.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+              <span className="font-bold text-text-primary flex items-center gap-1 shrink-0">
+                <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                Marco Normativo Oficial:
+              </span>
+              <span
+                className="text-text-muted italic truncate shrink min-w-0"
+                title={calendar.resolutionRef || "Resolución Oficial de Calendario Escolar"}
               >
-                <span>Ver resolución en Junta de Andalucía</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
+                {calendar.resolutionRef || "Resolución Oficial de Calendario Escolar"}
+              </span>
 
-            {/* Button to edit resolution & link */}
-            <button
-              type="button"
-              onClick={() =>
-                setEditingResolutionModal({
-                  resolutionRef: calendar.resolutionRef || "",
-                  resolutionUrl: calendar.resolutionUrl || "",
-                  province: calendar.province || "Málaga",
-                  educationalStage: calendar.educationalStage || "Formación Profesional / Secundaria",
-                  notes: calendar.notes || "",
-                })
-              }
-              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer border border-slate-700"
-              title="Modificar texto de resolución, enlace web y provincia"
-            >
-              <Edit2 className="w-2.5 h-2.5" />
-              <span>Editar Enlace / Resolución</span>
-            </button>
+              {/* Link to Resolution on Junta de Andalucia Portal */}
+              {calendar.resolutionUrl && (
+                <a
+                  href={calendar.resolutionUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline font-semibold transition-colors shrink-0"
+                  title={`Abrir enlace oficial: ${calendar.resolutionUrl}`}
+                >
+                  <span className="hidden md:inline">Ver resolución en Junta de Andalucía</span>
+                  <span className="md:hidden">Ver resolución</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
 
-            {/* Button to add a new UD / Legend Item */}
+              {/* Button to edit resolution & link */}
+              <button
+                type="button"
+                onClick={() =>
+                  setEditingResolutionModal({
+                    resolutionRef: calendar.resolutionRef || "",
+                    resolutionUrl: calendar.resolutionUrl || "",
+                    province: calendar.province || "Málaga",
+                    educationalStage: calendar.educationalStage || "Formación Profesional / Secundaria",
+                    notes: calendar.notes || "",
+                  })
+                }
+                className="px-2 py-0.5 bg-surface hover:bg-hover text-text-secondary hover:text-text-primary rounded text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer border border-border-default shrink-0"
+                title="Modificar texto de resolución, enlace web y provincia"
+              >
+                <Edit2 className="w-2.5 h-2.5" />
+                <span>Editar Enlace / Resolución</span>
+              </button>
+            </div>
+
+            {/* Button to add a new UD / Legend Item (Pinned cleanly on the right) */}
             <button
               type="button"
               onClick={() => {
                 const nextNum = calendar.legendItems.filter((l) => l.type === "ud_ra").length + 1;
-                const nextCode = `UD${String(nextNum).padStart(2, "0")}`;
+                const { code: nextCode, title: nextTitle } = buildUdLegendTitleAndCode({
+                  udNumber: nextNum,
+                  title: `Nueva Unidad Didáctica ${nextNum}`,
+                });
                 const nextColor = getDistinctUdColor(nextNum - 1);
                 setEditingLegendModal({
                   item: {
                     code: nextCode,
-                    title: `Unidad Didáctica ${nextNum}`,
+                    title: nextTitle,
                     type: "ud_ra",
                     color: nextColor.bg,
                     textColor: nextColor.text,
@@ -2448,7 +2958,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                   isNew: true,
                 });
               }}
-              className="px-2.5 py-0.5 bg-emerald-700/80 hover:bg-emerald-600 text-white rounded text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer border border-emerald-500/50 shadow-xs"
+              className="px-2.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer border border-emerald-500/50 shadow-xs shrink-0 whitespace-nowrap"
               title="Añadir una nueva Unidad Didáctica a la planificación de este módulo"
             >
               <Plus className="w-2.5 h-2.5" />
@@ -2456,10 +2966,17 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             </button>
           </div>
 
-          {/* Quick Context Menu Tip */}
-          <div className="text-[10px] text-amber-300/90 font-medium flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-            <Info className="w-3 h-3 text-amber-400" />
-            <span>Haz <strong>clic derecho</strong> en cualquier día para abrir el menú contextual rápido.</span>
+          {/* Row 2: Quick Context Menu Tip & Calendar Indicators */}
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <div className="text-[10px] text-amber-700 dark:text-amber-300 font-medium flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 shrink-0">
+              <Info className="w-3 h-3 text-amber-500 shrink-0" />
+              <span>Haz <strong>clic derecho</strong> en cualquier día para abrir el menú contextual rápido.</span>
+            </div>
+            <div className="text-[10px] text-text-muted hidden sm:flex items-center gap-2 shrink-0">
+              <span>{calendar.legendItems.filter((l) => l.type === "ud_ra").length} UDs planificadas</span>
+              <span>•</span>
+              <span>{calendar.totalLectivosEstimated || 158} días lectivos</span>
+            </div>
           </div>
         </div>
 
@@ -2471,7 +2988,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               <span className="font-bold text-white">
                 {selectedDates.size} día{selectedDates.size > 1 ? "s" : ""} seleccionado{selectedDates.size > 1 ? "s" : ""} en el calendario
               </span>
-              <span className="text-slate-400 text-[11px]">
+              <span className="text-slate-300 text-[11px]">
                 (Arrastra con el ratón o usa Ctrl+Clic para seleccionar múltiples días)
               </span>
             </div>
@@ -2481,7 +2998,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                 <button
                   type="button"
                   onClick={applyCopiedFormatToSelectedDates}
-                  className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-md"
+                  className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-md"
                 >
                   <Paintbrush className="w-3.5 h-3.5" />
                   <span>Aplicar formato "{copiedFormat.label}" a la selección</span>
@@ -2491,7 +3008,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               <button
                 type="button"
                 onClick={() => setSelectedDates(new Set())}
-                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors cursor-pointer"
+                className="px-2.5 py-1 bg-surface hover:bg-hover text-text-primary rounded-lg text-xs transition-colors cursor-pointer border border-border-default"
               >
                 Limpiar Selección (Esc)
               </button>
@@ -2501,63 +3018,63 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
 
         {/* Stats Strip */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
-          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+          <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
               {stats.totalSchoolDays}
             </div>
             <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Días Lectivos FP</div>
-              <div className="text-[11px] font-bold text-white">Mínimo 175 días</div>
+              <div className="text-[10px] text-text-muted uppercase font-bold">Días Lectivos FP</div>
+              <div className="text-[11px] font-bold text-text-primary">Mínimo 175 días</div>
             </div>
           </div>
 
-          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center font-bold">
+          <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-red-500/20 text-red-600 dark:text-red-400 flex items-center justify-center font-bold">
               {stats.totalHolidays}
             </div>
             <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Festivos</div>
-              <div className="text-[11px] font-bold text-white">Nac. / Aut. / Locales</div>
+              <div className="text-[10px] text-text-muted uppercase font-bold">Festivos</div>
+              <div className="text-[11px] font-bold text-text-primary">Nac. / Aut. / Locales</div>
             </div>
           </div>
 
-          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-orange-500/20 text-orange-400 flex items-center justify-center font-bold">
+          <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-orange-500/20 text-orange-600 dark:text-orange-400 flex items-center justify-center font-bold">
               {stats.totalVacationDays}
             </div>
             <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Vacaciones</div>
-              <div className="text-[11px] font-bold text-white">Navidad, S. Santa, S. Blanca</div>
+              <div className="text-[10px] text-text-muted uppercase font-bold">Vacaciones</div>
+              <div className="text-[11px] font-bold text-text-primary">Navidad, S. Santa, S. Blanca</div>
             </div>
           </div>
 
-          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold">
+          <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold">
               {stats.totalEvalDays}
             </div>
             <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Evaluaciones</div>
-              <div className="text-[11px] font-bold text-white">1T, 2T, 1ª Final, 2ª Final</div>
+              <div className="text-[10px] text-text-muted uppercase font-bold">Evaluaciones</div>
+              <div className="text-[11px] font-bold text-text-primary">1T, 2T, 1ª Final, 2ª Final</div>
             </div>
           </div>
 
-          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-yellow-500/20 text-yellow-400 flex items-center justify-center font-bold">
+          <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 flex items-center justify-center font-bold">
               {stats.totalDualDays}
             </div>
             <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">FP Dual (FFEoE)</div>
-              <div className="text-[11px] font-bold text-white">120h Empresa</div>
+              <div className="text-[10px] text-text-muted uppercase font-bold">FP Dual (FFEoE)</div>
+              <div className="text-[11px] font-bold text-text-primary">120h Empresa</div>
             </div>
           </div>
 
-          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold">
+          <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
               {calendar.legendItems.filter((l) => l.type === "ud_ra").length}
             </div>
             <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">UDs / RAs</div>
-              <div className="text-[11px] font-bold text-white">Temporalizadas</div>
+              <div className="text-[10px] text-text-muted uppercase font-bold">UDs / RAs</div>
+              <div className="text-[11px] font-bold text-text-primary">Temporalizadas</div>
             </div>
           </div>
         </div>
@@ -2573,14 +3090,14 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
 
       {/* ACTIVE FORMAT PAINTER TOP BANNER */}
       {isFormatPainterActive && (
-        <div className="p-3 bg-gradient-to-r from-amber-500/20 via-amber-600/15 to-slate-900 border border-amber-500/50 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 sticky top-2 z-30 backdrop-blur-md">
+        <div className="p-3 bg-gradient-to-r from-amber-500/20 via-amber-600/15 to-surface border border-amber-500/50 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 sticky top-2 z-30 backdrop-blur-md">
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="w-8 h-8 rounded-xl bg-amber-500 text-black flex items-center justify-center font-black shadow-md shadow-amber-500/30 shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-md shadow-amber-500/30 shrink-0">
               <Paintbrush className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-black text-amber-300 text-xs">
+                <span className="font-black text-amber-600 dark:text-amber-300 text-xs">
                   {isFormatPainterLocked ? "📌 COPIAR FORMATO ANCLADO (MODO CONTINUO)" : "🖌️ COPIAR FORMATO (1 CELDA)"}
                 </span>
                 {copiedFormat ? (
@@ -2594,10 +3111,10 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                     {copiedFormat.label}
                   </span>
                 ) : (
-                  <span className="text-[11px] text-slate-300 italic">Haz clic en una celda origen para copiar</span>
+                  <span className="text-[11px] text-text-secondary italic">Haz clic en una celda origen para copiar</span>
                 )}
               </div>
-              <p className="text-[11px] text-slate-300 mt-0.5">
+              <p className="text-[11px] text-text-secondary mt-0.5">
                 {isFormatPainterLocked
                   ? "Modo anclado activo: Haz clic en todas las celdas que desees para pintarlas. Pulsa Esc o haz clic de nuevo para desanclar."
                   : "Haz clic en la celda destino para pegar el formato (se desactivará tras 1 celda). Haz doble clic en el botón para anclar a varias."}
@@ -2613,7 +3130,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                 setIsFormatPainterLocked(false);
                 showToast("Modo Copiar Formato desactivado (Esc)");
               }}
-              className="px-3.5 py-1.5 bg-red-600/90 hover:bg-red-500 text-white font-bold rounded-xl text-xs transition-colors border border-red-400/40 cursor-pointer flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95"
+              className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs transition-colors border border-red-400/40 cursor-pointer flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95"
               title="Salir del modo copiar formato (tecla Escape)"
             >
               <X className="w-3.5 h-3.5" />
@@ -2624,37 +3141,37 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
       )}
 
       {/* ACADEMIC TRIMESTERS & JUNE ASSESSMENT STRUCTURE ACCORDION */}
-      <div className="bg-[#0b1120] border border-slate-800/90 rounded-2xl overflow-hidden shadow-lg transition-all">
+      <div className="bg-surface border border-border-default rounded-2xl overflow-hidden shadow-sm transition-all">
         <div
           onClick={() => setIsTrimestersExpanded(!isTrimestersExpanded)}
-          className="p-3.5 bg-slate-900/90 hover:bg-slate-800/80 cursor-pointer flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 select-none transition-colors"
+          className="p-3.5 bg-alt hover:bg-hover cursor-pointer flex flex-wrap items-center justify-between gap-3 border-b border-border-default select-none transition-colors"
         >
           <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold">
               <CalendarRange className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-bold text-white text-xs sm:text-sm">
+                <span className="font-bold text-text-primary text-xs sm:text-sm">
                   Estructura Trimestral, Sesiones de Evaluación y Periodo de Recuperación (Junio)
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700/50">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                   Régimen Oficial FP Andalucía
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-[11px] text-text-muted mt-0.5">
                 Organización de 3 trimestres, sesiones de evaluación ordinarias/extraordinarias y reserva pedagógica de Junio
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+            <span className="text-[11px] text-text-muted font-medium hidden sm:inline">
               {isTrimestersExpanded ? "Ocultar detalle" : "Ver detalle de fechas"}
             </span>
             <button
               type="button"
-              className="p-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+              className="p-1 rounded-lg bg-surface text-text-secondary hover:text-text-primary border border-border-default transition-colors"
             >
               {isTrimestersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
@@ -2662,36 +3179,36 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
         </div>
 
         {isTrimestersExpanded && (
-          <div className="p-4 bg-slate-950/60 grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs animate-in fade-in duration-200">
+          <div className="p-4 bg-alt/50 grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs animate-in fade-in duration-200">
             {trimestersStructure.map((trim) => (
               <div
                 key={trim.id}
-                className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between space-y-3"
+                className="bg-surface border border-border-default rounded-xl p-3.5 flex flex-col justify-between space-y-3"
               >
                 <div>
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                    <span className="font-black text-emerald-400 text-xs sm:text-sm">{trim.name}</span>
-                    <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
+                  <div className="flex items-center justify-between pb-2 border-b border-border-default">
+                    <span className="font-black text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm">{trim.name}</span>
+                    <span className="text-[10px] font-mono text-text-muted bg-alt px-1.5 py-0.5 rounded border border-border-subtle">
                       {trim.periodText}
                     </span>
                   </div>
 
                   <div className="mt-2.5 space-y-2 text-[11px]">
-                    <div className="flex items-start gap-2 bg-slate-800/60 p-2 rounded-lg border border-slate-700/50">
-                      <Clock className="w-3.5 h-3.5 text-sky-400 mt-0.5 shrink-0" />
+                    <div className="flex items-start gap-2 bg-alt p-2 rounded-lg border border-border-subtle">
+                      <Clock className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400 mt-0.5 shrink-0" />
                       <div>
-                        <div className="text-slate-400 text-[10px] uppercase font-bold">Sesión de Evaluación:</div>
-                        <div className="font-semibold text-sky-300">
+                        <div className="text-text-muted text-[10px] uppercase font-bold">Sesión de Evaluación:</div>
+                        <div className="font-semibold text-sky-600 dark:text-sky-300">
                           {trim.evalSessionDate.split("-").reverse().join("/")} &bull; {trim.evalSessionLabel}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-2 bg-slate-800/60 p-2 rounded-lg border border-slate-700/50">
-                      <FileText className="w-3.5 h-3.5 text-cyan-400 mt-0.5 shrink-0" />
+                    <div className="flex items-start gap-2 bg-alt p-2 rounded-lg border border-border-subtle">
+                      <FileText className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400 mt-0.5 shrink-0" />
                       <div>
-                        <div className="text-slate-400 text-[10px] uppercase font-bold">Entrega de Calificaciones:</div>
-                        <div className="font-semibold text-cyan-300">
+                        <div className="text-text-muted text-[10px] uppercase font-bold">Entrega de Calificaciones:</div>
+                        <div className="font-semibold text-cyan-600 dark:text-cyan-300">
                           {trim.reportCardDeliveryDate.split("-").reverse().join("/")} &bull; {trim.reportCardDeliveryLabel}
                         </div>
                       </div>
@@ -2700,23 +3217,23 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                 </div>
 
                 {trim.juneStructure && (
-                  <div className="pt-2 border-t border-slate-800/80 space-y-1.5 text-[10px]">
-                    <div className="bg-amber-950/40 border border-amber-800/50 p-2 rounded-lg text-amber-200">
-                      <div className="font-black text-amber-300 flex items-center gap-1 mb-0.5">
-                        <RefreshCw className="w-3 h-3 text-amber-400" />
+                  <div className="pt-2 border-t border-border-subtle space-y-1.5 text-[10px]">
+                    <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded-lg text-amber-900 dark:text-amber-200">
+                      <div className="font-black text-amber-700 dark:text-amber-300 flex items-center gap-1 mb-0.5">
+                        <RefreshCw className="w-3 h-3 text-amber-500" />
                         <span>Semanas 1-3 de Junio (01 al 19 Jun):</span>
                       </div>
-                      <p className="text-[10px] text-amber-100/90 leading-tight">
+                      <p className="text-[10px] text-amber-800 dark:text-amber-100/90 leading-tight">
                         Periodo de recuperación de aprendizajes no adquiridos y refuerzo curricular para el alumnado.
                       </p>
                     </div>
 
-                    <div className="bg-purple-950/40 border border-purple-800/50 p-2 rounded-lg text-purple-200 space-y-1">
-                      <div className="font-black text-purple-300 flex items-center gap-1">
-                        <GraduationCap className="w-3 h-3 text-purple-400" />
+                    <div className="bg-purple-500/10 border border-purple-500/30 p-2 rounded-lg text-purple-900 dark:text-purple-200 space-y-1">
+                      <div className="font-black text-purple-700 dark:text-purple-300 flex items-center gap-1">
+                        <GraduationCap className="w-3 h-3 text-purple-500" />
                         <span>4ª Semana de Junio (20 al 24 Jun y cierre):</span>
                       </div>
-                      <div className="text-[10px] text-purple-100/90 leading-tight">
+                      <div className="text-[10px] text-purple-800 dark:text-purple-100/90 leading-tight">
                         &bull; <strong>22 Jun:</strong> 2ª Evaluación Final Extraordinaria<br />
                         &bull; <strong>24 Jun:</strong> Fin de Clases y Calificaciones Finales<br />
                         &bull; <strong>25-30 Jun:</strong> Planificación curso siguiente y memorias
@@ -2735,116 +3252,165 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             {academicMonths.map(({ year, month, monthName }, mIdx) => {
               const monthData = generateMonthGrid(year, month, calendar);
               const { leftLegends, rightLegends } = deriveMonthLateralLegends(year, month, calendar);
+              const trimesterInfo = getMonthTrimesterInfo(year, month, calendar);
 
               return (
                 <div
                   key={`${year}-${month}`}
-                  className="bg-[#0b1120] border border-slate-800/90 rounded-2xl overflow-hidden shadow-xl flex flex-col justify-between transition-all hover:border-slate-700/80"
+                  className="bg-surface border rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between transition-all hover:border-border-strong"
+                  style={{ borderColor: trimesterInfo.headerBorderColor }}
                 >
-                  {/* Month Header (Green official Andalusian style #007A33) with Monthly Controls Toolbar (Icons Only) */}
-                  <div className="bg-[#007A33] text-white font-black text-xs md:text-sm px-3 py-1.5 sm:px-3.5 sm:py-2 flex flex-wrap items-center justify-between gap-1.5 border-b border-[#005a26]">
-                    <div className="flex items-center gap-1.5 sm:gap-2">
-                      <span className="tracking-wide uppercase font-black drop-shadow-sm text-xs sm:text-sm">{monthName}</span>
-                      <span className="text-[10px] sm:text-[11px] font-semibold text-emerald-100 font-mono bg-[#005a26]/90 px-1.5 sm:px-2 py-0.5 rounded-md border border-emerald-400/20">
-                        {monthData.days.filter((d) => d.isCurrentMonth && !d.isWeekend).length} días laborables
-                      </span>
+                  {/* Month Header (Color-coded by Trimester with dynamic indicators & Toolbar, max 2 rows, buttons always right-justified) */}
+                  <div
+                    className={`${trimesterInfo.headerBgClass} text-white px-3 py-1.5 sm:px-3.5 sm:py-2 border-b shadow-xs transition-colors`}
+                    style={{
+                      backgroundColor: trimesterInfo.headerStyleBg,
+                      borderColor: trimesterInfo.headerBorderColor,
+                    }}
+                  >
+                    {/* Row 1: Month Title & Main Trimester Badge + Action Buttons Toolbar Justified Right */}
+                    <div className="flex items-center justify-between gap-2 min-w-0">
+                      {/* Left: Month Name and Primary Trimester Badge */}
+                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 overflow-hidden">
+                        <span className="tracking-wide uppercase font-black drop-shadow-sm text-xs sm:text-sm whitespace-nowrap shrink-0">
+                          {monthName}
+                        </span>
+
+                        {/* Trimester Badge */}
+                        <span
+                          className="px-2 py-0.5 rounded-md font-extrabold text-[10px] sm:text-[10.5px] shadow-sm uppercase tracking-wide border flex items-center gap-1 shrink min-w-0 truncate"
+                          style={{
+                            backgroundColor: trimesterInfo.badgeStyleBg,
+                            color: trimesterInfo.badgeStyleText,
+                            borderColor: "rgba(255, 255, 255, 0.4)",
+                          }}
+                          title={trimesterInfo.sharedExplanation || trimesterInfo.name}
+                        >
+                          <span className="truncate">{trimesterInfo.isShared ? `🔄 ${trimesterInfo.name}` : trimesterInfo.name}</span>
+                        </span>
+                      </div>
+
+                      {/* Right: Monthly Window Action Buttons - ALWAYS Right-Justified */}
+                      <div className="flex items-center gap-1 shrink-0 ml-auto">
+                        {/* Deshacer (Undo Local para este Mes) */}
+                        <button
+                          type="button"
+                          onClick={() => handleUndoForMonth(year, month, monthName)}
+                          disabled={history.length === 0}
+                          className={`p-1 sm:p-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${
+                            history.length > 0
+                              ? "bg-black/30 hover:bg-black/50 text-amber-300 hover:text-white border border-amber-400/50 shadow-xs hover:scale-105 active:scale-95"
+                              : "bg-black/20 text-white/40 cursor-not-allowed border border-white/20"
+                          }`}
+                          title={`Deshacer último cambio local en ${monthName}`}
+                          aria-label={`Deshacer último cambio en ${monthName}`}
+                        >
+                          <Undo2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Rehacer (Redo Local para este Mes) */}
+                        <button
+                          type="button"
+                          onClick={() => handleRedoForMonth(year, month, monthName)}
+                          disabled={future.length === 0}
+                          className={`p-1 sm:p-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${
+                            future.length > 0
+                              ? "bg-black/30 hover:bg-black/50 text-cyan-300 hover:text-white border border-cyan-400/50 shadow-xs hover:scale-105 active:scale-95"
+                              : "bg-black/20 text-white/40 cursor-not-allowed border border-white/20"
+                          }`}
+                          title={`Rehacer cambio local en ${monthName}`}
+                          aria-label={`Rehacer cambio en ${monthName}`}
+                        >
+                          <Redo2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Copiar Formato (Format Painter - Global entre todas las ventanas/meses) */}
+                        <button
+                          type="button"
+                          onClick={handleFormatPainterClick}
+                          onDoubleClick={handleFormatPainterDoubleClick}
+                          className={`p-1 sm:p-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer relative ${
+                            isFormatPainterActive
+                              ? isFormatPainterLocked
+                                ? "bg-amber-500 text-black border-2 border-amber-300 shadow-md shadow-amber-500/40 ring-2 ring-amber-400/80 animate-pulse scale-105"
+                                : "bg-amber-500/90 text-black border border-amber-300 shadow-xs ring-1 ring-amber-400 scale-105"
+                              : "bg-black/30 hover:bg-black/50 text-amber-300 hover:text-amber-200 border border-amber-500/40 shadow-xs hover:scale-105 active:scale-95"
+                          }`}
+                          title={
+                            isFormatPainterActive
+                              ? isFormatPainterLocked
+                                ? "📌 Copiar formato ANCLADO continuo (Doble clic - Actúa entre todos los meses). Clic para desactivar o pulsa Esc."
+                                : "🖌️ Copiar formato activo (1 celda - Actúa entre todos los meses). Clic para desactivar o pulsa Esc."
+                              : "Copiar Formato (Inter-mensual / Entre ventanas): 1 clic para 1 celda, doble clic para anclar a varias (MS Excel). Pulsa Esc para salir."
+                          }
+                          aria-label="Copiar formato entre todas las ventanas"
+                        >
+                          <Paintbrush className={`w-3.5 h-3.5 ${isFormatPainterActive ? "text-black" : "text-amber-300"}`} />
+                          {isFormatPainterActive && isFormatPainterLocked && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-black" />
+                          )}
+                        </button>
+
+                        {/* Cargar Preestablecidos por la Administración (Local para este Mes) */}
+                        <button
+                          type="button"
+                          onClick={() => handleLoadAdminPresetsForMonth(year, month, monthName)}
+                          className="p-1 sm:p-1.5 bg-black/30 hover:bg-black/50 text-emerald-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer border border-emerald-400/50 shadow-xs hover:scale-105 active:scale-95"
+                          title={`Cargar hitos y festivos oficiales preestablecidos por la Administración para ${monthName}`}
+                          aria-label="Cargar preestablecidos de la Administración"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
+                        </button>
+
+                        {/* Borrar formatos y leyendas del mes (Local para este Mes) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`¿Deseas borrar todos los formatos, colores y leyendas del mes de ${monthName}?`)) {
+                              handleClearMonth(year, month, monthName);
+                            }
+                          }}
+                          className="p-1 sm:p-1.5 bg-black/30 hover:bg-black/50 text-red-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer border border-red-500/40 shadow-xs hover:scale-105 active:scale-95"
+                          title={`Borrar todos los formatos, colores y leyendas del mes de ${monthName}`}
+                          aria-label="Borrar mes"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Monthly Window Action Buttons - Clean Icon-Only Toolbar */}
-                    <div className="flex items-center gap-1">
-                      {/* Deshacer (Undo Local para este Mes) */}
-                      <button
-                        type="button"
-                        onClick={() => handleUndoForMonth(year, month, monthName)}
-                        disabled={history.length === 0}
-                        className={`p-1.5 sm:p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${
-                          history.length > 0
-                            ? "bg-slate-900/90 hover:bg-slate-900 text-amber-300 hover:text-white border border-amber-400/50 shadow-xs hover:scale-105 active:scale-95"
-                            : "bg-slate-900/40 text-slate-500 cursor-not-allowed border border-slate-800/40"
-                        }`}
-                        title={`Deshacer último cambio local en ${monthName}`}
-                        aria-label={`Deshacer último cambio en ${monthName}`}
-                      >
-                        <Undo2 className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Rehacer (Redo Local para este Mes) */}
-                      <button
-                        type="button"
-                        onClick={() => handleRedoForMonth(year, month, monthName)}
-                        disabled={future.length === 0}
-                        className={`p-1.5 sm:p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${
-                          future.length > 0
-                            ? "bg-slate-900/90 hover:bg-slate-900 text-cyan-300 hover:text-white border border-cyan-400/50 shadow-xs hover:scale-105 active:scale-95"
-                            : "bg-slate-900/40 text-slate-500 cursor-not-allowed border border-slate-800/40"
-                        }`}
-                        title={`Rehacer cambio local en ${monthName}`}
-                        aria-label={`Rehacer cambio en ${monthName}`}
-                      >
-                        <Redo2 className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Copiar Formato (Format Painter - Global entre todas las ventanas/meses) */}
-                      <button
-                        type="button"
-                        onClick={handleFormatPainterClick}
-                        onDoubleClick={handleFormatPainterDoubleClick}
-                        className={`p-1.5 sm:p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer relative ${
-                          isFormatPainterActive
-                            ? isFormatPainterLocked
-                              ? "bg-amber-500 text-black border-2 border-amber-300 shadow-md shadow-amber-500/40 ring-2 ring-amber-400/80 animate-pulse scale-105"
-                              : "bg-amber-500/90 text-black border border-amber-300 shadow-xs ring-1 ring-amber-400 scale-105"
-                            : "bg-slate-900/90 hover:bg-slate-900 text-amber-300 hover:text-amber-200 border border-amber-500/40 shadow-xs hover:scale-105 active:scale-95"
-                        }`}
-                        title={
-                          isFormatPainterActive
-                            ? isFormatPainterLocked
-                              ? "📌 Copiar formato ANCLADO continuo (Doble clic - Actúa entre todos los meses). Clic para desactivar o pulsa Esc."
-                              : "🖌️ Copiar formato activo (1 celda - Actúa entre todos los meses). Clic para desactivar o pulsa Esc."
-                            : "Copiar Formato (Inter-mensual / Entre ventanas): 1 clic para 1 celda, doble clic para anclar a varias (MS Excel). Pulsa Esc para salir."
-                        }
-                        aria-label="Copiar formato entre todas las ventanas"
-                      >
-                        <Paintbrush className={`w-3.5 h-3.5 ${isFormatPainterActive ? "text-black" : "text-amber-300"}`} />
-                        {isFormatPainterActive && isFormatPainterLocked && (
-                          <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-black" />
+                    {/* Row 2: Secondary Indicators (Laborable Days, Shared Month Badge, Transition notes) */}
+                    <div className="flex items-center justify-between gap-1.5 mt-1 pt-1 border-t border-white/15 text-[10px] sm:text-[10.5px]">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Explicit Shared Month Indicator */}
+                        {trimesterInfo.isShared && (
+                          <span
+                            className="px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-black text-[9px] sm:text-[9.5px] flex items-center gap-1 shadow-xs border border-amber-300 animate-pulse"
+                            title={trimesterInfo.sharedExplanation}
+                          >
+                            <span>Mes Compartido</span>
+                          </span>
                         )}
-                      </button>
 
-                      {/* Cargar Preestablecidos por la Administración (Local para este Mes) */}
-                      <button
-                        type="button"
-                        onClick={() => handleLoadAdminPresetsForMonth(year, month, monthName)}
-                        className="p-1.5 sm:p-2 bg-slate-900/90 hover:bg-emerald-950 text-emerald-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer border border-emerald-400/50 shadow-xs hover:scale-105 active:scale-95"
-                        title={`Cargar hitos y festivos oficiales preestablecidos por la Administración para ${monthName}`}
-                        aria-label="Cargar preestablecidos de la Administración"
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
-                      </button>
+                        {/* Laborable Days Badge */}
+                        <span className="font-semibold text-white/95 font-mono bg-black/30 px-1.5 py-0.5 rounded border border-white/20 text-[9.5px] sm:text-[10px]">
+                          {monthData.days.filter((d) => d.isCurrentMonth && !d.isWeekend).length} días laborables
+                        </span>
+                      </div>
 
-                      {/* Borrar formatos y leyendas del mes (Local para este Mes) */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm(`¿Deseas borrar todos los formatos, colores y leyendas del mes de ${monthName}?`)) {
-                            handleClearMonth(year, month, monthName);
-                          }
-                        }}
-                        className="p-1.5 sm:p-2 bg-slate-900/90 hover:bg-red-950 text-red-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer border border-red-500/40 shadow-xs hover:scale-105 active:scale-95"
-                        title={`Borrar todos los formatos, colores y leyendas del mes de ${monthName}`}
-                        aria-label="Borrar mes"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                      </button>
+                      {/* Right Subtitle / Trimester Context */}
+                      <span className="text-[9px] sm:text-[9.5px] text-white/80 font-semibold truncate hidden xs:inline">
+                        {trimesterInfo.isShared ? "Transición trimestral" : "Periodo lectivo ordinario"}
+                      </span>
                     </div>
                   </div>
 
                   {/* Month Content Window with Fixed 3-Area Layout: Left Labels, Central Calendar, Right Labels */}
-                  <div className="flex flex-col sm:flex-row flex-1 p-2 sm:p-2.5 gap-2 items-stretch justify-between bg-[#0b1120] overflow-hidden">
+                  <div className="flex flex-col sm:flex-row flex-1 p-2 sm:p-2.5 gap-2 items-stretch justify-between bg-surface overflow-hidden">
                     {/* 1. Left Fixed Area for Labels (Hitos / Inicios de Curso / Evaluaciones Iniciales) */}
                     <div className="w-full sm:w-[130px] md:w-[140px] lg:w-[148px] shrink-0 flex flex-col justify-center order-1">
                       {leftLegends.length > 0 ? (
-                        <div className="w-full flex flex-col gap-1 p-1.5 rounded-none border border-slate-800/90 bg-slate-950/75 max-h-[175px] overflow-y-auto custom-scrollbar">
+                        <div className="w-full flex flex-col gap-1 p-1.5 rounded-none border border-border-default bg-alt/50 max-h-[175px] overflow-y-auto custom-scrollbar">
                           {leftLegends.map((leg) => {
                             const isHighlight =
                               highlightedLegendId === leg.id ||
@@ -2859,8 +3425,8 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                                 onContextMenu={(e) => handleLegendClickOrContextMenu(e, leg, year, month, monthName)}
                                 className={`flex items-start gap-1.5 p-1 rounded-none border transition-all cursor-pointer ${
                                   isHighlight
-                                    ? "ring-1.5 ring-emerald-400 bg-slate-900 border-emerald-500 shadow-sm"
-                                    : "bg-slate-900/80 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900"
+                                    ? "ring-1.5 ring-emerald-500 bg-surface border-emerald-500 shadow-sm"
+                                    : "bg-surface border-border-default hover:border-border-strong hover:bg-hover"
                                 }`}
                                 title={`Haz clic o clic derecho para abrir menú contextual y configurar: ${leg.title}`}
                               >
@@ -2874,7 +3440,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                                 >
                                   {chipText}
                                 </span>
-                                <span className="text-[9.5px] text-slate-300 font-medium leading-[1.2] line-clamp-2">
+                                <span className="text-[9.5px] text-text-primary font-medium leading-[1.2] line-clamp-2">
                                   {leg.title}
                                 </span>
                               </div>
@@ -2890,14 +3456,14 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                     <div className="flex-1 flex flex-col justify-center min-w-0 w-full px-1 order-2">
                       <table className="w-full border-collapse text-center text-xs font-mono">
                         <thead>
-                          <tr className="border-b border-slate-800 text-[10.5px] font-bold text-slate-400">
+                          <tr className="border-b border-border-default text-[10.5px] font-bold text-text-muted">
                             <th className="py-1 px-0.5">L</th>
                             <th className="py-1 px-0.5">M</th>
                             <th className="py-1 px-0.5">X</th>
                             <th className="py-1 px-0.5">J</th>
                             <th className="py-1 px-0.5">V</th>
-                            <th className="py-1 px-0.5 text-red-400 font-black">S</th>
-                            <th className="py-1 px-0.5 text-red-400 font-black">D</th>
+                            <th className="py-1 px-0.5 text-red-500 font-black">S</th>
+                            <th className="py-1 px-0.5 text-red-500 font-black">D</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2923,30 +3489,30 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                                         (d.specialEventType === highlightedLegendId.replace("auto_period_", "") ||
                                           d.override?.type === highlightedLegendId.replace("auto_period_", ""))));
 
-                                  let cellBg = d.isWeekend ? "#111827" : "transparent";
+                                  let cellBg = d.isWeekend ? "rgba(125,125,125,0.08)" : "transparent";
                                   let isCustomStyled = false;
 
                                   if (d.isCurrentMonth) {
                                     if (d.hasSpecialPrevalence) {
                                       cellBg = d.displayBgColor;
                                       isCustomStyled = true;
-                                    } else if (d.displayBgColor && d.displayBgColor !== "transparent") {
+                                    } else if (!d.isWeekend && d.displayBgColor && d.displayBgColor !== "transparent") {
                                       cellBg = d.displayBgColor;
                                       isCustomStyled = true;
                                     }
                                   }
 
                                   // Guaranteed high-contrast text color resolution
-                                  let cellTextColor = "#cbd5e1";
+                                  let cellTextColor = "var(--text-secondary)";
                                   if (!d.isCurrentMonth) {
-                                    cellTextColor = "#475569";
+                                    cellTextColor = "var(--text-muted)";
                                   } else if (isCustomStyled && cellBg && cellBg !== "transparent") {
                                     cellTextColor =
                                       d.displayTextColor && d.displayTextColor !== "#0f172a"
                                         ? d.displayTextColor
                                         : getOptimalTextColorForBg(cellBg);
                                   } else {
-                                    cellTextColor = d.isWeekend ? "#f87171" : "#f1f5f9";
+                                    cellTextColor = d.isWeekend ? "#ef4444" : "var(--text-primary)";
                                   }
 
                                   const tooltipText = d.isCurrentMonth
@@ -2962,9 +3528,29 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                                   const isCellMultiSelected = selectedDates.has(d.dateString);
                                   const isCopiedSource = isFormatPainterActive && copiedFormat?.sourceDate === d.dateString;
 
+                                  const isDraggable = Boolean(
+                                    d.isCurrentMonth &&
+                                      (d.override ||
+                                        d.assignedUdId ||
+                                        d.specialEventType ||
+                                        (d.displayBgColor && d.displayBgColor !== "transparent") ||
+                                        d.hasSpecialPrevalence)
+                                  );
+
+                                  const isDraggedSource = draggedDayData?.sourceDateStr === d.dateString;
+                                  const isDragTargetHovered =
+                                    dragOverTargetDate === d.dateString && draggedDayData?.sourceDateStr !== d.dateString;
+
                                   return (
                                     <td
                                       key={dIdx}
+                                      draggable={isDraggable}
+                                      onDragStart={(e) => handleDayCellDragStart(e, d, monthName)}
+                                      onDragOver={(e) => handleDayCellDragOver(e, d)}
+                                      onDragEnter={(e) => handleDayCellDragEnter(e, d)}
+                                      onDragLeave={(e) => handleDayCellDragLeave(e, d)}
+                                      onDragEnd={handleDayCellDragEnd}
+                                      onDrop={(e) => handleDayCellDrop(e, d, monthName)}
                                       onMouseDown={(e) =>
                                         handleCellMouseDown(e, d, mIdx, rowIdx, dIdx, monthData.days)
                                       }
@@ -3004,17 +3590,27 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                                         }
                                       }}
                                       onContextMenu={(e) => handleDayContextMenu(e, d, monthName)}
-                                      className={`p-0 h-6 sm:h-7 border border-slate-800/80 transition-all relative select-none ${
+                                      className={`p-0 h-6 sm:h-7 border border-border-default transition-all relative select-none ${
                                         d.isCurrentMonth
                                           ? isFormatPainterActive
                                             ? "cursor-crosshair hover:ring-2 hover:ring-amber-400 hover:scale-105 z-10"
+                                            : isDraggable
+                                            ? "cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-cyan-400"
                                             : "cursor-pointer hover:ring-2 hover:ring-cyan-400"
                                           : "cursor-default opacity-25"
                                       } ${isCellMultiSelected ? "ring-2 ring-emerald-400 bg-emerald-500/20 z-10" : ""} ${
                                         isSelectedHighlight ? "ring-2 ring-amber-400 font-black scale-105 z-10" : ""
                                       } ${
                                         isCopiedSource
-                                          ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950 border-2 border-dashed border-amber-300 animate-pulse shadow-lg shadow-amber-500/50 z-30 font-black scale-105 bg-amber-500/30"
+                                          ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-surface border-2 border-dashed border-amber-400 animate-pulse shadow-lg shadow-amber-500/50 z-30 font-black scale-105 bg-amber-500/30"
+                                          : ""
+                                      } ${
+                                        isDraggedSource
+                                          ? "opacity-40 ring-2 ring-amber-400 border-2 border-dashed border-amber-500 scale-95 animate-pulse z-20"
+                                          : ""
+                                      } ${
+                                        isDragTargetHovered
+                                          ? "ring-3 ring-emerald-400 bg-emerald-500/40 scale-110 shadow-lg z-30 font-black"
                                           : ""
                                       }`}
                                     >
@@ -3024,17 +3620,24 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                                           backgroundColor: isCustomStyled
                                             ? cellBg
                                             : d.isWeekend && d.isCurrentMonth
-                                            ? "rgba(30, 41, 59, 0.6)"
+                                            ? "rgba(125, 125, 125, 0.08)"
                                             : "transparent",
                                           color: cellTextColor,
                                         }}
                                         title={
                                           isCopiedSource
                                             ? `📌 Celda de origen copiada (${d.dateString}). Haz clic en las celdas destino para pintar su formato.`
+                                            : isDraggable
+                                            ? `${tooltipText} · 🖐️ Arrastra a otro día para mover este formato/sesión`
                                             : tooltipText
                                         }
                                       >
                                         <span>{String(d.dayNumber).padStart(2, "0")}</span>
+
+                                        {/* Drag Target Hover Highlight Indicator */}
+                                        {isDragTargetHovered && (
+                                          <span className="absolute inset-0 border-2 border-emerald-400 pointer-events-none rounded-none animate-pulse bg-emerald-400/25 z-20" />
+                                        )}
 
                                         {/* Copied Source Indicator Badge */}
                                         {isCopiedSource && (
@@ -3063,7 +3666,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                     {/* 3. Right Fixed Area for Labels (UDs / RAs / Periodos Dual y Recuperación) */}
                     <div className="w-full sm:w-[130px] md:w-[140px] lg:w-[148px] shrink-0 flex flex-col justify-center order-3">
                       {rightLegends.length > 0 ? (
-                        <div className="w-full flex flex-col gap-1 p-1.5 rounded-none border border-slate-800/90 bg-slate-950/75 max-h-[175px] overflow-y-auto custom-scrollbar">
+                        <div className="w-full flex flex-col gap-1 p-1.5 rounded-none border border-border-default bg-alt/50 max-h-[175px] overflow-y-auto custom-scrollbar">
                           {rightLegends.map((leg) => {
                             const isHighlight =
                               highlightedLegendId === leg.id ||
@@ -3077,8 +3680,8 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                                 onContextMenu={(e) => handleLegendClickOrContextMenu(e, leg, year, month, monthName)}
                                 className={`flex items-start gap-1.5 p-1 rounded-none border transition-all cursor-pointer ${
                                   isHighlight
-                                    ? "ring-1.5 ring-emerald-400 bg-slate-900 border-emerald-500 shadow-md"
-                                    : "bg-slate-900/80 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900"
+                                    ? "ring-1.5 ring-emerald-500 bg-surface border-emerald-500 shadow-md"
+                                    : "bg-surface border-border-default hover:border-border-strong hover:bg-hover"
                                 }`}
                                 title={`Haz clic o clic derecho para abrir menú contextual y configurar: ${leg.title}`}
                               >
@@ -3092,7 +3695,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                                 >
                                   {chipText}
                                 </span>
-                                <span className="text-[9.5px] text-slate-300 font-medium leading-[1.2] line-clamp-2">
+                                <span className="text-[9.5px] text-text-primary font-medium leading-[1.2] line-clamp-2">
                                   {leg.title}
                                 </span>
                               </div>
@@ -3115,20 +3718,20 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
           ref={contextMenuRef}
           style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
           onClick={(e) => e.stopPropagation()}
-          className="fixed z-50 w-80 max-w-[94vw] max-h-[calc(100vh-24px)] overflow-y-auto custom-scrollbar bg-slate-950/95 border border-slate-700/80 rounded-2xl shadow-2xl p-2.5 text-xs animate-in fade-in zoom-in-95 duration-100 backdrop-blur-xl ring-1 ring-white/10 select-none"
+          className="fixed z-50 w-80 max-w-[94vw] max-h-[calc(100vh-24px)] overflow-y-auto custom-scrollbar bg-surface border border-border-default rounded-2xl shadow-2xl p-2.5 text-xs animate-in fade-in zoom-in-95 duration-100 backdrop-blur-xl ring-1 ring-black/5 select-none"
         >
           {/* Header */}
-          <div className="px-1.5 pb-2 border-b border-slate-800/80 flex items-center justify-between">
+          <div className="px-1.5 pb-2 border-b border-border-default flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-300 font-black flex items-center justify-center text-xs border border-emerald-500/30 shrink-0">
+              <span className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 font-black flex items-center justify-center text-xs border border-emerald-500/30 shrink-0">
                 {String(contextMenu.dayNumber).padStart(2, "0")}
               </span>
               <div className="leading-tight">
-                <div className="font-bold text-white text-xs flex items-center gap-1.5">
+                <div className="font-bold text-text-primary text-xs flex items-center gap-1.5">
                   <span>{contextMenu.dayNumber} {contextMenu.monthName}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">({contextMenu.dateStr})</span>
+                  <span className="text-[10px] text-text-muted font-mono">({contextMenu.dateStr})</span>
                 </div>
-                <div className="text-[10px] text-emerald-400/90 truncate max-w-[180px]">
+                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate max-w-[180px]">
                   {contextMenu.dayInfo?.override?.title ||
                     (contextMenu.dayInfo?.hasSpecialPrevalence && contextMenu.dayInfo?.specialEventLabel) ||
                     (contextMenu.dayInfo?.assignedUdCode ? `UD: ${contextMenu.dayInfo.assignedUdCode}` : "Día Lectivo Ordinario")}
@@ -3138,15 +3741,15 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             <button
               type="button"
               onClick={() => setContextMenu(null)}
-              className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg cursor-pointer transition-colors"
+              className="p-1 hover:bg-hover text-text-muted hover:text-text-primary rounded-lg cursor-pointer transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Instant 1-Click Quick Color Palette */}
-          <div className="py-1.5 border-b border-slate-800/60">
-            <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider px-1 mb-1">
+          <div className="py-1.5 border-b border-border-default">
+            <div className="flex items-center justify-between text-[10px] text-text-muted font-bold uppercase tracking-wider px-1 mb-1">
               <span>⚡ Formato Rápido en 1 Clic:</span>
             </div>
             <div className="grid grid-cols-7 gap-1 px-0.5">
@@ -3232,22 +3835,22 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                 type="button"
                 title="Restablecer a Lectivo Ordinario"
                 onClick={() => handleContextMenuQuickAction(contextMenu.dateStr, "clear")}
-                className="h-6 rounded-lg bg-slate-800 hover:bg-slate-700 hover:scale-110 active:scale-95 transition-transform flex items-center justify-center text-[10px] font-bold text-slate-300 shadow-sm cursor-pointer border border-slate-700"
+                className="h-6 rounded-lg bg-alt hover:bg-hover hover:scale-110 active:scale-95 transition-transform flex items-center justify-center text-[10px] font-bold text-text-secondary shadow-sm cursor-pointer border border-border-default"
               >
-                <RotateCcw className="w-3 h-3 text-slate-400" />
+                <RotateCcw className="w-3 h-3 text-text-muted" />
               </button>
             </div>
           </div>
 
           {/* Segmented Category Tabs */}
-          <div className="flex bg-slate-900 p-1 rounded-xl gap-1 my-1.5 border border-slate-800">
+          <div className="flex bg-alt p-1 rounded-xl gap-1 my-1.5 border border-border-default">
             <button
               type="button"
               onClick={() => setContextMenuTab("uds")}
               className={`flex-1 py-1 px-1 rounded-lg text-[10.5px] font-bold transition-all text-center cursor-pointer flex items-center justify-center gap-1 ${
                 contextMenuTab === "uds"
                   ? "bg-cyan-600 text-white shadow-sm"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                  : "text-text-muted hover:text-text-primary hover:bg-hover"
               }`}
             >
               <BookOpen className="w-3 h-3" />
@@ -3259,7 +3862,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               className={`flex-1 py-1 px-1 rounded-lg text-[10.5px] font-bold transition-all text-center cursor-pointer flex items-center justify-center gap-1 ${
                 contextMenuTab === "evals"
                   ? "bg-sky-600 text-white shadow-sm"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                  : "text-text-muted hover:text-text-primary hover:bg-hover"
               }`}
             >
               <GraduationCap className="w-3 h-3" />
@@ -3271,7 +3874,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               className={`flex-1 py-1 px-1 rounded-lg text-[10.5px] font-bold transition-all text-center cursor-pointer flex items-center justify-center gap-1 ${
                 contextMenuTab === "festivos"
                   ? "bg-red-600 text-white shadow-sm"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                  : "text-text-muted hover:text-text-primary hover:bg-hover"
               }`}
             >
               <Sun className="w-3 h-3" />
@@ -3283,7 +3886,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               className={`flex-1 py-1 px-1 rounded-lg text-[10.5px] font-bold transition-all text-center cursor-pointer flex items-center justify-center gap-1 ${
                 contextMenuTab === "especiales"
                   ? "bg-amber-600 text-white shadow-sm"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                  : "text-text-muted hover:text-text-primary hover:bg-hover"
               }`}
             >
               <Briefcase className="w-3 h-3" />
@@ -3303,13 +3906,19 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                     type="button"
                     onClick={() => {
                       const cMonth = parseInt(contextMenu.dateStr.split("-")[1], 10);
+                      const nextNum = calendar.legendItems.filter((l) => l.type === "ud_ra").length + 1;
+                      const { code: nextCode, title: nextTitle } = buildUdLegendTitleAndCode({
+                        udNumber: nextNum,
+                        title: `Nueva Unidad Didáctica ${nextNum}`,
+                      });
+                      const nextColor = getDistinctUdColor(nextNum - 1);
                       setEditingLegendModal({
                         item: {
-                          code: `UD${String(calendar.legendItems.filter((l) => l.type === "ud_ra").length + 1).padStart(2, "0")}`,
-                          title: "Nueva Unidad Didáctica",
+                          code: nextCode,
+                          title: nextTitle,
                           type: "ud_ra",
-                          color: "#fed7aa",
-                          textColor: "#9a3412",
+                          color: nextColor.bg,
+                          textColor: nextColor.text,
                           monthTarget: cMonth || 9,
                           sidePosition: "right",
                         },
@@ -3329,9 +3938,13 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                 <div className="space-y-1 max-h-[140px] overflow-y-auto pr-0.5 custom-scrollbar">
                   {calendar.legendItems
                     .filter((l) => l.type === "ud_ra")
-                    .map((leg) => (
+                    .map((leg, legIdx) => {
+                      const cleanDisplayTitle =
+                        leg.title.replace(/^\[UD\d+\]\s*\[(?:BC|RA|UT)\w+\]\s*\[\d+\/\d+h\]\s*\[\d+\s*sesion(?:es)?\]\s*/i, "") ||
+                        leg.title;
+                      return (
                       <div
-                        key={leg.id}
+                        key={`${leg.id}_${legIdx}`}
                         className="group flex items-center justify-between gap-1 p-1 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-all"
                       >
                         {/* Assign UD to current day */}
@@ -3349,8 +3962,8 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                           >
                             {leg.code}
                           </span>
-                          <span className="text-[10px] font-bold text-white truncate max-w-[110px]">
-                            {leg.title}
+                          <span className="text-[10px] font-bold text-white truncate max-w-[125px]" title={leg.title}>
+                            {cleanDisplayTitle}
                           </span>
                         </button>
 
@@ -3398,7 +4011,8 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                           </button>
                         </div>
                       </div>
-                    ))}
+                    );
+                  })}
                 </div>
 
                 {/* Range assignment from date */}
@@ -3770,6 +4384,28 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                     placeholder="ej. 2026-2027"
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
+                  <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                    {["2025-2026", "2026-2027", "2027-2028"].map((yr) => (
+                      <button
+                        key={yr}
+                        type="button"
+                        onClick={() =>
+                          setAddCourseModal({
+                            ...addCourseModal,
+                            academicYear: yr,
+                            baseTemplate: yr === "2025-2026" ? "2025_2026" : "2026_2027",
+                          })
+                        }
+                        className={`text-[9.5px] px-1.5 py-0.5 rounded font-mono transition-colors cursor-pointer ${
+                          addCourseModal.academicYear === yr
+                            ? "bg-emerald-600 text-white font-bold"
+                            : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                        }`}
+                      >
+                        {yr}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -3930,6 +4566,24 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                     }
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
+                  <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                    {["2024-2025", "2025-2026", "2026-2027", "2027-2028"].map((yr) => (
+                      <button
+                        key={yr}
+                        type="button"
+                        onClick={() =>
+                          setEditingModuleModal({ ...editingModuleModal, academicYear: yr })
+                        }
+                        className={`text-[9.5px] px-1.5 py-0.5 rounded font-mono transition-colors cursor-pointer ${
+                          editingModuleModal.academicYear === yr
+                            ? "bg-amber-500 text-slate-950 font-bold"
+                            : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                        }`}
+                      >
+                        {yr}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -4006,21 +4660,228 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800">
               <button
                 type="button"
-                onClick={() => setEditingModuleModal(null)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs cursor-pointer"
+                onClick={() => {
+                  const currYear = editingModuleModal.academicYear;
+                  setEditingModuleModal(null);
+                  setTargetAcademicYear(currYear || "2026-2027");
+                  setCustomAcademicYearInput(currYear || "2026-2027");
+                  setIsChangeYearModalOpen(true);
+                }}
+                className="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <GraduationCap className="w-3.5 h-3.5" />
+                <span>Asistente de Cambio de Curso...</span>
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingModuleModal(null)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveModuleDetails}
+                  className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Guardar Cambios</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DEDICATED MODAL: CAMBIAR CURSO ESCOLAR / ASISTENTE DE TEMPORALIZACIÓN */}
+      {isChangeYearModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full p-5 space-y-4 shadow-2xl animate-fade-in text-xs max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-sm">Cambiar Curso Escolar</h3>
+                  <p className="text-[11px] text-slate-400">
+                    Módulo actual: <span className="text-emerald-400 font-bold font-mono">{calendar.codigoModulo || "MÓDULO"}</span> · Curso activo: <span className="text-white font-mono font-bold">{calendar.academicYear}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsChangeYearModalOpen(false)}
+                className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Target Academic Year Selection */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1.5">
+                  Selecciona el Curso Escolar de Destino:
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+                  {[
+                    { year: "2025-2026", badge: "Oficial Junta" },
+                    { year: "2026-2027", badge: "Oficial Activo" },
+                    { year: "2024-2025", badge: "Histórico" },
+                    { year: "2027-2028", badge: "Próximo" },
+                  ].map((item) => (
+                    <button
+                      key={item.year}
+                      type="button"
+                      onClick={() => {
+                        setTargetAcademicYear(item.year);
+                        setCustomAcademicYearInput(item.year);
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                        targetAcademicYear === item.year
+                          ? "bg-emerald-600/30 border-emerald-500 text-white ring-2 ring-emerald-500/40 shadow-sm"
+                          : "bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-800/50"
+                      }`}
+                    >
+                      <span className="font-mono font-bold text-xs">{item.year}</span>
+                      <span className="text-[9.5px] text-emerald-400 mt-1 font-semibold">{item.badge}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Custom Academic Year Input */}
+                <div className="flex items-center gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                  <span className="text-[11px] text-slate-400 shrink-0">O introduce otro año:</span>
+                  <input
+                    type="text"
+                    placeholder="ej. 2028-2029"
+                    value={targetAcademicYear === "custom" ? customAcademicYearInput : customAcademicYearInput || targetAcademicYear}
+                    onChange={(e) => {
+                      setTargetAcademicYear("custom");
+                      setCustomAcademicYearInput(e.target.value);
+                    }}
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Behavior Mode Selection */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1.5">
+                  ¿Cómo deseas aplicar el nuevo curso escolar?
+                </label>
+                <div className="space-y-2">
+                  <label
+                    className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                      changeYearMode === "shift_dates"
+                        ? "bg-emerald-950/40 border-emerald-500/60 ring-1 ring-emerald-500/30 text-white"
+                        : "bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="changeYearMode"
+                      checked={changeYearMode === "shift_dates"}
+                      onChange={() => setChangeYearMode("shift_dates")}
+                      className="mt-0.5 accent-emerald-500"
+                    />
+                    <div>
+                      <span className="font-bold block text-[11px] text-emerald-300">
+                        🔄 Adaptar y Reubicar Fechas al Nuevo Curso (Recomendado)
+                      </span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5 leading-relaxed">
+                        Desplaza automáticamente todas las UDs programadas, festivos autonómicos y sesiones de evaluación al año de destino, ajustando las cuadrículas mensuales y estadísticas oficiales.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                      changeYearMode === "load_official_preset"
+                        ? "bg-emerald-950/40 border-emerald-500/60 ring-1 ring-emerald-500/30 text-white"
+                        : "bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="changeYearMode"
+                      checked={changeYearMode === "load_official_preset"}
+                      onChange={() => setChangeYearMode("load_official_preset")}
+                      className="mt-0.5 accent-emerald-500"
+                    />
+                    <div>
+                      <span className="font-bold block text-[11px] text-indigo-300">
+                        ⭐ Cargar Marco Oficial de Andalucía para el Curso
+                      </span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5 leading-relaxed">
+                        Carga el calendario oficial con todas las festividades de la Junta de Andalucía, vacaciones escolares y periodos de evaluación para ese curso, conservando tus datos de módulo.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                      changeYearMode === "update_label_only"
+                        ? "bg-emerald-950/40 border-emerald-500/60 ring-1 ring-emerald-500/30 text-white"
+                        : "bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="changeYearMode"
+                      checked={changeYearMode === "update_label_only"}
+                      onChange={() => setChangeYearMode("update_label_only")}
+                      className="mt-0.5 accent-emerald-500"
+                    />
+                    <div>
+                      <span className="font-bold block text-[11px] text-slate-300">
+                        🏷️ Solo Actualizar Rótulo y Periodo
+                      </span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5 leading-relaxed">
+                        Cambia la etiqueta del curso escolar sin modificar la estructura de días personalizados ni mover fechas existentes.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Create as New Module Checkbox */}
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={changeYearCreateCopy}
+                    onChange={(e) => setChangeYearCreateCopy(e.target.checked)}
+                    className="rounded accent-emerald-500 w-4 h-4"
+                  />
+                  <span className="text-[11px] text-slate-300 font-medium">
+                    Crear como nueva asignatura en mi cartera (conservar el curso actual {calendar.academicYear} intacto)
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+              <button
+                type="button"
+                onClick={() => setIsChangeYearModalOpen(false)}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="button"
-                onClick={handleSaveModuleDetails}
-                className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs cursor-pointer flex items-center gap-1.5"
+                onClick={handleApplyChangeAcademicYear}
+                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow-md shadow-emerald-600/30"
               >
-                <Save className="w-3.5 h-3.5" />
-                <span>Guardar Cambios</span>
+                <Check className="w-3.5 h-3.5" />
+                <span>Aplicar Curso Escolar</span>
               </button>
             </div>
           </div>

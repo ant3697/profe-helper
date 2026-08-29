@@ -224,6 +224,132 @@ export function getAcademicMonthsList(academicYear: string): Array<{ year: numbe
   ];
 }
 
+export interface MonthTrimesterInfo {
+  trimesterId: "1T" | "2T" | "3T" | "2T_3T" | "3T_RECUP" | "1T_2T";
+  trimesterNumber: number | string;
+  name: string; // e.g. "1er Trimestre", "2º Trimestre", "Compartido (2ºT / 3erT)", "3er Trimestre y Recuperación"
+  shortBadge: string; // "1T", "2T", "2T / 3T", "3T", "3T · Recup."
+  isShared: boolean;
+  sharedExplanation?: string;
+  headerBgClass: string;
+  headerStyleBg: string;
+  headerBorderColor: string;
+  badgeStyleBg: string;
+  badgeStyleText: string;
+  tagColor: string;
+}
+
+// Determines the trimester info, shared trimester indicator, and distinct colors for each month
+export function getMonthTrimesterInfo(
+  year: number,
+  month: number, // 0=Jan, 8=Sep, 11=Dec
+  calendar?: SigreAcademicCalendar
+): MonthTrimesterInfo {
+  // Septiembre (8), Octubre (9), Noviembre (10), Diciembre (11) -> 1er Trimestre (Oficial Verde Junta #007A33)
+  if (month === 8 || month === 9 || month === 10 || month === 11) {
+    const isDec = month === 11;
+    return {
+      trimesterId: "1T",
+      trimesterNumber: 1,
+      name: isDec ? "1er Trimestre (Evaluación 1T)" : "1er Trimestre",
+      shortBadge: "1T",
+      isShared: false,
+      headerBgClass: "bg-[#007A33] border-[#005a26]",
+      headerStyleBg: "#007A33",
+      headerBorderColor: "#005a26",
+      badgeStyleBg: "rgba(255, 255, 255, 0.22)",
+      badgeStyleText: "#ffffff",
+      tagColor: "#10b981",
+    };
+  }
+
+  // Enero (0), Febrero (1) -> 2º Trimestre (Azul Zafiro / Índigo #1e40af)
+  if (month === 0 || month === 1) {
+    return {
+      trimesterId: "2T",
+      trimesterNumber: 2,
+      name: "2º Trimestre",
+      shortBadge: "2T",
+      isShared: false,
+      headerBgClass: "bg-[#1e40af] border-[#1e3a8a]",
+      headerStyleBg: "#1e40af",
+      headerBorderColor: "#1e3a8a",
+      badgeStyleBg: "rgba(255, 255, 255, 0.22)",
+      badgeStyleText: "#ffffff",
+      tagColor: "#3b82f6",
+    };
+  }
+
+  // Marzo (2) -> Compartido 2ºT y 3er Trimestre (Verde Azulado / Teal Oscuro #0f766e)
+  if (month === 2) {
+    return {
+      trimesterId: "2T_3T",
+      trimesterNumber: "2 / 3",
+      name: "Compartido (2ºT / 3erT)",
+      shortBadge: "2T / 3T",
+      isShared: true,
+      sharedExplanation: "Marzo comparte 2º Trimestre (hasta Sesión de Evaluación 2T) y el inicio del 3er Trimestre tras evaluación/Semana Santa.",
+      headerBgClass: "bg-[#0f766e] border-[#115e59]",
+      headerStyleBg: "#0f766e",
+      headerBorderColor: "#115e59",
+      badgeStyleBg: "#fbbf24",
+      badgeStyleText: "#0f172a",
+      tagColor: "#14b8a6",
+    };
+  }
+
+  // Abril (3), Mayo (4) -> 3er Trimestre (Púrpura Imperial #7e22ce)
+  if (month === 3 || month === 4) {
+    const isMay = month === 4;
+    return {
+      trimesterId: "3T",
+      trimesterNumber: 3,
+      name: isMay ? "3er Trimestre (1ª Eval. Final Ordinaria)" : "3er Trimestre",
+      shortBadge: "3T",
+      isShared: false,
+      headerBgClass: "bg-[#7e22ce] border-[#6b21a8]",
+      headerStyleBg: "#7e22ce",
+      headerBorderColor: "#6b21a8",
+      badgeStyleBg: "rgba(255, 255, 255, 0.22)",
+      badgeStyleText: "#ffffff",
+      tagColor: "#a855f7",
+    };
+  }
+
+  // Junio (5) -> 3er Trimestre Compartido con Periodo de Recuperación (Sem. 1-3) y 2ª Evaluación Final Extraordinaria (#c2410c)
+  if (month === 5) {
+    return {
+      trimesterId: "3T_RECUP",
+      trimesterNumber: "3T + Recup.",
+      name: "3erT · Recuperación & Extraordinaria",
+      shortBadge: "3T + Recup.",
+      isShared: true,
+      sharedExplanation: "Junio comparte 3er Trimestre, Periodo de Recuperación (Semanas 1-3) y 2ª Evaluación Final Extraordinaria (Semana 4).",
+      headerBgClass: "bg-[#c2410c] border-[#9a3412]",
+      headerStyleBg: "#c2410c",
+      headerBorderColor: "#9a3412",
+      badgeStyleBg: "#fbbf24",
+      badgeStyleText: "#0f172a",
+      tagColor: "#f97316",
+    };
+  }
+
+  // Fallback
+  return {
+    trimesterId: "1T",
+    trimesterNumber: 1,
+    name: "1er Trimestre",
+    shortBadge: "1T",
+    isShared: false,
+    headerBgClass: "bg-[#007A33] border-[#005a26]",
+    headerStyleBg: "#007A33",
+    headerBorderColor: "#005a26",
+    badgeStyleBg: "rgba(255, 255, 255, 0.22)",
+    badgeStyleText: "#ffffff",
+    tagColor: "#10b981",
+  };
+}
+
 export interface MonthLateralTag {
   id: string;
   code: string;
@@ -313,6 +439,10 @@ export function deriveMonthLateralLegends(
   // 1. Scan all days in this month to extract active events, milestone overrides, and assigned UDs/RAs
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${year}-${monthStr}-${String(d).padStart(2, "0")}`;
+    const dayDate = new Date(year, month, d);
+    const dayOfWeek = dayDate.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
     const override = calendar.dayOverrides?.[dateStr];
     const specialEvent = (calendar.specialEvents || []).find((e) => e.date === dateStr);
     const colIndex = getDayColIndex(year, month, d);
@@ -325,22 +455,24 @@ export function deriveMonthLateralLegends(
       effectiveType === "vacaciones_semana_santa" ||
       effectiveType === "semana_blanca";
 
-    // Determine UD assignment key strictly
+    // Determine UD assignment key strictly (never on weekends)
     let assignedUdKey: string | undefined = undefined;
-    if (override?.assignedUdId) {
-      assignedUdKey = override.assignedUdId;
-    } else if (override?.assignedUdCode) {
-      assignedUdKey = override.assignedUdCode;
-    } else if (override?.legendItemId) {
-      const leg = legendLookup.get(override.legendItemId);
-      if (leg?.type === "ud_ra") {
-        assignedUdKey = leg.id;
+    if (!isWeekend) {
+      if (override?.assignedUdId) {
+        assignedUdKey = override.assignedUdId;
+      } else if (override?.assignedUdCode) {
+        assignedUdKey = override.assignedUdCode;
+      } else if (override?.legendItemId) {
+        const leg = legendLookup.get(override.legendItemId);
+        if (leg?.type === "ud_ra") {
+          assignedUdKey = leg.id;
+        }
+      } else if (override?.title && /^(TEMINS|MOD|UD\d+|RA\d+|UT\d+)/i.test(override.title.trim())) {
+        assignedUdKey = override.title.split(" ")[0];
       }
-    } else if (override?.title && /^(TEMINS|MOD|UD\d+|RA\d+|UT\d+)/i.test(override.title.trim())) {
-      assignedUdKey = override.title.split(" ")[0];
     }
 
-    const isUdAssignment = Boolean(assignedUdKey);
+    const isUdAssignment = Boolean(assignedUdKey) && !isWeekend;
 
     // Multi-day Period Aggregation (Recuperación, Dual, Vacaciones)
     if (isMultiDayPeriodType) {
@@ -686,7 +818,30 @@ export function deriveMonthLateralLegends(
   leftTags.sort(compareByDominantWeek);
   rightTags.sort(compareByDominantWeek);
 
-  return { leftLegends: leftTags, rightLegends: rightTags };
+  // Guarantee strictly unique ids for all left & right tags to prevent React key collisions
+  const seenLeftIds = new Set<string>();
+  const uniqueLeftLegends: MonthLateralTag[] = [];
+  leftTags.forEach((tag, idx) => {
+    let tagId = tag.id || `left_tag_${idx}`;
+    if (seenLeftIds.has(tagId)) {
+      tagId = `${tagId}_left_${idx}`;
+    }
+    seenLeftIds.add(tagId);
+    uniqueLeftLegends.push({ ...tag, id: tagId });
+  });
+
+  const seenRightIds = new Set<string>();
+  const uniqueRightLegends: MonthLateralTag[] = [];
+  rightTags.forEach((tag, idx) => {
+    let tagId = tag.id || `right_tag_${idx}`;
+    if (seenRightIds.has(tagId)) {
+      tagId = `${tagId}_right_${idx}`;
+    }
+    seenRightIds.add(tagId);
+    uniqueRightLegends.push({ ...tag, id: tagId });
+  });
+
+  return { leftLegends: uniqueLeftLegends, rightLegends: uniqueRightLegends };
 }
 
 // Generate the 6x7 grid for a month (Monday to Sunday) with visual prevalence for special events
@@ -725,7 +880,20 @@ export function generateMonthGrid(
     const legendItem = override?.legendItemId ? legendMap.get(override.legendItemId) : undefined;
     const specialEvent = (calendar.specialEvents || []).find((e) => e.date === dateStr);
 
-    const effectiveType = override?.type || specialEvent?.type || (isWeekend ? "no_lectivo" : "lectivo");
+    // Weekends (Saturdays and Sundays) are strictly non-lectivo (or special holiday if defined)
+    let effectiveType: SigreCalendarDayType = "lectivo";
+    if (isWeekend) {
+      if (override?.type && isSpecialEventType(override.type)) {
+        effectiveType = override.type;
+      } else if (specialEvent?.type && isSpecialEventType(specialEvent.type)) {
+        effectiveType = specialEvent.type;
+      } else {
+        effectiveType = "no_lectivo";
+      }
+    } else {
+      effectiveType = override?.type || specialEvent?.type || "lectivo";
+    }
+
     const isSpecial = isSpecialEventType(effectiveType);
 
     let displayBgColor = "transparent";
@@ -733,25 +901,27 @@ export function generateMonthGrid(
     let hasSpecialPrevalence = false;
     let assignedUdColor: string | undefined = undefined;
 
-    // Determine assigned UD color if present
-    if (override?.assignedUdId) {
-      const assignedLeg = legendMap.get(override.assignedUdId);
-      if (assignedLeg) assignedUdColor = assignedLeg.color;
-    } else if (legendItem && (legendItem.type === "ud_ra" || legendItem.type === "dual" || legendItem.type === "recuperacion")) {
-      assignedUdColor = legendItem.color;
+    // Determine assigned UD color if present (STRICTLY FORBIDDEN on weekends)
+    if (!isWeekend) {
+      if (override?.assignedUdId) {
+        const assignedLeg = legendMap.get(override.assignedUdId);
+        if (assignedLeg) assignedUdColor = assignedLeg.color;
+      } else if (legendItem && (legendItem.type === "ud_ra" || legendItem.type === "dual" || legendItem.type === "recuperacion")) {
+        assignedUdColor = legendItem.color;
+      }
     }
 
     if (isCurrentMonth) {
       if (isSpecial) {
-        // Special events PREVAIL visually
+        // Special events PREVAIL visually (holidays, festive days)
         const style = getOfficialEventStyle(effectiveType);
         displayBgColor = override?.customColor || specialEvent?.color || style.bgColor;
         displayTextColor = override?.customTextColor || style.textColor || getOptimalTextColorForBg(displayBgColor);
         hasSpecialPrevalence = true;
-      } else if (override?.customColor && override.customColor !== "transparent") {
+      } else if (!isWeekend && override?.customColor && override.customColor !== "transparent") {
         displayBgColor = override.customColor;
         displayTextColor = override.customTextColor || getOptimalTextColorForBg(displayBgColor);
-      } else if (legendItem && legendItem.color && legendItem.color !== "transparent") {
+      } else if (!isWeekend && legendItem && legendItem.color && legendItem.color !== "transparent") {
         displayBgColor = legendItem.color;
         displayTextColor = legendItem.textColor || getOptimalTextColorForBg(displayBgColor);
       } else {
@@ -766,14 +936,14 @@ export function generateMonthGrid(
       dayOfWeek,
       isCurrentMonth,
       isWeekend,
-      override,
-      legendItem,
+      override: isWeekend && override?.type === "lectivo" ? undefined : override,
+      legendItem: isWeekend && legendItem?.type === "ud_ra" ? undefined : legendItem,
       isSpecialEvent: isSpecial,
       specialEventType: effectiveType,
       specialEventLabel: override?.title || specialEvent?.title || (isSpecial ? getOfficialEventStyle(effectiveType).label : undefined),
-      assignedUdId: override?.assignedUdId,
-      assignedUdCode: override?.assignedUdCode,
-      assignedUdColor,
+      assignedUdId: isWeekend ? undefined : override?.assignedUdId,
+      assignedUdCode: isWeekend ? undefined : override?.assignedUdCode,
+      assignedUdColor: isWeekend ? undefined : assignedUdColor,
       displayBgColor,
       displayTextColor,
       hasSpecialPrevalence,
@@ -1053,6 +1223,309 @@ export function getAcademicTrimestersStructure(academicYear: string): SigreAcade
   ];
 }
 
+// Gaussian Easter Sunday calculation algorithm for Gregorian calendar
+export function getEasterSunday(year: number): { month: number; day: number } {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31); // 3 = March, 4 = April
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return { month, day };
+}
+
+// Generate complete, robust official Andalusian holidays, vacations and milestone overrides for any academic year
+export function getOfficialAndalusianHolidaysAndVacations(
+  academicYear: string
+): {
+  dayOverrides: Record<string, SigreCalendarDayOverride>;
+  legendItems: SigreCalendarLegendItem[];
+} {
+  const parts = academicYear.split("-");
+  const startYear = parseInt(parts[0], 10) || 2025;
+  const endYear = parseInt(parts[1], 10) || startYear + 1;
+
+  const overrides: Record<string, SigreCalendarDayOverride> = {};
+  const legends: SigreCalendarLegendItem[] = [];
+
+  // Helper for adding an override
+  const addDay = (
+    dateStr: string,
+    type: SigreCalendarDayType,
+    customColor: string,
+    customTextColor: string,
+    title: string,
+    legendItemId?: string
+  ) => {
+    overrides[dateStr] = {
+      date: dateStr,
+      type,
+      customColor,
+      customTextColor,
+      title,
+      legendItemId,
+    };
+  };
+
+  // 1. Septiembre: Inicio de curso escalonado y evaluación inicial
+  addDay(`${startYear}-09-03`, "inicio_fin_curso", "#ff00ff", "#ffffff", "Enseñanzas Deportivas y 1º ciclo Ed. Inf.", "leg_ini_3");
+  addDay(`${startYear}-09-10`, "inicio_fin_curso", "#ff00ff", "#ffffff", "2º ciclo Ed. Inf., Prim., E.E.", "leg_ini_10");
+  addDay(`${startYear}-09-15`, "inicio_fin_curso", "#ff00ff", "#ffffff", "Inicio Régimen Ordinario FP / ESO / Bach.", "leg_ini_15");
+  addDay(`${startYear}-09-22`, "evaluacion_inicial", "#99cc33", "#000000", "Evaluación inicial", "leg_ini_20");
+
+  legends.push(
+    { id: "leg_ini_3", code: "3", title: "Enseñanzas Deportivas y 1º ciclo Ed. Inf.", type: "hito", color: "#ff00ff", textColor: "#fff", sidePosition: "left", monthTarget: 9 },
+    { id: "leg_ini_10", code: "10", title: "2º ciclo Ed. Inf., Prim., E.E.", type: "hito", color: "#ff00ff", textColor: "#fff", sidePosition: "left", monthTarget: 9 },
+    { id: "leg_ini_15", code: "15", title: "E.S.O., Bach., F.P.", type: "hito", color: "#ff00ff", textColor: "#fff", sidePosition: "left", monthTarget: 9 },
+    { id: "leg_ini_20", code: "20", title: "Evaluación inicial", type: "evaluacion", color: "#99cc33", textColor: "#000", sidePosition: "left", monthTarget: 9 }
+  );
+
+  // 2. Octubre: 12 de Octubre (Fiesta Nacional de España)
+  const oct12Date = new Date(startYear, 9, 12);
+  const oct12Dow = oct12Date.getDay();
+  addDay(`${startYear}-10-12`, "festivo_nacional", "#ff0000", "#ffffff", "Fiesta Nacional de España");
+  if (oct12Dow === 0) {
+    addDay(`${startYear}-10-13`, "festivo_autonomico", "#ff0000", "#ffffff", "Festivo Autonómico (traslado 12 de Octubre)");
+  }
+
+  // 3. Noviembre: 1 de Noviembre (Todos los Santos)
+  const nov1Date = new Date(startYear, 10, 1);
+  const nov1Dow = nov1Date.getDay();
+  addDay(`${startYear}-11-01`, "festivo_nacional", "#ff0000", "#ffffff", "Todos los Santos");
+  if (nov1Dow === 0) {
+    addDay(`${startYear}-11-02`, "festivo_autonomico", "#ff0000", "#ffffff", "Festivo Autonómico (traslado Todos los Santos)");
+  } else if (nov1Dow === 6) {
+    addDay(`${startYear}-11-03`, "festivo_autonomico", "#ff0000", "#ffffff", "Festivo Autonómico (por Todos los Santos)");
+  }
+
+  // 4. Diciembre: Festivos Nacionales de la Constitución e Inmaculada
+  const dec6Date = new Date(startYear, 11, 6);
+  const dec6Dow = dec6Date.getDay();
+  addDay(`${startYear}-12-06`, "festivo_nacional", "#ff0000", "#ffffff", "Día de la Constitución Española");
+  if (dec6Dow === 0) {
+    addDay(`${startYear}-12-07`, "festivo_autonomico", "#ff0000", "#ffffff", "Festivo Autonómico (traslado Constitución)");
+  }
+  addDay(`${startYear}-12-08`, "festivo_nacional", "#ff0000", "#ffffff", "Inmaculada Concepción");
+
+  // Sesión Evaluación 1T y Entrega Notas
+  addDay(`${startYear}-12-16`, "evaluacion_trimestral", "#0080ff", "#ffffff", "Sesión de evaluación 1º trimestre", "leg_eval_1");
+  addDay(`${startYear}-12-19`, "otro_evento", "#38bdf8", "#0f172a", "Entrega de Calificaciones y Boletines 1º Trimestre", "leg_notas_1");
+
+  legends.push(
+    { id: "leg_eval_1", code: "16 Dic", title: "Sesión de evaluación 1º trimestre", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 12 },
+    { id: "leg_notas_1", code: "19 Dic", title: "Entrega de Calificaciones 1T", type: "hito", color: "#38bdf8", textColor: "#0f172a", sidePosition: "right", monthTarget: 12 }
+  );
+
+  // 5. Vacaciones de Navidad (Diciembre 22 a Enero 6 inclusive)
+  const navStart = new Date(startYear, 11, 22);
+  const navEnd = new Date(endYear, 0, 6);
+  for (let d = new Date(navStart); d <= navEnd; d.setDate(d.getDate() + 1)) {
+    const dow = d.getDay();
+    const y = d.getFullYear();
+    const mStr = String(d.getMonth() + 1).padStart(2, "0");
+    const dStr = String(d.getDate()).padStart(2, "0");
+    const fullDate = `${y}-${mStr}-${dStr}`;
+
+    if (fullDate === `${startYear}-12-25`) {
+      addDay(fullDate, "festivo_nacional", "#ff0000", "#ffffff", "Natividad del Señor (Navidad)");
+    } else if (fullDate === `${endYear}-01-01`) {
+      addDay(fullDate, "festivo_nacional", "#ff0000", "#ffffff", "Año Nuevo");
+    } else if (fullDate === `${endYear}-01-06`) {
+      addDay(fullDate, "festivo_nacional", "#ff0000", "#ffffff", "Epifanía del Señor (Reyes)");
+    } else if (dow !== 0 && dow !== 6) {
+      addDay(fullDate, "vacaciones_navidad", "#00ffff", "#000000", "Vacaciones de Navidad");
+    }
+  }
+
+  // 6. Febrero: Semana Blanca, Día de la Comunidad Educativa y Día de Andalucía
+  const feb28 = new Date(endYear, 1, 28);
+  const feb28Dow = feb28.getDay();
+  const semBlancaMon = new Date(endYear, 1, 23);
+  if (feb28Dow === 5) {
+    semBlancaMon.setDate(24);
+  } else if (feb28Dow === 6) {
+    semBlancaMon.setDate(23);
+  } else if (feb28Dow === 0) {
+    semBlancaMon.setDate(22);
+  }
+
+  for (let i = 0; i < 4; i++) {
+    const day = new Date(semBlancaMon);
+    day.setDate(day.getDate() + i);
+    const y = day.getFullYear();
+    const mStr = String(day.getMonth() + 1).padStart(2, "0");
+    const dStr = String(day.getDate()).padStart(2, "0");
+    addDay(`${y}-${mStr}-${dStr}`, "semana_blanca", "#80cbc4", "#000000", "Semana Blanca");
+  }
+
+  const diaComunidad = new Date(semBlancaMon);
+  diaComunidad.setDate(diaComunidad.getDate() + 4);
+  const diaComY = diaComunidad.getFullYear();
+  const diaComM = String(diaComunidad.getMonth() + 1).padStart(2, "0");
+  const diaComD = String(diaComunidad.getDate()).padStart(2, "0");
+  addDay(`${diaComY}-${diaComM}-${diaComD}`, "dia_comunidad_educativa", "#ffc000", "#000000", "Día de la Comunidad Educativa");
+
+  addDay(`${endYear}-02-28`, "festivo_autonomico", "#99cc33", "#000000", "Día de Andalucía");
+  if (feb28Dow === 6) {
+    addDay(`${endYear}-03-02`, "festivo_autonomico", "#99cc33", "#000000", "Festivo Autonómico (traslado Día de Andalucía)");
+  } else if (feb28Dow === 0) {
+    addDay(`${endYear}-03-01`, "festivo_autonomico", "#99cc33", "#000000", "Festivo Autonómico (traslado Día de Andalucía)");
+  }
+
+  // 7. Marzo / Abril: Sesión de Evaluación 2º Trimestre y Semana Santa (Gauss calculation)
+  addDay(`${endYear}-03-18`, "evaluacion_trimestral", "#0080ff", "#ffffff", "Sesión de evaluación 2º trimestre", "leg_eval_2");
+  addDay(`${endYear}-03-20`, "otro_evento", "#38bdf8", "#0f172a", "Entrega de Calificaciones 2º Trimestre", "leg_notas_2");
+
+  legends.push(
+    { id: "leg_eval_2", code: "18 Mar", title: "Sesion de evaluación 2 trimestre", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 3 },
+    { id: "leg_notas_2", code: "20 Mar", title: "Entrega Calificaciones 2T", type: "hito", color: "#38bdf8", textColor: "#0f172a", sidePosition: "right", monthTarget: 3 }
+  );
+
+  const easter = getEasterSunday(endYear);
+  const easterDate = new Date(endYear, easter.month - 1, easter.day);
+  const lunesSanto = new Date(easterDate);
+  lunesSanto.setDate(lunesSanto.getDate() - 6);
+  const martesSanto = new Date(easterDate);
+  martesSanto.setDate(martesSanto.getDate() - 5);
+  const miercolesSanto = new Date(easterDate);
+  miercolesSanto.setDate(miercolesSanto.getDate() - 4);
+  const juevesSanto = new Date(easterDate);
+  juevesSanto.setDate(juevesSanto.getDate() - 3);
+  const viernesSanto = new Date(easterDate);
+  viernesSanto.setDate(viernesSanto.getDate() - 2);
+
+  const formatD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  addDay(formatD(lunesSanto), "vacaciones_semana_santa", "#ff99ff", "#000000", "Vacaciones de Semana Santa");
+  addDay(formatD(martesSanto), "vacaciones_semana_santa", "#ff99ff", "#000000", "Vacaciones de Semana Santa");
+  addDay(formatD(miercolesSanto), "vacaciones_semana_santa", "#ff99ff", "#000000", "Vacaciones de Semana Santa");
+  addDay(formatD(juevesSanto), "festivo_nacional", "#ff0000", "#ffffff", "Jueves Santo");
+  addDay(formatD(viernesSanto), "festivo_nacional", "#ff0000", "#ffffff", "Viernes Santo");
+
+  // 8. Mayo: 1 de Mayo (Fiesta del Trabajo) y Evaluación Final Ordinaria
+  addDay(`${endYear}-05-01`, "festivo_nacional", "#ff0000", "#ffffff", "Fiesta del Trabajo");
+  addDay(`${endYear}-05-28`, "evaluacion_final", "#0080ff", "#ffffff", "Sesión de evaluación 3º trim. (1ª, final)", "leg_eval_3");
+  addDay(`${endYear}-05-29`, "otro_evento", "#38bdf8", "#0f172a", "Entrega de Calificaciones Evaluación Final Ordinaria", "leg_notas_ord");
+
+  legends.push(
+    { id: "leg_eval_3", code: "28 May", title: "Sesión de evaluación 3º trim. (1ª, final)", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 5 },
+    { id: "leg_notas_ord", code: "29 May", title: "Entrega Calificaciones Ordinarias", type: "hito", color: "#38bdf8", textColor: "#0f172a", sidePosition: "right", monthTarget: 5 }
+  );
+
+  // 9. Junio: Periodo de Recuperación (Semanas 1-3: 1 al 19 de Junio), 2ª Evaluación Final Extraordinaria, Fin de curso y Memorias
+  const juneRecupStart = new Date(endYear, 5, 1);
+  const juneRecupEnd = new Date(endYear, 5, 19);
+  for (let d = new Date(juneRecupStart); d <= juneRecupEnd; d.setDate(d.getDate() + 1)) {
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) continue;
+    const dateStr = `${endYear}-06-${String(d.getDate()).padStart(2, "0")}`;
+    addDay(dateStr, "periodo_recuperacion", "#f8cb9c", "#7c2d12", "Periodo de recup. aprend. No adquiridos", "leg_recup_junio");
+  }
+
+  addDay(`${endYear}-06-22`, "evaluacion_extraordinaria", "#0080ff", "#ffffff", "Sesión de evaluación segunda final", "leg_eval_fin2");
+  addDay(`${endYear}-06-23`, "inicio_fin_curso", "#ff00ff", "#ffffff", "Último día lectivo en el resto de enseñanzas", "leg_fin23");
+
+  for (let d = 24; d <= 30; d++) {
+    const checkD = new Date(endYear, 5, d);
+    const dow = checkD.getDay();
+    if (dow !== 0 && dow !== 6) {
+      addDay(`${endYear}-06-${String(d).padStart(2, "0")}`, "no_lectivo", "#e2e8f0", "#334155", "Planificación para el curso siguiente y memorias");
+    }
+  }
+
+  legends.push(
+    { id: "leg_recup_junio", code: "Recup", title: "Periodo de recup. aprend. No adquiridos", type: "recuperacion", color: "#f8cb9c", textColor: "#7c2d12", sidePosition: "right", monthTarget: 6 },
+    { id: "leg_eval_fin2", code: "22 Jun", title: "Sesión de evaluación segunda final", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 6 },
+    { id: "leg_fin23", code: "23", title: "Último día lectivo en el resto de enseñanzas", type: "hito", color: "#ff00ff", textColor: "#fff", sidePosition: "right", monthTarget: 6 },
+    { id: "leg_plan_siguiente", code: "24-30 Jun", title: "Planificación curso siguiente y memorias", type: "hito", color: "#cbd5e1", textColor: "#1e293b", sidePosition: "right", monthTarget: 6 }
+  );
+
+  return { dayOverrides: overrides, legendItems: legends };
+}
+
+export interface FormatUdLegendOptions {
+  udNumber?: number;
+  id?: string;
+  bcCode?: string;
+  horasAsignadas?: number;
+  totalHoras?: number;
+  sesiones?: number;
+  title: string;
+  moduloCodigo?: string;
+}
+
+/**
+ * Standard UD Legend Title Formatter conforming strictly to the official SIGRE standard:
+ * Format: [UDxx] [BCXX] [horas asignadas del total de horas] [Número de sesiones] [Titulo]
+ * e.g. "[UD01] [BC7] [14/160h] [7 sesiones] Prevención de riesgos laborales y protección ambiental"
+ * Code e.g.: "UD01. BC7 (14h/7s)" or "UD01. BC7 (12h/6s)"
+ */
+export function buildUdLegendTitleAndCode(opts: FormatUdLegendOptions): {
+  code: string;
+  title: string;
+} {
+  const udNum = opts.udNumber || 1;
+  const udFormatted = `UD${String(udNum).padStart(2, "0")}`;
+
+  // Extract / normalize BC or RA code (e.g. "BC7", "BC1", "RA08")
+  let cleanBc = (opts.bcCode || `BC${udNum}`).trim().toUpperCase();
+  if (/^\d+$/.test(cleanBc)) {
+    cleanBc = `BC${cleanBc}`;
+  } else if (!cleanBc.startsWith("BC") && !cleanBc.startsWith("RA") && !cleanBc.startsWith("UT")) {
+    cleanBc = `BC${cleanBc}`;
+  }
+
+  // Calculate hours & total hours
+  const totalHoras = opts.totalHoras && opts.totalHoras > 0 ? opts.totalHoras : 160;
+  const horasAsignadas =
+    opts.horasAsignadas && opts.horasAsignadas > 0
+      ? opts.horasAsignadas
+      : Math.max(10, Math.round(totalHoras / (udNum > 10 ? 12 : 8)));
+
+  // Calculate sessions
+  const sesiones =
+    opts.sesiones && opts.sesiones > 0
+      ? opts.sesiones
+      : Math.max(1, Math.round(horasAsignadas / 2));
+  const sesionesStr = sesiones === 1 ? "1 sesión" : `${sesiones} sesiones`;
+
+  // Clean raw title to remove any already nested or duplicate prefix tags
+  let cleanTitle = (opts.title || `Unidad Didáctica ${udNum}`).trim();
+  cleanTitle = cleanTitle
+    .replace(/^\[UD\d+\]\s*/gi, "")
+    .replace(/^\[(?:BC|RA|UT)\w+\]\s*/gi, "")
+    .replace(/^\[\d+(?:\/\d+)?h?(?:\s*de\s*\d+h?)?\]\s*/gi, "")
+    .replace(/^\[\d+\s*sesion(?:es)?\]\s*/gi, "")
+    .replace(/^\d{3,4}\.[\s._-]*(?:BC|RA|UT)?\d*[\s.:_-]*/gi, "")
+    .replace(/^[A-Z0-9_-]+\.[\s._-]*(?:BC|RA|UT)\d*[\s.:_-]*/gi, "")
+    .replace(/^(?:UD|RA|UT|BC)[\s._-]*\d+[\s.:_-]*/gi, "")
+    .replace(/^(?:BC|RA|UT)[\s._-]*\d+[\s.:_-]*/gi, "")
+    .replace(/^\((.*)\)$/, "$1")
+    .replace(/^\[\s*\]/g, "")
+    .trim();
+
+  if (!cleanTitle) {
+    cleanTitle = `Unidad Didáctica ${udNum}`;
+  }
+
+  // Format requested: [UDxx] [BCXX] [horas asignadas del total de horas] [Número de sesiones] [Titulo]
+  const formattedTitle = `[${udFormatted}] [${cleanBc}] [${horasAsignadas}/${totalHoras}h] [${sesionesStr}] ${cleanTitle}`;
+  const formattedCode = `${udFormatted}. ${cleanBc} (${horasAsignadas}h/${sesiones}s)`;
+
+  return {
+    code: formattedCode,
+    title: formattedTitle,
+  };
+}
+
 // Auto-distribute SIGRE UDs evenly across teaching weeks
 // Pedagogically distributes ordinary UDs from September to late May (avoiding June),
 // and establishes the June Recuperation Period (weeks 1-3) & Final Assessment / Planning (week 4)
@@ -1063,58 +1536,146 @@ export function autoDistributeUdsToCalendar(
 ): SigreAcademicCalendar {
   if (!uds || uds.length === 0) return calendar;
 
+  // Helper to extract clean numeric UD index for strict ordering
+  const extractUdNumber = (ud: SigreUDItem, idx: number): number => {
+    if (typeof ud.number === "number" && !isNaN(ud.number) && ud.number > 0) return ud.number;
+    const strToSearch = `${ud.bcCode || ""} ${ud.id || ""} ${ud.fullCode || ""} ${ud.title || ""}`;
+    const match = strToSearch.match(/(?:UD|RA|UT|BC|TEMA|UNIDAD)[\s._-]*0*(\d+)/i) || strToSearch.match(/\b0*(\d+)\b/);
+    if (match && match[1]) {
+      const parsed = parseInt(match[1], 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    return idx + 1;
+  };
+
+  // Total horas from plan if available
+  const totalHorasPlan =
+    uds.reduce((sum, u) => sum + (u.horasEstimadas || 0), 0) || 160;
+
+  // Pedagogical Rule: Ensure any PRL (Prevención de Riesgos Laborales) unit is placed FIRST at the start of the academic year (September)
+  const sortedUds = [...uds].sort((a, b) => {
+    const isPrlA = Boolean(
+      a.isPrl ||
+      a.title?.toLowerCase().includes("prevención") ||
+      a.title?.toLowerCase().includes("prevencion") ||
+      a.title?.toLowerCase().includes("riesgos laborales") ||
+      a.title?.toLowerCase().includes("riesgos") ||
+      a.title?.toLowerCase().includes("prl") ||
+      a.fullCode?.toLowerCase().includes("prl") ||
+      a.bcCode?.toLowerCase().includes("prl")
+    );
+    const isPrlB = Boolean(
+      b.isPrl ||
+      b.title?.toLowerCase().includes("prevención") ||
+      b.title?.toLowerCase().includes("prevencion") ||
+      b.title?.toLowerCase().includes("riesgos laborales") ||
+      b.title?.toLowerCase().includes("riesgos") ||
+      b.title?.toLowerCase().includes("prl") ||
+      b.fullCode?.toLowerCase().includes("prl") ||
+      b.bcCode?.toLowerCase().includes("prl")
+    );
+
+    if (isPrlA && !isPrlB) return -1;
+    if (!isPrlA && isPrlB) return 1;
+    return extractUdNumber(a, 0) - extractUdNumber(b, 0);
+  });
+
   const parts = calendar.academicYear.split("-");
-  const startYear = parseInt(parts[0], 10) || 2026;
+  const startYear = parseInt(parts[0], 10) || 2025;
   const endYear = parseInt(parts[1], 10) || startYear + 1;
 
   // Cut-off date for ordinary teaching: May 31st (June is strictly reserved for Recuperation & Final Evals)
   const cutoffOrdinaryTeaching = `${endYear}-05-31`;
 
+  // Get official baseline calendar overrides and legend items
+  const baseline = getOfficialAndalusianHolidaysAndVacations(calendar.academicYear);
+
+  // Initialize new overrides by merging baseline and any existing non-UD special overrides
+  const newOverrides: Record<string, SigreCalendarDayOverride> = { ...baseline.dayOverrides };
+
+  // Preserve user custom milestones if they are special event types
+  Object.entries(calendar.dayOverrides || {}).forEach(([dateStr, ov]) => {
+    const d = parseDateSafe(dateStr);
+    const dayOfWeek = d.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+    if (isWeekend) {
+      if (isSpecialEventType(ov.type)) {
+        newOverrides[dateStr] = {
+          ...ov,
+          assignedUdId: undefined,
+          assignedUdCode: undefined,
+        };
+      }
+      return;
+    }
+
+    if (isSpecialEventType(ov.type)) {
+      newOverrides[dateStr] = {
+        ...ov,
+        assignedUdId: undefined,
+        assignedUdCode: undefined,
+      };
+    }
+  });
+
+  // Collect ordinary teaching days (Monday to Friday) between calendar.startDate (Sep 15) and May 31st
   const validSchoolDays: string[] = [];
   const months = getAcademicMonthsList(calendar.academicYear);
 
   months.forEach(({ year, month }) => {
-    const monthData = generateMonthGrid(year, month, calendar);
-    monthData.days
-      .filter((d) => d.isCurrentMonth && !d.isWeekend)
-      .forEach((d) => {
-        // Collect ordinary school days between calendar.startDate and May 31st
-        if (d.dateString >= calendar.startDate && d.dateString <= cutoffOrdinaryTeaching) {
-          const type = d.override?.type;
-          const isHoliday =
-            type === "festivo_nacional" ||
-            type === "festivo_autonomico" ||
-            type === "festivo_local" ||
-            type === "vacaciones_navidad" ||
-            type === "vacaciones_semana_santa" ||
-            type === "semana_blanca" ||
-            type === "dia_comunidad_educativa" ||
-            type === "no_lectivo";
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    for (let dayNum = 1; dayNum <= totalDays; dayNum++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+      const dayDate = new Date(year, month, dayNum);
+      const dayOfWeek = dayDate.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Skip weekends
 
-          if (!isHoliday) {
-            validSchoolDays.push(d.dateString);
-          }
+      if (dateStr >= calendar.startDate && dateStr <= cutoffOrdinaryTeaching) {
+        const ov = newOverrides[dateStr];
+        const type = ov?.type;
+        const isNonTeachingHoliday =
+          type === "festivo_nacional" ||
+          type === "festivo_autonomico" ||
+          type === "festivo_local" ||
+          type === "vacaciones_navidad" ||
+          type === "vacaciones_semana_santa" ||
+          type === "semana_blanca" ||
+          type === "dia_comunidad_educativa" ||
+          type === "no_lectivo";
+
+        if (!isNonTeachingHoliday) {
+          validSchoolDays.push(dateStr);
         }
-      });
+      }
+    }
   });
 
   const totalLectivos = validSchoolDays.length;
   if (totalLectivos === 0) return calendar;
 
-  const daysPerUd = Math.max(1, Math.floor(totalLectivos / uds.length));
-  const newOverrides = { ...calendar.dayOverrides };
+  const daysPerUd = Math.max(1, Math.floor(totalLectivos / sortedUds.length));
 
-  // Retain non-UD legend items and non-auto items
-  const preservedLegendItems: SigreCalendarLegendItem[] = calendar.legendItems.filter(
-    (l) => l.type !== "ud_ra" && !l.id.startsWith("leg_auto_") && !l.id.startsWith("leg_recup_")
-  );
+  // Purge ALL existing UD legend items and replace with clean baseline legend items
+  const preservedLegendItems: SigreCalendarLegendItem[] = [
+    ...baseline.legendItems,
+    ...(calendar.legendItems || []).filter(
+      (l) =>
+        l.type !== "ud_ra" &&
+        !l.id.startsWith("leg_auto_") &&
+        !l.id.startsWith("leg_ud_") &&
+        !l.id.startsWith("leg25_ra") &&
+        !l.id.startsWith("ist_ra") &&
+        !baseline.legendItems.some((b) => b.id === l.id)
+    ),
+  ];
 
   const updatedLegendItems: SigreCalendarLegendItem[] = [...preservedLegendItems];
 
-  // 1. Distribute ordinary UDs from September to May
-  uds.forEach((ud, index) => {
+  // Distribute UDs sequentially and continuously
+  sortedUds.forEach((ud, index) => {
     const startIdx = index * daysPerUd;
-    const endIdx = index === uds.length - 1 ? totalLectivos : Math.min(totalLectivos, (index + 1) * daysPerUd);
+    const endIdx = index === sortedUds.length - 1 ? totalLectivos : Math.min(totalLectivos, (index + 1) * daysPerUd);
     const assignedDays = validSchoolDays.slice(startIdx, endIdx);
 
     if (assignedDays.length === 0) return;
@@ -1136,25 +1697,46 @@ export function autoDistributeUdsToCalendar(
     }
 
     const palette = UD_COLOR_PALETTE[index % UD_COLOR_PALETTE.length];
-    const legId = `leg_auto_${ud.id || "ud_" + (index + 1)}`;
-    const udCode = `${moduloCodigo ? moduloCodigo.split(" ")[0] : "MOD"}. ${ud.bcCode || "UD" + ud.number}`;
+    const udNum = extractUdNumber(ud, index);
+    const legId = `leg_ud_${index + 1}_${udNum}`;
+
+    const { code: udCode, title: udTitle } = buildUdLegendTitleAndCode({
+      udNumber: udNum,
+      id: ud.id,
+      bcCode: ud.bcCode,
+      horasAsignadas: ud.horasEstimadas,
+      totalHoras: totalHorasPlan,
+      sesiones: ud.sesionesEstimadas,
+      title: ud.title || ud.fullCode || `Unidad Didáctica ${udNum}`,
+      moduloCodigo,
+    });
+
+    // Compute side position according to the semester/column layout:
+    // Left column: Sept(9), Oct(10), Nov(11), Dec(12), Jan(1)
+    // Right column: Feb(2), Mar(3), Apr(4), May(5), Jun(6)
+    const isFirstSemester = [9, 10, 11, 12, 1].includes(firstMonthNum);
+    const sidePos: "left" | "right" = isFirstSemester ? "left" : "right";
 
     updatedLegendItems.push({
       id: legId,
       code: udCode,
-      title: `${udCode} (${ud.title || "Unidad Didáctica " + ud.number})`,
+      title: udTitle,
       type: "ud_ra",
       color: palette.bg,
       textColor: palette.text,
       udId: ud.id,
       monthTarget: firstMonthNum,
-      sidePosition: index % 2 === 0 ? "left" : "right",
+      sidePosition: sidePos,
       dayRangeText: rangeText,
     });
 
     assignedDays.forEach((dateStr) => {
+      const d = parseDateSafe(dateStr);
+      if (d.getDay() === 0 || d.getDay() === 6) return; // Strict weekend safety
+
       const existing = newOverrides[dateStr];
       if (existing && isSpecialEventType(existing.type)) {
+        // Preserve milestone visuals (e.g. Sep 15 Inicio FP with #ff00ff, Sep 22 Evaluación Inicial with #99cc33)
         newOverrides[dateStr] = {
           ...existing,
           assignedUdId: legId,
@@ -1165,224 +1747,230 @@ export function autoDistributeUdsToCalendar(
           date: dateStr,
           type: "lectivo",
           legendItemId: legId,
+          assignedUdId: legId,
+          assignedUdCode: udCode,
           customColor: palette.bg,
           customTextColor: palette.text,
-          title: `${udCode}: ${ud.title}`,
+          title: udTitle,
         };
       }
     });
   });
 
-  // 2. Establish Trimester Assessment Sessions & Report Card Deliveries (1T, 2T, 3T)
-  const ensureMilestone = (
-    dateStr: string,
-    type: SigreCalendarDayType,
-    legId: string,
-    code: string,
-    title: string,
-    color: string,
-    textColor: string,
-    monthTarget: number,
-    sidePosition: "left" | "right" = "right"
-  ) => {
-    newOverrides[dateStr] = {
-      date: dateStr,
-      type,
-      legendItemId: legId,
-      customColor: color,
-      customTextColor: textColor,
-      title,
-    };
-    if (!updatedLegendItems.some((l) => l.id === legId)) {
-      updatedLegendItems.push({
-        id: legId,
-        code,
-        title,
-        type: type === "periodo_recuperacion" ? "recuperacion" : type === "inicio_fin_curso" ? "hito" : "evaluacion",
-        color,
-        textColor,
-        monthTarget,
-        sidePosition,
+  return sanitizeAcademicCalendar({
+    ...calendar,
+    totalLectivosEstimated: totalLectivos,
+    legendItems: updatedLegendItems,
+    dayOverrides: newOverrides,
+  });
+}
+
+// Ensure strict uniqueness of legend item IDs, normalize all UD legend items to the official standard format, and ensure structural integrity across the calendar
+export function sanitizeAcademicCalendar(calendar: SigreAcademicCalendar): SigreAcademicCalendar {
+  if (!calendar) return calendar;
+
+  const seenLegendIds = new Set<string>();
+  const sanitizedLegendItems: SigreCalendarLegendItem[] = [];
+  const codeMapping = new Map<string, { oldCode: string; newCode: string; newTitle: string; newId: string }>();
+
+  // Counter for sequential UD numbering when needed
+  let udCounter = 0;
+
+  (calendar.legendItems || []).forEach((leg, idx) => {
+    let finalId = leg.id || `leg_${idx + 1}`;
+    if (seenLegendIds.has(finalId)) {
+      finalId = `${finalId}_${idx + 1}`;
+    }
+    seenLegendIds.add(finalId);
+
+    const isUdItem =
+      leg.type === "ud_ra" ||
+      finalId.startsWith("leg_ud_") ||
+      finalId.startsWith("ist_ud_") ||
+      finalId.startsWith("cit_ud_") ||
+      finalId.startsWith("dig_ud_") ||
+      finalId.startsWith("leg25_ra") ||
+      Boolean(leg.code && /^(?:UD\d+|\d{3,4}\.\s*(?:BC|RA|UT)|[A-Z0-9_-]+\.\s*(?:BC|RA|UT))/i.test(leg.code.trim())) ||
+      Boolean(leg.title && /^(?:\[UD\d+\]|\d{3,4}\.\s*(?:BC|RA|UT)|(?:BC|RA|UT)\d+)/i.test(leg.title.trim()));
+
+    if (isUdItem) {
+      udCounter++;
+
+      // 1. Extract UD Number
+      let udNum = udCounter;
+      if (leg.udId && /UD\s*0*(\d+)/i.test(leg.udId)) {
+        udNum = parseInt(leg.udId.match(/UD\s*0*(\d+)/i)![1], 10);
+      } else if (leg.code && /UD\s*0*(\d+)/i.test(leg.code)) {
+        udNum = parseInt(leg.code.match(/UD\s*0*(\d+)/i)![1], 10);
+      } else if (finalId && /(?:ud|ra)_*0*(\d+)/i.test(finalId)) {
+        udNum = parseInt(finalId.match(/(?:ud|ra)_*0*(\d+)/i)![1], 10);
+      } else if (leg.title && /\[UD\s*0*(\d+)\]/i.test(leg.title)) {
+        udNum = parseInt(leg.title.match(/\[UD\s*0*(\d+)\]/i)![1], 10);
+      }
+
+      // 2. Extract BC code
+      let bcCode = (leg.bcCode || "").trim().toUpperCase();
+      if (!bcCode) {
+        const bcMatch =
+          (leg.code || "").match(/(?:BC|RA|UT)\s*0*(\d+)/i) ||
+          (leg.title || "").match(/\[(?:BC|RA|UT)\s*0*(\d+)\]/i) ||
+          (leg.title || "").match(/(?:BC|RA|UT)\s*0*(\d+)/i);
+        if (bcMatch) {
+          const prefix = bcMatch[0].toUpperCase().startsWith("RA") ? "RA" : bcMatch[0].toUpperCase().startsWith("UT") ? "UT" : "BC";
+          bcCode = `${prefix}${parseInt(bcMatch[1], 10)}`;
+        } else {
+          bcCode = `BC${udNum}`;
+        }
+      }
+
+      // 3. Extract Hours and Total Hours
+      let horasAsignadas = leg.horasAsignadas || (leg as any).horasEstimadas;
+      let totalHoras = 160;
+      const hoursMatch = (leg.title || "").match(/\[\s*(\d+)\s*\/\s*(\d+)\s*h\s*\]/i);
+      if (hoursMatch) {
+        horasAsignadas = parseInt(hoursMatch[1], 10);
+        totalHoras = parseInt(hoursMatch[2], 10);
+      } else {
+        const shorthandMatch = (leg.code || "").match(/\((\d+)h\/(\d+)s\)/i);
+        if (shorthandMatch) {
+          horasAsignadas = parseInt(shorthandMatch[1], 10);
+        }
+      }
+      if (!horasAsignadas || horasAsignadas <= 0) {
+        horasAsignadas = Math.max(10, Math.round(totalHoras / (udNum > 10 ? 12 : 8)));
+      }
+
+      // 4. Extract Sessions
+      let sesiones = leg.sesiones || (leg as any).sesionesEstimadas;
+      const sesMatch = (leg.title || "").match(/\[\s*(\d+)\s*sesion(?:es)?\s*\]/i);
+      if (sesMatch) {
+        sesiones = parseInt(sesMatch[1], 10);
+      } else {
+        const shorthandMatch = (leg.code || "").match(/\((\d+)h\/(\d+)s\)/i);
+        if (shorthandMatch) {
+          sesiones = parseInt(shorthandMatch[2], 10);
+        }
+      }
+      if (!sesiones || sesiones <= 0) {
+        sesiones = Math.max(1, Math.round(horasAsignadas / 2));
+      }
+
+      // 5. Clean Title (remove any prefixes, old module codes like "0392. BC1", etc.)
+      let cleanTitle = (leg.title || `Unidad Didáctica ${udNum}`).trim();
+      cleanTitle = cleanTitle
+        .replace(/^\[UD\d+\]\s*/gi, "")
+        .replace(/^\[(?:BC|RA|UT)\w+\]\s*/gi, "")
+        .replace(/^\[\d+(?:\/\d+)?h?(?:\s*de\s*\d+h?)?\]\s*/gi, "")
+        .replace(/^\[\d+\s*sesion(?:es)?\]\s*/gi, "")
+        .replace(/^\d{3,4}\.[\s._-]*(?:BC|RA|UT)?\d*[\s.:_-]*/gi, "")
+        .replace(/^[A-Z0-9_-]+\.[\s._-]*(?:BC|RA|UT)\d*[\s.:_-]*/gi, "")
+        .replace(/^(?:UD|RA|UT|BC)[\s._-]*\d+[\s.:_-]*/gi, "")
+        .replace(/^(?:BC|RA|UT)[\s._-]*\d+[\s.:_-]*/gi, "")
+        .replace(/^\((.*)\)$/, "$1")
+        .replace(/^\[\s*\]/g, "")
+        .trim();
+
+      if (!cleanTitle) {
+        cleanTitle = `Unidad Didáctica ${udNum}`;
+      }
+
+      const { code: normalizedCode, title: normalizedTitle } = buildUdLegendTitleAndCode({
+        udNumber: udNum,
+        id: finalId,
+        bcCode: bcCode,
+        horasAsignadas,
+        totalHoras,
+        sesiones,
+        title: cleanTitle,
+      });
+
+      if (leg.code && leg.code !== normalizedCode) {
+        codeMapping.set(leg.code, {
+          oldCode: leg.code,
+          newCode: normalizedCode,
+          newTitle: normalizedTitle,
+          newId: finalId,
+        });
+      }
+      codeMapping.set(finalId, {
+        oldCode: leg.code || "",
+        newCode: normalizedCode,
+        newTitle: normalizedTitle,
+        newId: finalId,
+      });
+
+      sanitizedLegendItems.push({
+        ...leg,
+        id: finalId,
+        type: "ud_ra",
+        code: normalizedCode,
+        title: normalizedTitle,
+        udId: `UD${String(udNum).padStart(2, "0")}`,
+        bcCode: bcCode,
+        horasAsignadas: horasAsignadas,
+        totalHoras: totalHoras,
+        sesiones: sesiones,
+      });
+    } else {
+      sanitizedLegendItems.push({
+        ...leg,
+        id: finalId,
       });
     }
-  };
+  });
 
-  // 1º Trimestre Milestones
-  ensureMilestone(
-    `${startYear}-12-16`,
-    "evaluacion_trimestral",
-    "leg_eval_1",
-    "16 Dic",
-    "Sesión de Evaluación 1º Trimestre",
-    "#0080ff",
-    "#ffffff",
-    12,
-    "right"
-  );
-  ensureMilestone(
-    `${startYear}-12-21`,
-    "otro_evento",
-    "leg_notas_1",
-    "21 Dic",
-    "Entrega de Calificaciones y Boletines 1º Trimestre",
-    "#38bdf8",
-    "#0f172a",
-    12,
-    "right"
-  );
-
-  // 2º Trimestre Milestones
-  ensureMilestone(
-    `${endYear}-03-17`,
-    "evaluacion_trimestral",
-    "leg_eval_2",
-    "17 Mar",
-    "Sesión de Evaluación 2º Trimestre",
-    "#0080ff",
-    "#ffffff",
-    3,
-    "right"
-  );
-  ensureMilestone(
-    `${endYear}-03-22`,
-    "otro_evento",
-    "leg_notas_2",
-    "22 Mar",
-    "Entrega de Calificaciones y Boletines 2º Trimestre",
-    "#38bdf8",
-    "#0f172a",
-    3,
-    "right"
-  );
-
-  // 3º Trimestre: 1ª Sesión Evaluación Final Ordinaria & Entrega de Notas
-  ensureMilestone(
-    `${endYear}-05-28`,
-    "evaluacion_final",
-    "leg_eval_fin1",
-    "28 May",
-    "1ª Sesión de Evaluación Final Ordinaria",
-    "#0080ff",
-    "#ffffff",
-    5,
-    "right"
-  );
-  ensureMilestone(
-    `${endYear}-06-01`,
-    "otro_evento",
-    "leg_notas_ord",
-    "1 Jun",
-    "Entrega de Calificaciones Evaluación Final Ordinaria",
-    "#38bdf8",
-    "#0f172a",
-    6,
-    "right"
-  );
-
-  // 3. JUNE: Weeks 1, 2 and 3 (1 al 19 de Junio) -> PERIOD OF RECOVERY OF NON-ACQUIRED LEARNING (Recuperación)
-  const juneRecupStart = new Date(endYear, 5, 1); // 1 de Junio
-  const juneRecupEnd = new Date(endYear, 5, 19); // 19 de Junio
-
-  for (let d = new Date(juneRecupStart); d <= juneRecupEnd; d.setDate(d.getDate() + 1)) {
+  const sanitizedDayOverrides: Record<string, SigreCalendarDayOverride> = {};
+  Object.entries(calendar.dayOverrides || {}).forEach(([dateStr, ov]) => {
+    const d = parseDateSafe(dateStr);
     const dayOfWeek = d.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Skip weekends
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-    const dateStr = `${endYear}-06-${String(d.getDate()).padStart(2, "0")}`;
-    // Don't overwrite the June 1st note delivery milestone if it's there
-    if (dateStr === `${endYear}-06-01`) {
-      newOverrides[dateStr] = {
-        date: dateStr,
-        type: "periodo_recuperacion",
-        legendItemId: "leg_recup_junio",
-        customColor: "#f8cb9c",
-        customTextColor: "#7c2d12",
-        title: "Inicio Periodo de Recuperación y Entrega Calificaciones Ordinarias",
-      };
+    if (isWeekend) {
+      // Weekends MUST NEVER be lectivo and MUST NEVER have UD assignments
+      if (ov.type === "lectivo" || ov.assignedUdId || ov.assignedUdCode) {
+        return; // Drop invalid lectivo/UD overrides on weekends
+      }
+      // If it's a legitimate holiday on a weekend (e.g. Navidad / Todos los Santos), preserve it without UD assignment
+      if (isSpecialEventType(ov.type)) {
+        sanitizedDayOverrides[dateStr] = {
+          ...ov,
+          type: ov.type,
+          assignedUdId: undefined,
+          assignedUdCode: undefined,
+        };
+      }
     } else {
-      newOverrides[dateStr] = {
-        date: dateStr,
-        type: "periodo_recuperacion",
-        legendItemId: "leg_recup_junio",
-        customColor: "#f8cb9c",
-        customTextColor: "#7c2d12",
-        title: "Periodo de Recuperación de Aprendizajes No Adquiridos y Refuerzo (Sem. 1-3)",
-      };
+      let updatedOv = { ...ov };
+      if (ov.assignedUdId && codeMapping.has(ov.assignedUdId)) {
+        const mapping = codeMapping.get(ov.assignedUdId)!;
+        updatedOv.assignedUdCode = mapping.newCode;
+        if (updatedOv.title && (/^\d{3,4}\./.test(updatedOv.title) || /^UD\d+/.test(updatedOv.title) || /^\[UD\d+\]/.test(updatedOv.title))) {
+          updatedOv.title = mapping.newTitle;
+        }
+      } else if (ov.assignedUdCode && codeMapping.has(ov.assignedUdCode)) {
+        const mapping = codeMapping.get(ov.assignedUdCode)!;
+        updatedOv.assignedUdCode = mapping.newCode;
+        updatedOv.assignedUdId = mapping.newId;
+        if (updatedOv.title && (/^\d{3,4}\./.test(updatedOv.title) || /^UD\d+/.test(updatedOv.title) || /^\[UD\d+\]/.test(updatedOv.title))) {
+          updatedOv.title = mapping.newTitle;
+        }
+      } else if (ov.legendItemId && codeMapping.has(ov.legendItemId)) {
+        const mapping = codeMapping.get(ov.legendItemId)!;
+        updatedOv.assignedUdCode = mapping.newCode;
+        updatedOv.assignedUdId = mapping.newId;
+        if (updatedOv.title && (/^\d{3,4}\./.test(updatedOv.title) || /^UD\d+/.test(updatedOv.title) || /^\[UD\d+\]/.test(updatedOv.title))) {
+          updatedOv.title = mapping.newTitle;
+        }
+      }
+      sanitizedDayOverrides[dateStr] = updatedOv;
     }
-  }
-
-  if (!updatedLegendItems.some((l) => l.id === "leg_recup_junio")) {
-    updatedLegendItems.push({
-      id: "leg_recup_junio",
-      code: "1-19 Jun",
-      title: "Periodo de Recuperación de Aprendizajes No Adquiridos (Semanas 1-3)",
-      type: "recuperacion",
-      color: "#f8cb9c",
-      textColor: "#7c2d12",
-      monthTarget: 6,
-      sidePosition: "left",
-      dayRangeText: "01-19 JUN",
-    });
-  }
-
-  // 4. JUNE: 4th Week (20-24 de Junio y cierre) -> 2ª Evaluación Final Extraordinaria, Fin de Clases y Planificación
-  ensureMilestone(
-    `${endYear}-06-22`,
-    "evaluacion_extraordinaria",
-    "leg_eval_ext",
-    "22 Jun",
-    "2ª Sesión de Evaluación Final Extraordinaria",
-    "#0080ff",
-    "#ffffff",
-    6,
-    "right"
-  );
-
-  ensureMilestone(
-    `${endYear}-06-24`,
-    "inicio_fin_curso",
-    "leg_fin_fp",
-    "24 Jun",
-    "Fin de Régimen de Clases y Entrega de Calificaciones Finales",
-    "#d946ef",
-    "#ffffff",
-    6,
-    "right"
-  );
-
-  // June 25 to 30: Planificación para el curso siguiente y memorias de departamento
-  const junePlanStart = new Date(endYear, 5, 25);
-  const junePlanEnd = new Date(endYear, 5, 30);
-  for (let d = new Date(junePlanStart); d <= junePlanEnd; d.setDate(d.getDate() + 1)) {
-    const dayOfWeek = d.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) continue;
-    const dateStr = `${endYear}-06-${String(d.getDate()).padStart(2, "0")}`;
-    newOverrides[dateStr] = {
-      date: dateStr,
-      type: "no_lectivo",
-      customColor: "#e2e8f0",
-      customTextColor: "#334155",
-      title: "Planificación para el curso siguiente y memorias de departamento",
-    };
-  }
-
-  if (!updatedLegendItems.some((l) => l.id === "leg_plan_siguiente")) {
-    updatedLegendItems.push({
-      id: "leg_plan_siguiente",
-      code: "25-30 Jun",
-      title: "Planificación curso siguiente, memorias y reclamaciones",
-      type: "hito",
-      color: "#cbd5e1",
-      textColor: "#1e293b",
-      monthTarget: 6,
-      sidePosition: "right",
-      dayRangeText: "25-30 JUN",
-    });
-  }
+  });
 
   return {
     ...calendar,
-    legendItems: updatedLegendItems,
-    dayOverrides: newOverrides,
+    legendItems: sanitizedLegendItems,
+    dayOverrides: sanitizedDayOverrides,
+    specialEvents: calendar.specialEvents || [],
   };
 }
 
@@ -1400,6 +1988,14 @@ export const UD_COLOR_PALETTE = [
   { bg: "#ffd966", text: "#713f12", border: "#facc15" }, // Amarillo Mostaza (UD10)
   { bg: "#f8cb9c", text: "#7c2d12", border: "#fb923c" }, // Melocotón Tostado (UD11)
   { bg: "#fbcfe8", text: "#831843", border: "#f472b6" }, // Rosa Fucsia Suave (UD12)
+  { bg: "#dbeafe", text: "#1e3a8a", border: "#93c5fd" }, // Azul Índigo Claro (UD13)
+  { bg: "#ccfbf1", text: "#115e59", border: "#5eead4" }, // Verde Esmeralda Pastel (UD14)
+  { bg: "#fed7aa", text: "#9a3412", border: "#fdba74" }, // Coral Cálido (UD15)
+  { bg: "#ede9fe", text: "#5b21b6", border: "#c4b5fd" }, // Violeta Iris (UD16)
+  { bg: "#fce7f3", text: "#9d174d", border: "#f472b6" }, // Rosa Palo (UD17)
+  { bg: "#ecfccb", text: "#3f6212", border: "#bef264" }, // Lima Suave (UD18)
+  { bg: "#e0f2fe", text: "#075985", border: "#7dd3fc" }, // Azul Glaciar (UD19)
+  { bg: "#fef3c7", text: "#92400e", border: "#fcd34d" }, // Ámbar Dorado (UD20)
 ];
 
 // Helper to create a new academic calendar template
@@ -1412,13 +2008,15 @@ export function createNewAcademicCalendarTemplate(
   docente: string = "Profesorado FP"
 ): SigreAcademicCalendar {
   const parts = academicYear.split("-");
-  const startYear = parseInt(parts[0], 10) || 2027;
+  const startYear = parseInt(parts[0], 10) || 2025;
   const endYear = parseInt(parts[1], 10) || startYear + 1;
 
   const startDate = `${startYear}-09-15`;
   const endDate = `${endYear}-06-24`;
 
-  return {
+  const baseline = getOfficialAndalusianHolidaysAndVacations(academicYear);
+
+  return sanitizeAcademicCalendar({
     id: `cal_${startYear}_${endYear}_andalucia`,
     academicYear: `${startYear}-${endYear}`,
     region: "Andalucía",
@@ -1433,59 +2031,108 @@ export function createNewAcademicCalendarTemplate(
     cicloFormativo,
     docente,
     totalLectivosEstimated: 175,
-    legendItems: [
-      { id: "leg_ini_fp", code: "15 Sep", title: "Inicio Régimen Ordinario Formación Profesional", type: "hito", color: "#d8b4fe", sidePosition: "left", monthTarget: 9 },
-      { id: "leg_eval_1", code: "16 Dic", title: "Sesión de Evaluación 1º Trimestre", type: "evaluacion", color: "#0080ff", textColor: "#ffffff", sidePosition: "right", monthTarget: 12 },
-      { id: "leg_notas_1", code: "21 Dic", title: "Entrega Calificaciones 1º Trimestre", type: "hito", color: "#38bdf8", textColor: "#0f172a", sidePosition: "right", monthTarget: 12 },
-      { id: "leg_eval_2", code: "17 Mar", title: "Sesión de Evaluación 2º Trimestre", type: "evaluacion", color: "#0080ff", textColor: "#ffffff", sidePosition: "right", monthTarget: 3 },
-      { id: "leg_notas_2", code: "22 Mar", title: "Entrega Calificaciones 2º Trimestre", type: "hito", color: "#38bdf8", textColor: "#0f172a", sidePosition: "right", monthTarget: 3 },
-      { id: "leg_eval_fin1", code: "28 May", title: "1ª Sesión de Evaluación Final Ordinaria", type: "evaluacion", color: "#0080ff", textColor: "#ffffff", sidePosition: "right", monthTarget: 5 },
-      { id: "leg_notas_ord", code: "1 Jun", title: "Entrega Calificaciones Evaluación Ordinaria", type: "hito", color: "#38bdf8", textColor: "#0f172a", sidePosition: "right", monthTarget: 6 },
-      { id: "leg_recup_junio", code: "1-19 Jun", title: "Periodo de Recuperación de Aprendizajes No Adquiridos (Semanas 1-3)", type: "recuperacion", color: "#f8cb9c", textColor: "#7c2d12", sidePosition: "left", monthTarget: 6, dayRangeText: "01-19 JUN" },
-      { id: "leg_eval_ext", code: "22 Jun", title: "2ª Sesión de Evaluación Final Extraordinaria", type: "evaluacion", color: "#0080ff", textColor: "#ffffff", sidePosition: "right", monthTarget: 6 },
-      { id: "leg_fin_fp", code: "24 Jun", title: "Fin de clases y entrega final de calificaciones", type: "hito", color: "#d946ef", textColor: "#ffffff", sidePosition: "right", monthTarget: 6 },
-      { id: "leg_plan_siguiente", code: "25-30 Jun", title: "Planificación curso siguiente y memorias", type: "hito", color: "#cbd5e1", textColor: "#1e293b", sidePosition: "right", monthTarget: 6, dayRangeText: "25-30 JUN" },
-    ],
-    dayOverrides: {
-      [`${startYear}-09-15`]: { date: `${startYear}-09-15`, type: "inicio_fin_curso", customColor: "#d8b4fe", title: "Inicio de clases FP" },
-      [`${startYear}-10-12`]: { date: `${startYear}-10-12`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Fiesta Nacional de España" },
-      [`${startYear}-11-01`]: { date: `${startYear}-11-01`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Todos los Santos" },
-      [`${startYear}-12-06`]: { date: `${startYear}-12-06`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Día de la Constitución" },
-      [`${startYear}-12-08`]: { date: `${startYear}-12-08`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Inmaculada Concepción" },
-      [`${startYear}-12-16`]: { date: `${startYear}-12-16`, type: "evaluacion_trimestral", customColor: "#0080ff", customTextColor: "#fff", title: "Sesión Evaluación 1T" },
-      [`${startYear}-12-21`]: { date: `${startYear}-12-21`, type: "otro_evento", customColor: "#38bdf8", customTextColor: "#0f172a", title: "Entrega Calificaciones 1T" },
-      [`${startYear}-12-25`]: { date: `${startYear}-12-25`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Natividad del Señor" },
-      [`${endYear}-01-01`]: { date: `${endYear}-01-01`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Año Nuevo" },
-      [`${endYear}-01-06`]: { date: `${endYear}-01-06`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Epifanía del Señor" },
-      [`${endYear}-02-27`]: { date: `${endYear}-02-27`, type: "dia_comunidad_educativa", customColor: "#f59e0b", customTextColor: "#fff", title: "Día de la Comunidad Educativa" },
-      [`${endYear}-02-28`]: { date: `${endYear}-02-28`, type: "festivo_autonomico", customColor: "#16a34a", customTextColor: "#fff", title: "Día de Andalucía" },
-      [`${endYear}-03-17`]: { date: `${endYear}-03-17`, type: "evaluacion_trimestral", customColor: "#0080ff", customTextColor: "#fff", title: "Sesión Evaluación 2T" },
-      [`${endYear}-03-22`]: { date: `${endYear}-03-22`, type: "otro_evento", customColor: "#38bdf8", customTextColor: "#0f172a", title: "Entrega Calificaciones 2T" },
-      [`${endYear}-05-01`]: { date: `${endYear}-05-01`, type: "festivo_nacional", customColor: "#ef4444", customTextColor: "#fff", title: "Fiesta del Trabajo" },
-      [`${endYear}-05-28`]: { date: `${endYear}-05-28`, type: "evaluacion_final", customColor: "#0080ff", customTextColor: "#fff", title: "1ª Sesión Evaluación Final Ordinaria" },
-      [`${endYear}-06-01`]: { date: `${endYear}-06-01`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Inicio Periodo de Recuperación y Entrega Calificaciones Ordinarias" },
-      [`${endYear}-06-02`]: { date: `${endYear}-06-02`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
-      [`${endYear}-06-03`]: { date: `${endYear}-06-03`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
-      [`${endYear}-06-04`]: { date: `${endYear}-06-04`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
-      [`${endYear}-06-07`]: { date: `${endYear}-06-07`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
-      [`${endYear}-06-08`]: { date: `${endYear}-06-08`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
-      [`${endYear}-06-09`]: { date: `${endYear}-06-09`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
-      [`${endYear}-06-10`]: { date: `${endYear}-06-10`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
-      [`${endYear}-06-11`]: { date: `${endYear}-06-11`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
-      [`${endYear}-06-14`]: { date: `${endYear}-06-14`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
-      [`${endYear}-06-15`]: { date: `${endYear}-06-15`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
-      [`${endYear}-06-16`]: { date: `${endYear}-06-16`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
-      [`${endYear}-06-17`]: { date: `${endYear}-06-17`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
-      [`${endYear}-06-18`]: { date: `${endYear}-06-18`, type: "periodo_recuperacion", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de Recuperación (Sem. 1-3)" },
-      [`${endYear}-06-22`]: { date: `${endYear}-06-22`, type: "evaluacion_extraordinaria", customColor: "#0080ff", customTextColor: "#fff", title: "2ª Sesión Evaluación Final Extraordinaria" },
-      [`${endYear}-06-24`]: { date: `${endYear}-06-24`, type: "inicio_fin_curso", customColor: "#d946ef", customTextColor: "#fff", title: "Fin de clases y entrega final de calificaciones" },
-    },
+    legendItems: baseline.legendItems,
+    dayOverrides: baseline.dayOverrides,
     specialEvents: [],
     notes: `Calendario Escolar Oficial del curso ${startYear}/${endYear} para la comunidad autónoma de Andalucía.`,
+  });
+}
+
+// Utility to switch or adapt a calendar to a new academic year seamlessly
+export function shiftCalendarToAcademicYear(
+  calendar: SigreAcademicCalendar,
+  targetAcademicYear: string,
+  mode: "shift_dates" | "load_official_preset" | "update_label_only" = "shift_dates"
+): SigreAcademicCalendar {
+  const cleanTargetYear = targetAcademicYear.trim();
+  const targetParts = cleanTargetYear.split("-");
+  const newStartYear = parseInt(targetParts[0], 10) || 2026;
+  const newEndYear = parseInt(targetParts[1], 10) || newStartYear + 1;
+
+  const currentParts = (calendar.academicYear || "2026-2027").split("-");
+  const oldStartYear = parseInt(currentParts[0], 10) || 2026;
+  const oldEndYear = parseInt(currentParts[1], 10) || oldStartYear + 1;
+
+  // Mode 1: Update label only
+  if (mode === "update_label_only") {
+    return {
+      ...calendar,
+      academicYear: cleanTargetYear,
+      startDate: `${newStartYear}-09-15`,
+      endDate: `${newEndYear}-06-24`,
+      resolutionRef: `Resolución de Delegación Territorial de Desarrollo Educativo y FP en ${calendar.province || "Málaga"} (Curso ${newStartYear}/${newEndYear})`,
+    };
+  }
+
+  // Mode 2: Load official template for that academic year if requested
+  if (mode === "load_official_preset") {
+    const base = createNewAcademicCalendarTemplate(
+      cleanTargetYear,
+      calendar.province || "Málaga",
+      calendar.moduloFormativo,
+      calendar.codigoModulo,
+      calendar.cicloFormativo,
+      calendar.docente
+    );
+    // Preserve custom UD legend items and custom user notes
+    const udLegends = (calendar.legendItems || []).filter((l) => l.type === "ud_ra");
+    return {
+      ...base,
+      id: calendar.id,
+      legendItems: [...base.legendItems, ...udLegends],
+      notes: calendar.notes || base.notes,
+    };
+  }
+
+  // Mode 3 (Default): Intelligently shift dates from old year to new year
+  const yearDiff = newStartYear - oldStartYear;
+  const newDayOverrides: Record<string, SigreCalendarDayOverride> = {};
+
+  Object.entries(calendar.dayOverrides || {}).forEach(([dateStr, override]) => {
+    const [yStr, mStr, dStr] = dateStr.split("-");
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10); // 1-12
+
+    // September-December belong to startYear; January-June belong to endYear
+    let shiftedY = y + yearDiff;
+    if (m >= 9 && m <= 12) {
+      shiftedY = newStartYear;
+    } else if (m >= 1 && m <= 8) {
+      shiftedY = newEndYear;
+    }
+
+    const newDateStr = `${shiftedY}-${mStr}-${dStr}`;
+    newDayOverrides[newDateStr] = {
+      ...override,
+      date: newDateStr,
+    };
+  });
+
+  const newSpecialEvents = (calendar.specialEvents || []).map((ev) => {
+    const [yStr, mStr, dStr] = ev.date.split("-");
+    const m = parseInt(mStr, 10);
+    let shiftedY = parseInt(yStr, 10) + yearDiff;
+    if (m >= 9 && m <= 12) shiftedY = newStartYear;
+    else if (m >= 1 && m <= 8) shiftedY = newEndYear;
+
+    return {
+      ...ev,
+      date: `${shiftedY}-${mStr}-${dStr}`,
+    };
+  });
+
+  return {
+    ...calendar,
+    academicYear: cleanTargetYear,
+    startDate: `${newStartYear}-09-15`,
+    endDate: `${newEndYear}-06-24`,
+    resolutionRef: `Resolución de Delegación Territorial de Desarrollo Educativo y FP en ${calendar.province || "Málaga"} (Curso ${newStartYear}/${newEndYear})`,
+    dayOverrides: newDayOverrides,
+    specialEvents: newSpecialEvents,
   };
 }
 
-// Helper to format code inside legend chip (e.g. "3 Sep" -> "3", "23-31", "TEMINS. RA08", "Recuperación")
+// Helper to format code inside legend chip (e.g. "3 Sep" -> "3", "23-31", "UD01. BC7 (14h/7s)", "Recuperación")
 export function formatOfficialLegendChip(item: MonthLateralTag): string {
   // 1. If it's a UD / RA / Dual / Recuperation or multi-day period, ALWAYS display the distinctive UD / Period code
   const isMultiDayOrUd =
@@ -1495,11 +2142,24 @@ export function formatOfficialLegendChip(item: MonthLateralTag): string {
     item.id.startsWith("auto_ud_") ||
     item.id.startsWith("auto_period_") ||
     item.id.startsWith("leg_auto_") ||
+    item.id.startsWith("leg_ud_") ||
+    item.id.startsWith("ist_ud_") ||
+    item.id.startsWith("cit_ud_") ||
+    item.id.startsWith("dig_ud_") ||
+    item.id.startsWith("leg25_ra") ||
     (item.code && !/^\d{1,2}(\s+[a-zA-ZáéíóúÁÉÍÓÚ]{3,})?$/.test(item.code.trim()));
 
   if (isMultiDayOrUd) {
-    // Return clean UD or period code (e.g. "TEMINS. RA01", "TEMINS. RA08", "Recuperación", "FP Dual")
-    return item.code;
+    let cleanCode = item.code || "";
+    // If it's an old module prefix format like "0392. BC1" or "TEMINS. RA01", convert to clean UD format
+    if (/^\d{3,4}\.\s*(?:BC|RA|UT)/i.test(cleanCode) || /^[A-Z0-9_-]+\.\s*(?:BC|RA|UT)/i.test(cleanCode)) {
+      const bcMatch = cleanCode.match(/(?:BC|RA|UT)\s*0*(\d+)/i);
+      const bcStr = bcMatch ? `${bcMatch[0].toUpperCase().startsWith("RA") ? "RA" : "BC"}${parseInt(bcMatch[1], 10)}` : "BC1";
+      const udNumMatch = item.id.match(/(?:ud|ra)_*0*(\d+)/i) || (item.title || "").match(/\[UD\s*0*(\d+)\]/i);
+      const udNum = udNumMatch ? parseInt(udNumMatch[1], 10) : 1;
+      return `UD${String(udNum).padStart(2, "0")}. ${bcStr}`;
+    }
+    return cleanCode;
   }
 
   // 2. Day Range override if explicit (e.g. "23-31")
@@ -1518,7 +2178,7 @@ export function formatOfficialLegendChip(item: MonthLateralTag): string {
   return item.code;
 }
 
-// Render official printable HTML identical to the 2-column by 5-row view of Andalusian official bulletin / Consejería resolution
+// Render official printable HTML matching the 2-column by 5-row A4 landscape layout of Andalusian official bulletin / Consejería resolution
 export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalendar): string {
   const months = getAcademicMonthsList(calendar.academicYear);
   const stats = calculateAcademicCalendarStats(calendar);
@@ -1527,16 +2187,16 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
   const renderMonthCalendarTable = (m: CalendarMonthData) => {
     return `
       <div style="border: 0.8px solid #000000; background: #ffffff; width: 100%; box-sizing: border-box;">
-        <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 6.5px; font-family: Arial, Helvetica, sans-serif; table-layout: fixed; margin: 0; padding: 0;">
+        <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 6.8px; font-family: Arial, Helvetica, sans-serif; table-layout: fixed; margin: 0; padding: 0;">
           <thead>
-            <tr style="background-color: #cbd5e1 !important; color: #000000 !important; font-weight: bold; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
-              <th style="border: 0.5px solid #000000; padding: 1px 0; width: 14.28%; font-size: 6px; text-align: center;">L</th>
-              <th style="border: 0.5px solid #000000; padding: 1px 0; width: 14.28%; font-size: 6px; text-align: center;">M</th>
-              <th style="border: 0.5px solid #000000; padding: 1px 0; width: 14.28%; font-size: 6px; text-align: center;">X</th>
-              <th style="border: 0.5px solid #000000; padding: 1px 0; width: 14.28%; font-size: 6px; text-align: center;">J</th>
-              <th style="border: 0.5px solid #000000; padding: 1px 0; width: 14.28%; font-size: 6px; text-align: center;">V</th>
-              <th style="border: 0.5px solid #000000; padding: 1px 0; width: 14.28%; font-size: 6px; text-align: center;">S</th>
-              <th style="border: 0.5px solid #000000; padding: 1px 0; width: 14.28%; font-size: 6px; text-align: center;">D</th>
+            <tr style="background-color: #f1f5f9 !important; color: #000000 !important; font-weight: bold; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
+              <th style="border: 0.5px solid #000000; padding: 1.2px 0; width: 14.28%; font-size: 6.2px; text-align: center;">L</th>
+              <th style="border: 0.5px solid #000000; padding: 1.2px 0; width: 14.28%; font-size: 6.2px; text-align: center;">M</th>
+              <th style="border: 0.5px solid #000000; padding: 1.2px 0; width: 14.28%; font-size: 6.2px; text-align: center;">X</th>
+              <th style="border: 0.5px solid #000000; padding: 1.2px 0; width: 14.28%; font-size: 6.2px; text-align: center;">J</th>
+              <th style="border: 0.5px solid #000000; padding: 1.2px 0; width: 14.28%; font-size: 6.2px; text-align: center;">V</th>
+              <th style="border: 0.5px solid #000000; padding: 1.2px 0; width: 14.28%; font-size: 6.2px; text-align: center; background-color: #e2e8f0 !important;">S</th>
+              <th style="border: 0.5px solid #000000; padding: 1.2px 0; width: 14.28%; font-size: 6.2px; text-align: center; background-color: #e2e8f0 !important;">D</th>
             </tr>
           </thead>
           <tbody>
@@ -1557,23 +2217,23 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
                             cellBg = d.displayBgColor;
                             cellColor = d.displayTextColor;
                             titleTip = `${d.specialEventLabel || ""}`;
-                          } else if (d.displayBgColor && d.displayBgColor !== "transparent") {
+                          } else if (!d.isWeekend && d.displayBgColor && d.displayBgColor !== "transparent") {
                             cellBg = d.displayBgColor;
                             cellColor = d.displayTextColor;
                             titleTip = d.override?.title || d.legendItem?.title || "";
                           } else if (d.isWeekend) {
-                            cellBg = "#f1f5f9";
-                            cellColor = "#64748b";
+                            cellBg = "#f8fafc";
+                            cellColor = "#ef4444";
                           }
                         } else {
-                          cellBg = "#e2e8f0";
+                          cellBg = "#f1f5f9";
                           cellColor = "transparent";
                         }
 
                         const dayText = d.isCurrentMonth ? String(d.dayNumber) : "&nbsp;";
 
                         return `
-                          <td style="border: 0.5px solid #334155; height: 9.5px; vertical-align: middle; background-color: ${cellBg} !important; color: ${cellColor} !important; font-weight: ${isBold ? "bold" : "normal"}; font-size: 6.5px; padding: 0; text-align: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;" title="${titleTip}">
+                          <td style="border: 0.5px solid #475569; height: 10.5px; vertical-align: middle; background-color: ${cellBg} !important; color: ${cellColor} !important; font-weight: ${isBold ? "bold" : "normal"}; font-size: 7px; padding: 0; text-align: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;" title="${titleTip}">
                             ${dayText}
                           </td>
                         `;
@@ -1601,11 +2261,11 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
           .map((item) => {
             const chipCode = formatOfficialLegendChip(item);
             return `
-              <div style="display: flex; align-items: flex-start; gap: 2px; line-height: 1.05; background: #ffffff; padding: 0.5px 1px; border: 0.5px solid #cbd5e1; box-sizing: border-box; margin-bottom: 0.5px;">
-                <span style="background-color: ${item.color} !important; color: ${item.textColor || "#000000"} !important; border: 0.5px solid #000000; padding: 0.5px 2px; font-weight: bold; font-size: 5.5px; text-align: center; min-width: 11px; shrink: 0; display: inline-block; white-space: nowrap; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
+              <div style="display: flex; align-items: center; gap: 2.5px; line-height: 1.05; background: #ffffff; padding: 0.8px 1.5px; border: 0.5px solid #cbd5e1; border-radius: 1.5px; box-sizing: border-box;">
+                <span style="background-color: ${item.color} !important; color: ${item.textColor || "#000000"} !important; border: 0.5px solid #000000; padding: 0.5px 2px; font-weight: bold; font-size: 5.6px; text-align: center; min-width: 10px; max-width: 38px; shrink: 0; display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; border-radius: 1px;">
                   ${chipCode}
                 </span>
-                <span style="color: #0f172a; font-size: 5.5px; font-weight: 600; word-break: break-word; line-height: 1.0;">
+                <span style="color: #0f172a; font-size: 5.4px; font-weight: 600; word-break: break-word; line-height: 1.0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
                   ${item.title}
                 </span>
               </div>
@@ -1620,6 +2280,7 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
   const renderMonthCard = (year: number, month: number) => {
     const monthData = generateMonthGrid(year, month, calendar);
     const { leftLegends, rightLegends } = deriveMonthLateralLegends(year, month, calendar);
+    const trimesterInfo = getMonthTrimesterInfo(year, month, calendar);
     const lectivosCount = monthData.days.filter((d) => {
       if (!d.isCurrentMonth || d.isWeekend) return false;
       const type = d.override?.type;
@@ -1642,10 +2303,15 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
         : monthData.monthName.toUpperCase();
 
     return `
-      <div class="month-card">
-        <!-- Month Header (Green banner matching the official Junta de Andalucía resolution) -->
-        <div class="month-header">
-          <span class="month-name">${monthTitle}</span>
+      <div class="month-card" style="border-color: ${trimesterInfo.headerBorderColor} !important;">
+        <!-- Month Header (Color-coded by Trimester with Lectivos Count & Trimester Badge) -->
+        <div class="month-header" style="background-color: ${trimesterInfo.headerStyleBg} !important; border-bottom: 0.5px solid ${trimesterInfo.headerBorderColor} !important;">
+          <div style="display: flex; align-items: center; gap: 3.5px;">
+            <span class="month-name">${monthTitle}</span>
+            <span style="font-size: 5.2px; font-weight: 900; background-color: ${trimesterInfo.badgeStyleBg} !important; color: ${trimesterInfo.badgeStyleText} !important; padding: 0.5px 2.5px; border-radius: 1.5px; text-transform: uppercase; letter-spacing: 0.2px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
+              ${trimesterInfo.isShared ? `🔄 ${trimesterInfo.shortBadge}` : trimesterInfo.shortBadge}
+            </span>
+          </div>
           <span class="month-lectivos">${lectivosCount} días lectivos</span>
         </div>
 
@@ -1693,22 +2359,29 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
       font-size: 6.5px;
       line-height: 1.1;
       width: 100%;
+      height: 100%;
     }
     .page-container {
       width: 100%;
+      height: 100%;
       max-width: 288mm;
+      max-height: 202mm;
       margin: 0 auto;
       background: #ffffff;
-      padding: 1px;
+      padding: 0;
       box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
     .header {
-      border-bottom: 2px solid #007A33;
+      border-bottom: 1.8px solid #007A33;
       padding-bottom: 2px;
       margin-bottom: 2.5px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      flex-shrink: 0;
     }
     .junta-brand {
       display: flex;
@@ -1721,64 +2394,71 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
       color: #007A33;
       letter-spacing: -0.2px;
       line-height: 1.1;
+      margin: 0.5px 0;
     }
     .header-subtitle {
-      font-size: 6.5px;
+      font-size: 6.2px;
       color: #1e293b;
-      margin-top: 1px;
+      margin-top: 0.5px;
+      line-height: 1.1;
     }
-    /* 5 COLUMNS x 2 ROWS RIGID LANDSCAPE GRID (10 MONTHS TOTAL: SEPTIEMBRE A JUNIO) */
-    .calendar-grid-5x2 {
+    /* 2 COLUMNS x 5 ROWS RIGID LANDSCAPE GRID (10 MONTHS TOTAL: SEPTIEMBRE A JUNIO) */
+    .calendar-grid-2x5 {
       display: grid !important;
-      grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-      grid-template-rows: repeat(2, auto) !important;
-      gap: 2.5px 3.5px !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      grid-template-rows: repeat(5, minmax(0, 1fr)) !important;
+      gap: 2.5px 4.5px !important;
       width: 100% !important;
-      margin-bottom: 2.5px !important;
+      flex: 1 !important;
+      min-height: 0 !important;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
     }
     .month-card {
-      border: 1px solid #007A33 !important;
+      border: 1px solid #007A33;
       background: #ffffff !important;
       display: flex !important;
       flex-direction: column !important;
+      justify-content: space-between !important;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       box-sizing: border-box !important;
-      border-radius: 2px !important;
+      border-radius: 1.5px !important;
       overflow: hidden !important;
     }
     .month-header {
-      background-color: #007A33 !important;
       color: #ffffff !important;
       font-weight: 800 !important;
-      font-size: 6.5px !important;
-      padding: 1.5px 3px !important;
+      font-size: 6.8px !important;
+      padding: 1.2px 4px !important;
       display: flex !important;
       justify-content: space-between !important;
       align-items: center !important;
-      letter-spacing: 0.1px !important;
-      border-bottom: 0.5px solid #005a26 !important;
+      letter-spacing: 0.2px !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
+      flex-shrink: 0;
+    }
+    .month-name {
+      font-weight: 900;
+      letter-spacing: 0.2px;
     }
     .month-lectivos {
-      font-size: 5.5px !important;
-      font-weight: normal !important;
+      font-size: 5.8px !important;
+      font-weight: 600 !important;
       opacity: 0.95;
-      background: rgba(0, 0, 0, 0.25) !important;
-      padding: 0.5px 2.5px !important;
+      background: rgba(0, 0, 0, 0.2) !important;
+      padding: 0.5px 3px !important;
       border-radius: 2px !important;
     }
     .month-body {
       display: grid !important;
-      grid-template-columns: 24% 52% 24% !important;
-      gap: 1.5px !important;
-      padding: 1.5px !important;
+      grid-template-columns: 28% 44% 28% !important;
+      gap: 2px !important;
+      padding: 1.5px 2.5px !important;
       align-items: center !important;
-      min-height: 48px !important;
-      background: #f8fafc !important;
+      flex: 1 !important;
+      background: #ffffff !important;
       box-sizing: border-box !important;
     }
     .side-col {
@@ -1802,13 +2482,15 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       box-sizing: border-box !important;
-      border-radius: 2px !important;
+      border-radius: 1.5px !important;
+      flex-shrink: 0;
+      margin-top: 2px;
     }
     .legend-grid {
       display: grid !important;
       grid-template-columns: repeat(4, 1fr) !important;
-      gap: 1.5px 4px !important;
-      font-size: 5.8px !important;
+      gap: 1.5px 5px !important;
+      font-size: 5.6px !important;
       margin-top: 1.5px !important;
     }
     .legend-chip {
@@ -1825,10 +2507,11 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
       display: inline-block !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
+      border-radius: 0.5px !important;
     }
     .official-footer {
       margin-top: 1.5px !important;
-      font-size: 5.2px !important;
+      font-size: 5px !important;
       color: #475569 !important;
       border-top: 0.5px dashed #94a3b8 !important;
       padding-top: 1px !important;
@@ -1882,8 +2565,10 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
         padding: 0 !important;
         margin: 0 !important;
         max-width: 100% !important;
+        height: 100vh !important;
+        max-height: 202mm !important;
       }
-      .calendar-grid-5x2, .month-card, .legend-bottom {
+      .calendar-grid-2x5, .month-card, .legend-bottom {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
@@ -1952,8 +2637,8 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
       </div>
     </div>
 
-    <!-- 5 COLUMNS x 2 ROWS RIGID LANDSCAPE GRID (Septiembre a Junio) -->
-    <div class="calendar-grid-5x2">
+    <!-- 2 COLUMNS x 5 ROWS RIGID LANDSCAPE GRID (Septiembre a Junio) -->
+    <div class="calendar-grid-2x5">
       ${months.map((m) => renderMonthCard(m.year, m.month)).join("")}
     </div>
 
@@ -2002,7 +2687,7 @@ export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalend
         </div>
         <div class="legend-chip">
           <span class="chip-color" style="background: #fcd5b4;"></span>
-          <span><strong>UDs / RAs:</strong> Temporalización ordinaria (Sep-May)</span>
+          <span><strong>UDs / RAs:</strong> Temporalización de unidades</span>
         </div>
       </div>
       <div class="official-footer">

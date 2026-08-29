@@ -1307,33 +1307,33 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
   return (
     <div className="space-y-4">
       {/* Header with Navigation and Quick Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 p-3.5 rounded-2xl">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-surface border border-border-default p-3.5 rounded-2xl shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-black font-black shadow-md shadow-amber-500/20">
             <Calendar className="w-5 h-5 text-black" />
           </div>
           <div>
-            <h3 className="text-sm font-black text-white flex items-center gap-2">
+            <h3 className="text-sm font-black text-text-primary flex items-center gap-2">
               Gestor de Horarios, Guardias y Plantilla Docente
-              <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-mono">
+              <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-[10px] font-mono font-bold">
                 {teachers.length} Docentes (30h)
               </span>
             </h3>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-text-muted">
               Gestión visual interactiva con arrastrar y soltar, desdobles de taller, guardias (GUA) y reducciones horarias LO 3/2022.
             </p>
           </div>
         </div>
 
         {/* View Switcher Pills */}
-        <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+        <div className="flex flex-wrap items-center gap-1.5 bg-alt p-1 rounded-xl border border-border-default">
           <button
             type="button"
             onClick={() => setActiveView("profesores")}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeView === "profesores"
-                ? "bg-amber-500 text-black shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-amber-500 text-black shadow-sm font-black"
+                : "text-text-muted hover:text-text-primary hover:bg-hover"
             }`}
           >
             <UserCheck className="w-3.5 h-3.5" />
@@ -1344,11 +1344,11 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
             onClick={() => setActiveView("guardias_general")}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeView === "guardias_general"
-                ? "bg-red-500 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-red-600 text-white shadow-sm font-black"
+                : "text-text-muted hover:text-text-primary hover:bg-hover"
             }`}
           >
-            <Shield className="w-3.5 h-3.5 text-red-300" />
+            <Shield className="w-3.5 h-3.5 text-red-500" />
             Cuadrante Guardias (GUA)
           </button>
           <button
@@ -1356,8 +1356,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
             onClick={() => setActiveView("grupos")}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeView === "grupos"
-                ? "bg-indigo-600 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-indigo-600 text-white shadow-sm font-black"
+                : "text-text-muted hover:text-text-primary hover:bg-hover"
             }`}
           >
             <GraduationCap className="w-3.5 h-3.5" />
@@ -1368,11 +1368,11 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
             onClick={() => setActiveView("normativa")}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeView === "normativa"
-                ? "bg-cyan-600 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-cyan-600 text-white shadow-sm font-black"
+                : "text-text-muted hover:text-text-primary hover:bg-hover"
             }`}
           >
-            <Scale className="w-3.5 h-3.5 text-cyan-300" />
+            <Scale className="w-3.5 h-3.5 text-cyan-500" />
             Marco Normativo
           </button>
           <button
@@ -1380,11 +1380,11 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
             onClick={() => setActiveView("calendario_escolar")}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeView === "calendario_escolar"
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-emerald-600 text-white shadow-sm font-black"
+                : "text-text-muted hover:text-text-primary hover:bg-hover"
             }`}
           >
-            <Calendar className="w-3.5 h-3.5 text-emerald-300" />
+            <Calendar className="w-3.5 h-3.5 text-emerald-500" />
             Calendario Escolar & Planificación Anual
           </button>
         </div>
@@ -1396,9 +1396,9 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
               type="button"
               onClick={handleResetToPresets}
               title="Restablecer cuadrantes oficiales Frío y Calor"
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700 rounded-xl transition-colors cursor-pointer flex items-center gap-1 text-xs"
+              className="p-1.5 bg-alt hover:bg-hover text-text-secondary hover:text-text-primary border border-border-default rounded-xl transition-colors cursor-pointer flex items-center gap-1 text-xs"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw className="w-3.5 h-3.5 text-text-muted" />
               <span className="hidden sm:inline">Restablecer</span>
             </button>
           )}
@@ -1409,9 +1409,9 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
       {activeView === "profesores" && (
         <div className="space-y-4">
           {/* Teacher Selector & Management Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-surface p-2.5 rounded-xl border border-border-default shadow-xs">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+              <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider mr-1">
                 Profesor:
               </span>
               {teachers.map((t) => {
@@ -1426,17 +1426,17 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       onClick={() => setSelectedTeacherId(t.id)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
                         isSelected
-                          ? "bg-slate-800 text-white border-amber-500 shadow-md ring-1 ring-amber-500/50"
-                          : "bg-slate-950/80 text-slate-300 border-slate-800 hover:border-slate-700"
+                          ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500 shadow-xs ring-1 ring-amber-500/40"
+                          : "bg-alt text-text-secondary border-border-default hover:border-border-strong hover:bg-hover hover:text-text-primary"
                       }`}
                     >
                       <span
-                        className="w-2.5 h-2.5 rounded-full inline-block shrink-0 shadow-sm"
+                        className="w-2.5 h-2.5 rounded-full inline-block shrink-0 shadow-xs"
                         style={{ backgroundColor: t.color || "#F59E0B" }}
                       />
                       <span>{t.code}</span>
-                      <span className={`text-[10px] font-mono px-1 rounded ${
-                        isBalanced ? "text-emerald-400 bg-emerald-500/10" : "text-amber-300 bg-amber-500/10"
+                      <span className={`text-[10px] font-mono px-1 rounded font-bold ${
+                        isBalanced ? "text-emerald-700 dark:text-emerald-400 bg-emerald-500/10" : "text-amber-700 dark:text-amber-300 bg-amber-500/10"
                       }`}>
                         {stats.lectivasAsignadas}/{stats.lectivasObjetivo}h
                       </span>
@@ -1462,7 +1462,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                     reducciones: [],
                   });
                 }}
-                className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 Nuevo Docente
@@ -1477,7 +1477,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                     setIsCreatingTeacher(false);
                     setEditingTeacher({ ...activeTeacher });
                   }}
-                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-2.5 py-1.5 bg-alt hover:bg-hover text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                   title="Configurar jornada, horas de permanencia y reducciones horarias"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -1487,7 +1487,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                   type="button"
                   onClick={() => handleDeleteTeacher(activeTeacher.id)}
                   title="Eliminar este docente"
-                  className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                  className="p-1.5 text-red-500 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -1499,26 +1499,26 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
           {activeTeacher && (() => {
             const stats = getTeacherWorkloadDetails(activeTeacher);
             return (
-              <div className="p-3.5 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border border-slate-800 rounded-xl space-y-2.5 text-xs">
+              <div className="p-3.5 bg-surface border border-border-default rounded-xl space-y-2.5 text-xs shadow-xs">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-md"
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-xs"
                       style={{ backgroundColor: activeTeacher.color || "#8B5CF6" }}
                     >
                       {activeTeacher.code.substring(0, 3)}
                     </div>
                     <div>
-                      <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                      <h4 className="font-bold text-text-primary text-sm flex items-center gap-2">
                         {activeTeacher.name || activeTeacher.code}
-                        <span className="font-mono text-xs text-amber-400">({activeTeacher.code})</span>
+                        <span className="font-mono text-xs text-amber-600 dark:text-amber-400">({activeTeacher.code})</span>
                         {activeTeacher.isMayor55 && (
-                          <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[10px] font-mono font-bold flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 text-[10px] font-mono font-bold flex items-center gap-1">
                             <Clock className="w-2.5 h-2.5" /> &gt;55 Años (-2h)
                           </span>
                         )}
                       </h4>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-text-muted">
                         {activeTeacher.department || "Instalación y Mantenimiento"}
                         {activeTeacher.email ? ` • ${activeTeacher.email}` : ""}
                       </p>
@@ -1527,25 +1527,25 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
                   {/* Summary Metric Badges */}
                   <div className="flex flex-wrap items-center gap-2 font-mono">
-                    <div className="px-3 py-1.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center gap-2">
-                      <span className="text-slate-400 text-[11px]">Lectivas:</span>
-                      <strong className="text-cyan-300 text-sm">
+                    <div className="px-3 py-1.5 bg-alt rounded-xl border border-border-default flex items-center gap-2">
+                      <span className="text-text-muted text-[11px]">Lectivas:</span>
+                      <strong className="text-cyan-700 dark:text-cyan-300 text-sm">
                         {stats.lectivasAsignadas} / {stats.lectivasObjetivo} h
                       </strong>
-                      <span className="text-[10px] text-slate-500">({stats.lectivasBase}h base)</span>
+                      <span className="text-[10px] text-text-muted">({stats.lectivasBase}h base)</span>
                     </div>
 
-                    <div className="px-3 py-1.5 bg-red-950/40 rounded-xl border border-red-900/50 flex items-center gap-2">
-                      <span className="text-red-300 text-[11px]">Guardias GUA:</span>
-                      <strong className="text-red-400 text-sm">{stats.totalGuardias} h</strong>
+                    <div className="px-3 py-1.5 bg-red-500/10 rounded-xl border border-red-500/30 flex items-center gap-2">
+                      <span className="text-red-700 dark:text-red-300 text-[11px]">Guardias GUA:</span>
+                      <strong className="text-red-600 dark:text-red-400 text-sm">{stats.totalGuardias} h</strong>
                       {stats.guardiasRecreo > 0 && (
-                        <span className="text-[10px] text-rose-400">({stats.guardiasRecreo} rec)</span>
+                        <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold">({stats.guardiasRecreo} rec)</span>
                       )}
                     </div>
 
-                    <div className="px-3 py-1.5 bg-indigo-950/40 rounded-xl border border-indigo-900/50 flex items-center gap-2">
-                      <span className="text-indigo-300 text-[11px]">Permanencia Centro:</span>
-                      <strong className="text-indigo-300 text-sm">
+                    <div className="px-3 py-1.5 bg-indigo-500/10 rounded-xl border border-indigo-500/30 flex items-center gap-2">
+                      <span className="text-indigo-700 dark:text-indigo-300 text-[11px]">Permanencia Centro:</span>
+                      <strong className="text-indigo-700 dark:text-indigo-300 text-sm">
                         {stats.permanenciaObligada} h/sem
                       </strong>
                     </div>
@@ -1554,25 +1554,25 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                     <div
                       className={`px-3 py-1.5 rounded-xl border font-bold text-xs flex items-center gap-1.5 ${
                         stats.balanceLectivo === 0
-                          ? "bg-emerald-950/50 text-emerald-300 border-emerald-500/40"
+                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
                           : stats.balanceLectivo > 0
-                          ? "bg-amber-950/50 text-amber-300 border-amber-500/40"
-                          : "bg-blue-950/50 text-blue-300 border-blue-500/40"
+                          ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/40"
+                          : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/40"
                       }`}
                     >
                       {stats.balanceLectivo === 0 ? (
                         <>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                           <span>Balance Cuadrado</span>
                         </>
                       ) : stats.balanceLectivo > 0 ? (
                         <>
-                          <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                           <span>Exceso: +{stats.balanceLectivo}h</span>
                         </>
                       ) : (
                         <>
-                          <Clock className="w-3.5 h-3.5 text-blue-400" />
+                          <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                           <span>Déficit: {stats.balanceLectivo}h</span>
                         </>
                       )}
@@ -1582,14 +1582,14 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
                 {/* Active Reductions Chips */}
                 {stats.reduccionesActivas.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/80">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1 mr-1">
-                      <Award className="w-3 h-3 text-amber-400" /> Reducciones Activas:
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-border-default">
+                    <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider flex items-center gap-1 mr-1">
+                      <Award className="w-3 h-3 text-amber-500" /> Reducciones Activas:
                     </span>
                     {stats.reduccionesActivas.map((red) => (
                       <span
                         key={red.id}
-                        className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] flex items-center gap-1 font-mono"
+                        className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] flex items-center gap-1 font-mono"
                       >
                         <strong>{red.nombre}</strong> (-{red.horasLectivas}h lectivas / {red.horasComplementarias || 0}h comp)
                       </span>
@@ -1600,7 +1600,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                         setIsCreatingTeacher(false);
                         setEditingTeacher({ ...activeTeacher });
                       }}
-                      className="text-[10px] text-cyan-400 hover:underline font-bold ml-1 cursor-pointer"
+                      className="text-[10px] text-cyan-600 dark:text-cyan-400 hover:underline font-bold ml-1 cursor-pointer"
                     >
                       Modificar reducciones &rarr;
                     </button>
@@ -1611,39 +1611,39 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
           })()}
 
           {/* Teacher Weekly Grid (Drag and Drop enabled) */}
-          <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
-            <div className="bg-slate-900/80 p-2 text-[11px] text-slate-400 border-b border-slate-800 flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <Move className="w-3.5 h-3.5 text-amber-400" />
+          <div className="overflow-x-auto rounded-xl border border-border-default bg-surface shadow-xs">
+            <div className="bg-alt p-2 text-[11px] text-text-muted border-b border-border-default flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-text-secondary">
+                <Move className="w-3.5 h-3.5 text-amber-500" />
                 <strong>Interactivo:</strong> Arrastra y suelta cualquier celda para moverla o crear <strong>desdobles de taller</strong> en co-docencia.
               </span>
-              <span className="text-slate-500 font-mono text-[10px]">
+              <span className="text-text-muted font-mono text-[10px]">
                 {DAYS.length * (timeSlots.length - 1)} franjas lectivas disponibles
               </span>
             </div>
 
             <table className="w-full text-xs text-left border-collapse">
               <thead>
-                <tr className="bg-slate-900 text-slate-300 border-b border-slate-800">
-                  <th className="p-2.5 w-28 font-bold border-r border-slate-800 text-center">
+                <tr className="bg-alt text-text-secondary border-b border-border-default">
+                  <th className="p-2.5 w-28 font-bold border-r border-border-default text-center">
                     HORAS
                   </th>
                   {DAYS.map((d) => (
-                    <th key={d.key} className="p-2.5 font-bold border-r border-slate-800 text-center">
-                      <div className="font-bold text-white text-sm">{d.fullLabel}</div>
-                      <div className="text-[10px] text-amber-400/80 font-mono">({d.label})</div>
+                    <th key={d.key} className="p-2.5 font-bold border-r border-border-default text-center">
+                      <div className="font-bold text-text-primary text-sm">{d.fullLabel}</div>
+                      <div className="text-[10px] text-amber-600 dark:text-amber-400 font-mono font-bold">({d.label})</div>
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/80">
+              <tbody className="divide-y divide-border-default">
                 {timeSlots.map((slot) => {
                   if (slot.isBreak) {
                     return (
-                      <tr key={slot.id} className="bg-slate-900/80 font-semibold">
-                        <td className="p-2.5 border-r border-slate-800 text-center">
-                          <span className="text-amber-400 font-bold text-[11px] block">{slot.label}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{slot.timeRange}</span>
+                      <tr key={slot.id} className="bg-alt/80 font-semibold">
+                        <td className="p-2.5 border-r border-border-default text-center">
+                          <span className="text-amber-600 dark:text-amber-400 font-bold text-[11px] block">{slot.label}</span>
+                          <span className="text-[10px] text-text-muted font-mono">{slot.timeRange}</span>
                         </td>
                         {DAYS.map((d) => {
                           const cell = getTeacherCell(activeTeacher.id, d.key, slot.id);
@@ -1668,21 +1668,21 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                   },
                                 })
                               }
-                              className={`p-2 border-r border-slate-800 text-center cursor-pointer transition-all ${
+                              className={`p-2 border-r border-border-default text-center cursor-pointer transition-all ${
                                 isDropTarget ? "bg-amber-500/20 ring-2 ring-amber-500" : ""
                               } ${
                                 isGua
-                                  ? "bg-red-950/60 hover:bg-red-900/60 text-red-200 border-2 border-red-500/40"
-                                  : "hover:bg-slate-800/60 text-slate-400"
+                                  ? "bg-red-500/15 hover:bg-red-500/25 text-red-700 dark:text-red-200 border-2 border-red-500/40"
+                                  : "hover:bg-hover text-text-muted"
                               }`}
                             >
                               {isGua ? (
-                                <div className="font-bold text-red-300 flex items-center justify-center gap-1">
-                                  <Shield className="w-3.5 h-3.5 text-red-400" />
+                                <div className="font-bold text-red-600 dark:text-red-300 flex items-center justify-center gap-1">
+                                  <Shield className="w-3.5 h-3.5 text-red-500" />
                                   <span>GUA (Recreo)</span>
                                 </div>
                               ) : (
-                                <span className="text-slate-500 text-[10px] italic">Recreo</span>
+                                <span className="text-text-muted text-[10px] italic">Recreo</span>
                               )}
                             </td>
                           );
@@ -1692,10 +1692,10 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                   }
 
                   return (
-                    <tr key={slot.id} className="hover:bg-slate-900/30">
-                      <td className="p-2.5 border-r border-slate-800 text-center bg-slate-900/40">
-                        <span className="font-mono font-bold text-white block">{slot.label}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">{slot.timeRange}</span>
+                    <tr key={slot.id} className="hover:bg-hover/40">
+                      <td className="p-2.5 border-r border-border-default text-center bg-alt/50">
+                        <span className="font-mono font-bold text-text-primary block">{slot.label}</span>
+                        <span className="text-[10px] text-text-muted font-mono">{slot.timeRange}</span>
                       </td>
                       {DAYS.map((d) => {
                         const cell = getTeacherCell(activeTeacher.id, d.key, slot.id);
@@ -1722,14 +1722,14 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                 },
                               })
                             }
-                            className={`p-2 border-r border-slate-800 cursor-pointer transition-all min-h-[58px] relative ${
+                            className={`p-2 border-r border-border-default cursor-pointer transition-all min-h-[58px] relative ${
                               isDropTarget ? "bg-amber-500/20 ring-2 ring-amber-400 scale-[1.02] z-10" : ""
                             } ${
                               isGua
-                                ? "bg-red-950/50 hover:bg-red-900/50 border-l-2 border-red-500 text-red-200"
+                                ? "bg-red-500/10 hover:bg-red-500/20 border-l-2 border-red-500 text-red-700 dark:text-red-200"
                                 : isClass
-                                ? "bg-slate-900/90 hover:bg-slate-800/90 hover:ring-1 hover:ring-amber-400"
-                                : "hover:bg-slate-900/50"
+                                ? "bg-surface hover:bg-hover hover:ring-1 hover:ring-amber-400"
+                                : "hover:bg-hover/60"
                             }`}
                           >
                             {cell && cell.type !== "libre" ? (
@@ -1742,38 +1742,38 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                               >
                                 {isGua ? (
                                   <div className="text-center py-1">
-                                    <span className="text-sm font-black text-red-400 tracking-wider block flex items-center justify-center gap-1">
+                                    <span className="text-sm font-black text-red-600 dark:text-red-400 tracking-wider block flex items-center justify-center gap-1">
                                       <Shield className="w-3 h-3" /> GUA
                                     </span>
-                                    <span className="text-[9px] text-red-300/80 font-semibold block">
+                                    <span className="text-[9px] text-red-700 dark:text-red-300 font-semibold block">
                                       Guardia de Aula
                                     </span>
                                   </div>
                                 ) : (
                                   <>
                                     <div className="flex items-center justify-between gap-1">
-                                      <span className="font-bold text-amber-400 text-xs truncate">
+                                      <span className="font-bold text-amber-600 dark:text-amber-400 text-xs truncate">
                                         {cell.code}
                                       </span>
                                       {hasSplit && (
-                                        <span className="px-1 py-0.2 rounded bg-purple-500/20 text-purple-300 text-[9px] font-mono font-bold flex items-center gap-0.5 border border-purple-500/30">
+                                        <span className="px-1 py-0.2 rounded bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[9px] font-mono font-bold flex items-center gap-0.5 border border-purple-500/30">
                                           <Users className="w-2.5 h-2.5" /> Desdoble
                                         </span>
                                       )}
                                     </div>
                                     {cell.subject && (
-                                      <div className="text-[10px] text-slate-300 line-clamp-1">
+                                      <div className="text-[10px] text-text-secondary line-clamp-1">
                                         {cell.subject}
                                       </div>
                                     )}
                                     {cell.classroom && (
-                                      <div className="text-[9px] text-cyan-400/90 flex items-center gap-1">
+                                      <div className="text-[9px] text-cyan-600 dark:text-cyan-400 flex items-center gap-1">
                                         <Building className="w-2.5 h-2.5 shrink-0" />
                                         <span className="truncate">{cell.classroom}</span>
                                       </div>
                                     )}
                                     {cell.sharedWith && cell.sharedWith.length > 0 && (
-                                      <div className="text-[9px] text-purple-300 flex items-center gap-1 font-mono">
+                                      <div className="text-[9px] text-purple-600 dark:text-purple-300 flex items-center gap-1 font-mono">
                                         <Users className="w-2.5 h-2.5 shrink-0" />
                                         <span>Co-docencia: {cell.sharedWith.join(", ")}</span>
                                       </div>
@@ -1782,7 +1782,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                 )}
                               </div>
                             ) : (
-                              <div className="h-full flex items-center justify-center text-slate-700 hover:text-slate-500 py-2">
+                              <div className="h-full flex items-center justify-center text-text-muted hover:text-text-primary py-2">
                                 <Plus className="w-3.5 h-3.5 opacity-30 hover:opacity-100" />
                               </div>
                             )}
@@ -1801,19 +1801,19 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
       {/* VIEW 2: CUADRANTE MAESTRO DE GUARDIAS */}
       {activeView === "guardias_general" && (
         <div className="space-y-4">
-          <div className="p-3 bg-red-950/30 border border-red-900/50 rounded-xl flex items-center justify-between gap-3 text-xs">
+          <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center justify-between gap-3 text-xs shadow-xs">
             <div className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-red-400 shrink-0" />
+              <Shield className="w-5 h-5 text-red-500 shrink-0" />
               <div>
-                <h4 className="font-bold text-red-200 text-sm">Cuadrante Maestro de Guardias de Centro (GUA)</h4>
-                <p className="text-[11px] text-red-300/80">
+                <h4 className="font-bold text-red-800 dark:text-red-200 text-sm">Cuadrante Maestro de Guardias de Centro (GUA)</h4>
+                <p className="text-[11px] text-red-700/80 dark:text-red-300/80">
                   Visualización consolidada de todos los docentes de guardia en cada periodo semanal para garantizar cobertura de aulas y talleres.
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <span className="text-[10px] text-slate-400 font-mono block">Total Guardias Asignadas:</span>
-              <span className="text-sm font-black text-red-400 font-mono">
+              <span className="text-[10px] text-text-muted font-mono block">Total Guardias Asignadas:</span>
+              <span className="text-sm font-black text-red-600 dark:text-red-400 font-mono">
                 {Object.values(teacherSchedules)
                   .flat()
                   .filter((c) => c.type === "guardia" || c.type === "guardia_recreo" || c.code === "GUA").length}{" "}
@@ -1822,31 +1822,31 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-red-950 bg-slate-950">
+          <div className="overflow-x-auto rounded-xl border border-border-default bg-surface shadow-xs">
             <table className="w-full text-xs text-left border-collapse">
               <thead>
-                <tr className="bg-red-950/60 text-red-200 border-b border-red-900/60">
-                  <th className="p-2.5 w-28 font-bold border-r border-red-900/50 text-center">
+                <tr className="bg-red-500/10 text-red-800 dark:text-red-200 border-b border-red-500/30">
+                  <th className="p-2.5 w-28 font-bold border-r border-red-500/20 text-center">
                     FRANJA
                   </th>
                   {DAYS.map((d) => (
-                    <th key={d.key} className="p-2.5 font-bold border-r border-red-900/50 text-center">
-                      <div className="font-bold text-white text-sm">{d.fullLabel}</div>
-                      <div className="text-[10px] text-red-300 font-mono">({d.label})</div>
+                    <th key={d.key} className="p-2.5 font-bold border-r border-red-500/20 text-center">
+                      <div className="font-bold text-text-primary text-sm">{d.fullLabel}</div>
+                      <div className="text-[10px] text-red-600 dark:text-red-300 font-mono font-bold">({d.label})</div>
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/80">
+              <tbody className="divide-y divide-border-default">
                 {timeSlots.map((slot) => {
                   return (
                     <tr
                       key={slot.id}
-                      className={slot.isBreak ? "bg-red-950/20 font-semibold" : "hover:bg-slate-900/40"}
+                      className={slot.isBreak ? "bg-red-500/5 font-semibold" : "hover:bg-hover/40"}
                     >
-                      <td className="p-2.5 border-r border-slate-800 text-center bg-slate-900/60">
-                        <span className="font-bold text-white block">{slot.label}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">{slot.timeRange}</span>
+                      <td className="p-2.5 border-r border-border-default text-center bg-alt/50">
+                        <span className="font-bold text-text-primary block">{slot.label}</span>
+                        <span className="text-[10px] text-text-muted font-mono">{slot.timeRange}</span>
                       </td>
                       {DAYS.map((d) => {
                         const guards = getGuardsForSlot(d.key, slot.id);
@@ -1855,8 +1855,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                         return (
                           <td
                             key={d.key}
-                            className={`p-2 border-r border-slate-800 min-h-[50px] ${
-                              hasGuards ? "bg-red-950/40" : "bg-slate-950"
+                            className={`p-2 border-r border-border-default min-h-[50px] ${
+                              hasGuards ? "bg-red-500/10" : "bg-surface"
                             }`}
                           >
                             {hasGuards ? (
@@ -1864,7 +1864,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                 {guards.map(({ teacher, cell }) => (
                                   <div
                                     key={teacher.id}
-                                    className="px-2 py-1 bg-red-900/60 border border-red-700/60 rounded-lg text-red-200 font-bold flex items-center justify-between gap-1 shadow-sm"
+                                    className="px-2 py-1 bg-red-100 dark:bg-red-900/60 border border-red-300 dark:border-red-700/60 rounded-lg text-red-900 dark:text-red-200 font-bold flex items-center justify-between gap-1 shadow-xs"
                                   >
                                     <div className="flex items-center gap-1.5 truncate">
                                       <span
@@ -1873,14 +1873,14 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                       />
                                       <span className="truncate">{teacher.code}</span>
                                     </div>
-                                    <span className="text-[9px] bg-red-950 text-red-300 px-1 py-0.5 rounded font-mono shrink-0">
+                                    <span className="text-[9px] bg-red-200 dark:bg-red-950 text-red-800 dark:text-red-300 px-1 py-0.5 rounded font-mono shrink-0 font-bold">
                                       {cell.slotId === "recreo" ? "REC" : "GUA"}
                                     </span>
                                   </div>
                                 ))}
                               </div>
                             ) : (
-                              <div className="text-center text-slate-700 text-[10px] py-2">-</div>
+                              <div className="text-center text-text-muted text-[10px] py-2">-</div>
                             )}
                           </td>
                         );
@@ -1893,9 +1893,9 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
           </div>
 
           {/* Breakdown of Guards by Teacher */}
-          <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl">
-            <h4 className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
-              <Shield className="w-3.5 h-3.5 text-red-400" />
+          <div className="p-3.5 bg-surface border border-border-default rounded-xl shadow-xs">
+            <h4 className="text-xs font-bold text-text-primary mb-2 flex items-center gap-2">
+              <Shield className="w-3.5 h-3.5 text-red-500" />
               Cómputo Total de Guardias por Docente:
             </h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2 text-xs">
@@ -1904,9 +1904,9 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                 return (
                   <div
                     key={t.id}
-                    className="p-2 bg-slate-950 rounded-lg border border-slate-800 flex flex-col justify-between"
+                    className="p-2 bg-alt rounded-lg border border-border-default flex flex-col justify-between"
                   >
-                    <span className="font-bold text-white text-[11px] truncate flex items-center gap-1">
+                    <span className="font-bold text-text-primary text-[11px] truncate flex items-center gap-1">
                       <span
                         className="w-2 h-2 rounded-full inline-block shrink-0"
                         style={{ backgroundColor: t.color || "#F59E0B" }}
@@ -1914,8 +1914,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       {t.code}
                     </span>
                     <div className="mt-1 flex items-center justify-between text-[10px]">
-                      <span className="text-slate-400">Total GUA:</span>
-                      <strong className="text-red-400 font-mono">{stats.totalGuardias} h</strong>
+                      <span className="text-text-muted">Total GUA:</span>
+                      <strong className="text-red-600 dark:text-red-400 font-mono font-bold">{stats.totalGuardias} h</strong>
                     </div>
                   </div>
                 );
@@ -1929,11 +1929,11 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
       {activeView === "grupos" && (
         <div className="space-y-4">
           {/* Group Navigation Bar & Catalog Actions */}
-          <div className="space-y-2 bg-slate-900/80 p-3 rounded-2xl border border-slate-800 shadow-md">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+          <div className="space-y-2.5 bg-surface p-3 rounded-2xl border border-border-default shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-default pb-2.5">
               {/* Category Filter Pills */}
               <div className="flex items-center gap-1">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-1">
+                <span className="text-[10px] font-black text-text-muted uppercase tracking-wider mr-1">
                   Filtrar Cursos:
                 </span>
                 {[
@@ -1948,8 +1948,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                     onClick={() => setGroupFilterCategory(f.id as any)}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                       groupFilterCategory === f.id
-                        ? "bg-indigo-600/30 text-indigo-300 border-indigo-500/50"
-                        : "bg-slate-950/60 text-slate-400 border-slate-800 hover:text-slate-200"
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                        : "bg-alt text-text-secondary border-border-default hover:text-text-primary hover:bg-hover"
                     }`}
                   >
                     {f.label}
@@ -1963,16 +1963,16 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                   type="button"
                   onClick={handleSyncAllGroupsFromTeachers}
                   title="Sincroniza todos los grupos con las clases que cada profesor tiene asignadas en su horario"
-                  className="px-2.5 py-1 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-2.5 py-1 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                  <Sparkles className="w-3.5 h-3.5 text-purple-500" />
                   <span>Sincronizar Todos con Docentes</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setShowAddGroupCatalogModal(true)}
-                  className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-md shadow-indigo-600/20"
+                  className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Añadir Grupo / Ciclo</span>
@@ -2001,25 +2001,25 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       onClick={() => setSelectedGroupId(g.id)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-2 ${
                         g.id === selectedGroupId
-                          ? "bg-indigo-600 text-white border-indigo-400 shadow-lg shadow-indigo-600/30 ring-1 ring-indigo-300"
-                          : "bg-slate-950/80 text-slate-300 border-slate-800 hover:border-slate-700 hover:bg-slate-900"
+                          ? "bg-indigo-600 text-white border-indigo-500 shadow-sm ring-1 ring-indigo-300"
+                          : "bg-alt text-text-secondary border-border-default hover:border-border-strong hover:bg-hover hover:text-text-primary"
                       }`}
                     >
                       <span
                         className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-black ${
                           is1stYear
-                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                            ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40"
                             : is2ndYear
-                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                            : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                            ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40"
+                            : "bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40"
                         }`}
                       >
                         {is1stYear ? "1º" : is2ndYear ? "2º" : "FP"}
                       </span>
                       <span>{g.shortName}</span>
                       <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
-                          g.id === selectedGroupId ? "bg-indigo-800 text-indigo-200" : "bg-slate-900 text-slate-400"
+                        className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono font-bold ${
+                          g.id === selectedGroupId ? "bg-indigo-800 text-indigo-100" : "bg-surface text-text-muted border border-border-default"
                         }`}
                       >
                         {hoursCount}h
@@ -2034,16 +2034,16 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
           {activeGroup && (
             <div className="space-y-3">
               {/* Group Header Card */}
-              <div className="p-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-md">
+              <div className="p-3.5 bg-surface border border-border-default rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xs">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span
                       className={`text-xs px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${
                         activeGroup.shortName.startsWith("1º")
-                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                          ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
                           : activeGroup.shortName.startsWith("2º")
-                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                          : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                          ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                          : "bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30"
                       }`}
                     >
                       {activeGroup.shortName.startsWith("1º")
@@ -2052,14 +2052,14 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                         ? "2º Curso"
                         : "Ciclo Formativo"}
                     </span>
-                    <h3 className="text-base font-black text-white">{activeGroup.name}</h3>
+                    <h3 className="text-base font-black text-text-primary">{activeGroup.name}</h3>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
-                    <span className="font-mono text-amber-400 font-bold">Código: {activeGroup.shortName}</span>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
+                    <span className="font-mono text-amber-600 dark:text-amber-400 font-bold">Código: {activeGroup.shortName}</span>
                     <span>•</span>
                     <span>
                       Total Asignado:{" "}
-                      <strong className="text-white font-mono">
+                      <strong className="text-text-primary font-mono">
                         {activeGroup.cells.filter((c) => c.type === "clase" && c.slotId !== "recreo").length} horas / semana
                       </strong>
                     </span>
@@ -2068,8 +2068,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
                 {/* Teachers in this group */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-1 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
-                    <span className="text-[10px] font-bold text-slate-400 px-1">Docentes:</span>
+                  <div className="flex items-center gap-1 bg-alt p-1.5 rounded-xl border border-border-default">
+                    <span className="text-[10px] font-bold text-text-muted px-1">Docentes:</span>
                     {Array.from(new Set(activeGroup.cells.map((c) => c.teacherId).filter(Boolean))).map((tId) => {
                       const teacher = teachers.find((t) => t.id === tId);
                       if (!teacher) return null;
@@ -2078,14 +2078,14 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                         <div
                           key={tId}
                           title={`${teacher.name} (${teacherHours}h impartidas en este grupo)`}
-                          className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-[10px] font-bold text-slate-300"
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface border border-border-default text-[10px] font-bold text-text-secondary"
                         >
                           <span
                             className="w-2 h-2 rounded-full"
                             style={{ backgroundColor: teacher.color || "#8B5CF6" }}
                           />
                           <span>{teacher.code}</span>
-                          <span className="text-slate-500 font-mono text-[9px]">{teacherHours}h</span>
+                          <span className="text-text-muted font-mono text-[9px]">{teacherHours}h</span>
                         </div>
                       );
                     })}
@@ -2097,9 +2097,9 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       type="button"
                       onClick={() => handleSyncGroupFromTeachers(activeGroup.id)}
                       title="Sincronizar horario de este grupo desde los horarios de profesores"
-                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1.5 bg-alt hover:bg-hover text-purple-700 dark:text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                      <Sparkles className="w-3.5 h-3.5 text-purple-500" />
                       <span>Sincronizar</span>
                     </button>
 
@@ -2116,16 +2116,16 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                           isNew: false,
                         })
                       }
-                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition-colors cursor-pointer"
+                      className="p-1.5 bg-alt hover:bg-hover text-text-secondary hover:text-text-primary rounded-xl border border-border-default transition-colors cursor-pointer"
                       title="Editar datos del grupo"
                     >
-                      <Edit2 className="w-3.5 h-3.5 text-amber-400" />
+                      <Edit2 className="w-3.5 h-3.5 text-amber-500" />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleDeleteGroup(activeGroup.id)}
-                      className="p-1.5 bg-slate-800 hover:bg-red-950/60 text-slate-300 hover:text-red-400 rounded-xl border border-slate-700 hover:border-red-800/60 transition-colors cursor-pointer"
+                      className="p-1.5 bg-alt hover:bg-red-500/15 text-text-muted hover:text-red-600 dark:hover:text-red-400 rounded-xl border border-border-default hover:border-red-500/30 transition-colors cursor-pointer"
                       title="Eliminar este grupo"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -2135,32 +2135,32 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
               </div>
 
               {/* Schedule Table */}
-              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
+              <div className="overflow-x-auto rounded-xl border border-border-default bg-surface shadow-xs">
                 <table className="w-full text-xs text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-900 text-slate-300 border-b border-slate-800">
-                      <th className="p-2.5 w-28 font-bold border-r border-slate-800 text-center">
+                    <tr className="bg-alt text-text-secondary border-b border-border-default">
+                      <th className="p-2.5 w-28 font-bold border-r border-border-default text-center">
                         HORAS
                       </th>
                       {DAYS.map((d) => (
-                        <th key={d.key} className="p-2.5 font-bold border-r border-slate-800 text-center">
-                          <div className="font-bold text-white text-sm">{d.fullLabel}</div>
-                          <div className="text-[10px] text-amber-400/80 font-mono">({d.label})</div>
+                        <th key={d.key} className="p-2.5 font-bold border-r border-border-default text-center">
+                          <div className="font-bold text-text-primary text-sm">{d.fullLabel}</div>
+                          <div className="text-[10px] text-amber-600 dark:text-amber-400 font-mono font-bold">({d.label})</div>
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/80">
+                  <tbody className="divide-y divide-border-default">
                     {timeSlots.map((slot) => {
                       if (slot.isBreak) {
                         return (
-                          <tr key={slot.id} className="bg-slate-900/80 font-semibold">
-                            <td className="p-2.5 border-r border-slate-800 text-center">
-                              <span className="text-amber-400 font-bold text-[11px] block">{slot.label}</span>
-                              <span className="text-[10px] text-slate-400 font-mono">{slot.timeRange}</span>
+                          <tr key={slot.id} className="bg-alt/80 font-semibold">
+                            <td className="p-2.5 border-r border-border-default text-center">
+                              <span className="text-amber-600 dark:text-amber-400 font-bold text-[11px] block">{slot.label}</span>
+                              <span className="text-[10px] text-text-muted font-mono">{slot.timeRange}</span>
                             </td>
                             {DAYS.map((d) => (
-                              <td key={d.key} className="p-2 border-r border-slate-800 text-center text-slate-500 text-[10px] italic">
+                              <td key={d.key} className="p-2 border-r border-border-default text-center text-text-muted text-[10px] italic">
                                 RECREO
                               </td>
                             ))}
@@ -2169,10 +2169,10 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       }
 
                       return (
-                        <tr key={slot.id} className="hover:bg-slate-900/30">
-                          <td className="p-2.5 border-r border-slate-800 text-center bg-slate-900/40">
-                            <span className="font-mono font-bold text-white block">{slot.label}</span>
-                            <span className="text-[10px] text-slate-400 font-mono">{slot.timeRange}</span>
+                        <tr key={slot.id} className="hover:bg-hover/40">
+                          <td className="p-2.5 border-r border-border-default text-center bg-alt/50">
+                            <span className="font-mono font-bold text-text-primary block">{slot.label}</span>
+                            <span className="text-[10px] text-text-muted font-mono">{slot.timeRange}</span>
                           </td>
                           {DAYS.map((d) => {
                             const cell = getGroupCell(activeGroup.id, d.key, slot.id);
@@ -2197,7 +2197,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                     },
                                   })
                                 }
-                                className={`p-2 border-r border-slate-800 cursor-pointer transition-all hover:bg-slate-900/80 hover:ring-1 hover:ring-indigo-400 min-h-[55px] ${
+                                className={`p-2 border-r border-border-default cursor-pointer transition-all hover:bg-hover hover:ring-1 hover:ring-indigo-400 min-h-[55px] ${
                                   isDropTarget ? "bg-indigo-500/20 ring-2 ring-indigo-400" : ""
                                 }`}
                               >
@@ -2209,16 +2209,16 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                     }
                                     className="space-y-0.5 select-none"
                                   >
-                                    <div className="font-bold text-amber-400 text-xs truncate">
+                                    <div className="font-bold text-amber-600 dark:text-amber-400 text-xs truncate">
                                       {cell.code}
                                     </div>
                                     {cell.classroom && (
-                                      <div className="text-[9px] text-cyan-400/90 truncate">
+                                      <div className="text-[9px] text-cyan-600 dark:text-cyan-400 truncate">
                                         {cell.classroom}
                                       </div>
                                     )}
                                     {teacher && (
-                                      <div className="text-[9px] font-bold text-indigo-300 truncate flex items-center gap-1">
+                                      <div className="text-[9px] font-bold text-indigo-700 dark:text-indigo-300 truncate flex items-center gap-1">
                                         <span
                                           className="w-1.5 h-1.5 rounded-full inline-block shrink-0"
                                           style={{ backgroundColor: teacher.color || "#8B5CF6" }}
@@ -2227,14 +2227,14 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                       </div>
                                     )}
                                     {cell.sharedWith && cell.sharedWith.length > 0 && (
-                                      <div className="text-[8px] text-purple-300 font-bold truncate flex items-center gap-0.5">
-                                        <Users className="w-2.5 h-2.5 text-purple-400" />
+                                      <div className="text-[8px] text-purple-700 dark:text-purple-300 font-bold truncate flex items-center gap-0.5">
+                                        <Users className="w-2.5 h-2.5 text-purple-500" />
                                         <span>+ {cell.sharedWith.join(", ")}</span>
                                       </div>
                                     )}
                                   </div>
                                 ) : (
-                                  <div className="h-full flex items-center justify-center text-slate-700 hover:text-slate-500 py-2">
+                                  <div className="h-full flex items-center justify-center text-text-muted hover:text-text-primary py-2">
                                     <Plus className="w-3.5 h-3.5 opacity-30 hover:opacity-100" />
                                   </div>
                                 )}
@@ -2256,23 +2256,23 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
       {activeView === "normativa" && (
         <div className="space-y-4 text-xs">
           {/* Header Card */}
-          <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-3 shadow-lg">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="p-4 bg-surface border border-border-default rounded-2xl space-y-3 shadow-xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-border-default pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-300 font-bold shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-700 dark:text-cyan-300 font-bold shrink-0 shadow-xs">
                   <Scale className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-black text-white text-base">
+                    <h3 className="font-black text-text-primary text-base">
                       Marco Normativo de FP, Jornada Docente y Guardias
                     </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-emerald-500" />
                       Vigente en Andalucía
                     </span>
                   </div>
-                  <p className="text-slate-400 text-[11px]">
+                  <p className="text-text-muted text-[11px]">
                     Buscador y verificador legal de disposiciones de la Junta de Andalucía (BOJA) y estatales (BOE) aplicadas en el gestor.
                   </p>
                 </div>
@@ -2284,10 +2284,10 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                   type="button"
                   onClick={handleVerifyNormativaAndalucia}
                   disabled={isVerifyingAndalucia}
-                  className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer shadow-md ${
+                  className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs ${
                     isVerifyingAndalucia
                       ? "bg-emerald-700 text-white animate-pulse"
-                      : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20 border border-emerald-400/40"
+                      : "bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40"
                   }`}
                   title="Comprobar que todas las normas y reducciones están activas y vigentes en el marco normativo de Andalucía"
                 >
@@ -2314,7 +2314,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       isNew: true,
                     })
                   }
-                  className="px-3 py-1.5 bg-indigo-600/90 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer border border-indigo-500/40"
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer border border-indigo-500/40 shadow-xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Añadir Normativa / Circular</span>
@@ -2323,7 +2323,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                 <button
                   type="button"
                   onClick={handleResetNormativaDefaults}
-                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition-colors flex items-center gap-1 cursor-pointer border border-slate-700"
+                  className="px-2.5 py-1.5 bg-alt hover:bg-hover text-text-secondary hover:text-text-primary font-bold rounded-xl text-xs transition-colors flex items-center gap-1 cursor-pointer border border-border-default"
                   title="Restablecer a las disposiciones oficiales por defecto"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -2333,29 +2333,29 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
             </div>
 
             {/* Verification Status Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80">
-              <div className="flex items-center gap-2 text-slate-300">
-                <CheckCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] bg-alt p-2.5 rounded-xl border border-border-default">
+              <div className="flex items-center gap-2 text-text-primary">
+                <CheckCheck className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>
                   <strong>Última comprobación:</strong>{" "}
-                  <span className="text-emerald-300 font-mono">{lastVerificationTimestamp}</span>
+                  <span className="text-emerald-600 dark:text-emerald-300 font-mono font-bold">{lastVerificationTimestamp}</span>
                 </span>
               </div>
-              <div className="flex items-center gap-3 text-slate-400">
+              <div className="flex items-center gap-3 text-text-muted">
                 <span>
-                  Total normas: <strong className="text-white">{normativaList.length}</strong>
+                  Total normas: <strong className="text-text-primary">{normativaList.length}</strong>
                 </span>
                 <span>•</span>
                 <span>
                   Andalucía (BOJA):{" "}
-                  <strong className="text-cyan-300">
+                  <strong className="text-cyan-700 dark:text-cyan-300 font-bold">
                     {normativaList.filter((n) => n.officialScope.includes("Andalucía") || n.officialScope.includes("Consejería")).length}
                   </strong>
                 </span>
                 <span>•</span>
                 <span>
                   Básica Estatal (BOE):{" "}
-                  <strong className="text-amber-300">
+                  <strong className="text-amber-700 dark:text-amber-300 font-bold">
                     {normativaList.filter((n) => n.officialScope.includes("Estatal") || n.officialScope.includes("BOE")).length}
                   </strong>
                 </span>
@@ -2364,11 +2364,11 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
             {/* Verification Feedback Banner if triggered */}
             {verificationFeedback && (
-              <div className="p-3 bg-emerald-950/60 border border-emerald-500/50 rounded-xl text-emerald-200 text-xs flex items-start gap-2.5 animate-in fade-in slide-in-from-top-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/40 rounded-xl text-emerald-800 dark:text-emerald-200 text-xs flex items-start gap-2.5 animate-in fade-in slide-in-from-top-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="font-bold text-white">{verificationFeedback.message}</p>
-                  <div className="flex items-center gap-3 text-[11px] text-emerald-300/90 font-mono">
+                  <p className="font-bold text-text-primary">{verificationFeedback.message}</p>
+                  <div className="flex items-center gap-3 text-[11px] text-emerald-700 dark:text-emerald-300 font-mono">
                     <span>✓ {verificationFeedback.stats.total} disposiciones validadas</span>
                     <span>✓ {verificationFeedback.stats.bojas} referencias BOJA activas</span>
                     <span>✓ {verificationFeedback.stats.boes} normas básicas BOE</span>
@@ -2382,19 +2382,19 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 {/* Search Input */}
                 <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={normativaSearchQuery}
                     onChange={(e) => setNormativaSearchQuery(e.target.value)}
                     placeholder="Buscar por código (ej. Decreto 102/2023, LO 3/2022, 20/06/1997), término (30h, 18h, >55 años, desdoble, guardia, BOJA)..."
-                    className="w-full pl-9 pr-8 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 focus:outline-none transition-all"
+                    className="w-full pl-9 pr-8 py-2 bg-surface border border-border-default rounded-xl text-text-primary placeholder-text-muted text-xs focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 focus:outline-none transition-all shadow-xs"
                   />
                   {normativaSearchQuery && (
                     <button
                       type="button"
                       onClick={() => setNormativaSearchQuery("")}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs cursor-pointer p-0.5"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary text-xs cursor-pointer p-0.5"
                     >
                       ✕
                     </button>
@@ -2402,10 +2402,10 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                 </div>
 
                 {/* Filter Counter Badge */}
-                <div className="flex items-center gap-2 shrink-0 self-center sm:self-auto text-slate-400 text-xs">
+                <div className="flex items-center gap-2 shrink-0 self-center sm:self-auto text-text-muted text-xs">
                   <span>
                     Mostrando{" "}
-                    <strong className="text-white">
+                    <strong className="text-text-primary">
                       {
                         normativaList.filter((norm) => {
                           if (normativaCategoryFilter !== "all" && norm.category !== normativaCategoryFilter) return false;
@@ -2431,8 +2431,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
               {/* Category Filter Pills */}
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-1 flex items-center gap-1">
-                  <Filter className="w-3 h-3 text-cyan-400" />
+                <span className="text-[10px] font-black text-text-muted uppercase tracking-wider mr-1 flex items-center gap-1">
+                  <Filter className="w-3 h-3 text-cyan-500" />
                   Filtrar:
                 </span>
                 {[
@@ -2449,8 +2449,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                     onClick={() => setNormativaCategoryFilter(cat.id as any)}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                       normativaCategoryFilter === cat.id
-                        ? "bg-cyan-600/30 text-cyan-300 border-cyan-500/50 shadow-sm"
-                        : "bg-slate-950/80 text-slate-400 border-slate-800 hover:text-slate-200 hover:bg-slate-900"
+                        ? "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500 shadow-xs"
+                        : "bg-alt text-text-secondary border-border-default hover:text-text-primary hover:bg-hover"
                     }`}
                   >
                     {cat.label}
@@ -2485,8 +2485,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                 return (
                   <div
                     key={norm.id}
-                    className={`p-4 bg-slate-950 rounded-2xl border transition-all space-y-3 flex flex-col justify-between shadow-md ${
-                      isAndalucia ? "border-slate-800 hover:border-cyan-500/40" : "border-slate-800 hover:border-amber-500/40"
+                    className={`p-4 bg-surface rounded-2xl border transition-all space-y-3 flex flex-col justify-between shadow-xs ${
+                      isAndalucia ? "border-border-default hover:border-cyan-500/40" : "border-border-default hover:border-amber-500/40"
                     }`}
                   >
                     <div className="space-y-2.5">
@@ -2496,48 +2496,48 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                           <span
                             className={`px-2 py-0.5 rounded-lg text-xs font-black font-mono border ${
                               isAndalucia
-                                ? "bg-cyan-950/80 text-cyan-300 border-cyan-700/60"
-                                : "bg-amber-950/80 text-amber-300 border-amber-700/60"
+                                ? "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/30"
+                                : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
                             }`}
                           >
                             {norm.code}
                           </span>
-                          <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-900 text-slate-300 border border-slate-800 flex items-center gap-1">
-                            <Globe className="w-3 h-3 text-slate-400" />
+                          <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-alt text-text-secondary border border-border-default flex items-center gap-1">
+                            <Globe className="w-3 h-3 text-text-muted" />
                             {norm.officialScope}
                           </span>
                         </div>
 
                         {/* Status Badge */}
                         <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             Vigente en Andalucía
                           </span>
                         </div>
                       </div>
 
                       {/* Title */}
-                      <h4 className="font-bold text-white text-xs leading-snug">{norm.title}</h4>
+                      <h4 className="font-bold text-text-primary text-xs leading-snug">{norm.title}</h4>
 
                       {/* Official Reference / BOJA */}
-                      <div className="text-[11px] text-slate-400 flex items-center gap-1.5 font-mono">
-                        <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <div className="text-[11px] text-text-muted flex items-center gap-1.5 font-mono">
+                        <FileText className="w-3.5 h-3.5 text-text-muted shrink-0" />
                         <span className="truncate">{norm.publicationRef}</span>
                       </div>
 
                       {/* Summary */}
-                      <p className="text-slate-300 text-[11px] leading-relaxed bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
+                      <p className="text-text-secondary text-[11px] leading-relaxed bg-alt p-2.5 rounded-xl border border-border-default">
                         {norm.summary}
                       </p>
 
                       {/* Key Points */}
                       <div className="space-y-1.5 pt-1">
-                        <span className="font-bold text-slate-300 text-[11px] block">Puntos Clave y Repercusión Horaria:</span>
-                        <ul className="space-y-1 text-slate-400 text-[11px]">
+                        <span className="font-bold text-text-primary text-[11px] block">Puntos Clave y Repercusión Horaria:</span>
+                        <ul className="space-y-1 text-text-secondary text-[11px]">
                           {norm.keyPoints.map((point, idx) => (
                             <li key={idx} className="flex items-start gap-1.5 leading-snug">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
+                              <CheckCircle2 className="w-3.5 h-3.5 text-cyan-500 shrink-0 mt-0.5" />
                               <span>{point}</span>
                             </li>
                           ))}
@@ -2545,8 +2545,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       </div>
 
                       {/* Applicability in SIGRE */}
-                      <div className="p-2 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-[11px] text-indigo-200 flex items-start gap-2">
-                        <Info className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
+                      <div className="p-2 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-[11px] text-indigo-900 dark:text-indigo-200 flex items-start gap-2">
+                        <Info className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
                         <div>
                           <strong>Aplicación directa en SIGRE:</strong> {norm.applicabilityNotes}
                         </div>
@@ -2554,18 +2554,18 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
                       {/* Collapsible Legal Articles & References */}
                       {isExpanded && norm.legalArticles && (
-                        <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-[11px] text-slate-300 space-y-1 animate-in fade-in">
-                          <strong className="text-amber-400 flex items-center gap-1">
-                            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+                        <div className="p-2.5 bg-alt border border-border-default rounded-xl text-[11px] text-text-secondary space-y-1 animate-in fade-in">
+                          <strong className="text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                            <BookOpen className="w-3.5 h-3.5 text-amber-500" />
                             Artículos y Fundamentación Jurídica:
                           </strong>
-                          <p className="text-slate-300">{norm.legalArticles}</p>
+                          <p className="text-text-secondary">{norm.legalArticles}</p>
                           {norm.sourceUrl && (
                             <a
                               href={norm.sourceUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-cyan-400 hover:text-cyan-300 text-[10px] inline-flex items-center gap-1 pt-1 font-mono hover:underline"
+                              className="text-cyan-600 dark:text-cyan-400 hover:underline text-[10px] inline-flex items-center gap-1 pt-1 font-mono"
                             >
                               <span>Consultar publicación oficial (BOJA/BOE)</span>
                               <ExternalLink className="w-3 h-3" />
@@ -2576,8 +2576,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                     </div>
 
                     {/* Bottom Action Footer */}
-                    <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2 text-[10px]">
-                      <span className="text-slate-500 font-mono">
+                    <div className="pt-3 border-t border-border-default flex items-center justify-between gap-2 text-[10px]">
+                      <span className="text-text-muted font-mono">
                         Comprobado: {norm.lastCheckedDate || "2026-08-26"}
                       </span>
 
@@ -2586,7 +2586,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                           <button
                             type="button"
                             onClick={() => toggleExpandNormativa(norm.id)}
-                            className="px-2 py-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900 cursor-pointer font-bold"
+                            className="px-2 py-1 text-text-muted hover:text-text-primary rounded-lg hover:bg-hover cursor-pointer font-bold"
                           >
                             {isExpanded ? "Ocultar artículos" : "Ver artículos"}
                           </button>
@@ -2595,7 +2595,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                         <button
                           type="button"
                           onClick={() => setEditingNormativaModal({ item: { ...norm }, isNew: false })}
-                          className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg border border-slate-800 cursor-pointer font-bold flex items-center gap-1"
+                          className="px-2 py-1 bg-alt hover:bg-hover text-text-secondary hover:text-text-primary rounded-lg border border-border-default cursor-pointer font-bold flex items-center gap-1"
                           title="Editar detalles de la norma"
                         >
                           <Edit2 className="w-3 h-3" />
@@ -2606,7 +2606,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                           <button
                             type="button"
                             onClick={() => handleDeleteNormativaItem(norm.id)}
-                            className="p-1 text-slate-500 hover:text-red-400 rounded-lg hover:bg-slate-900 cursor-pointer"
+                            className="p-1 text-text-muted hover:text-red-500 rounded-lg hover:bg-hover cursor-pointer"
                             title="Eliminar norma personalizada"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -2635,11 +2635,11 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
             }
             return true;
           }).length === 0 && (
-            <div className="p-8 bg-slate-900 border border-slate-800 rounded-2xl text-center space-y-3">
-              <Scale className="w-8 h-8 text-slate-600 mx-auto" />
+            <div className="p-8 bg-surface border border-border-default rounded-2xl text-center space-y-3 shadow-xs">
+              <Scale className="w-8 h-8 text-text-muted mx-auto" />
               <div className="space-y-1">
-                <h4 className="font-bold text-white text-sm">No se encontraron disposiciones normativas</h4>
-                <p className="text-slate-400 text-xs">
+                <h4 className="font-bold text-text-primary text-sm">No se encontraron disposiciones normativas</h4>
+                <p className="text-text-muted text-xs">
                   No hay normas que coincidan con el término de búsqueda &quot;{normativaSearchQuery}&quot; o la categoría seleccionada.
                 </p>
               </div>
@@ -2667,6 +2667,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
           moduloNombre={moduloNombre || "Técnicas de montaje de instalaciones térmicas"}
           cicloFormativo={cicloFormativo || "1º CFGM Instalaciones Frigoríficas y de Climatización"}
           docenteNombre={docenteNombre || activeTeacher?.name}
+          theme={theme as "dark" | "light"}
           onCalendarChange={(cal) => {
             onUpdateScheduleConfig({
               ...config,
@@ -2679,20 +2680,20 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
       {/* MODAL: EDITAR / AÑADIR NORMATIVA O CIRCULAR */}
       {editingNormativaModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface border border-border-default rounded-2xl max-w-2xl w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border-default pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-300 font-bold text-xs">
+                <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-700 dark:text-cyan-300 font-bold text-xs">
                   <Scale className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white text-sm">
+                  <h3 className="font-bold text-text-primary text-sm">
                     {editingNormativaModal.isNew
                       ? "Registrar Nueva Normativa, Instrucción o Circular"
                       : `Editar Referencia Normativa: ${editingNormativaModal.item.code}`}
                   </h3>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-text-muted">
                     Configuración de texto legal, ámbito oficial (BOJA/BOE), puntos clave y repercusión en horarios de FP.
                   </p>
                 </div>
@@ -2700,7 +2701,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
               <button
                 type="button"
                 onClick={() => setEditingNormativaModal(null)}
-                className="text-slate-400 hover:text-white text-xs cursor-pointer p-1"
+                className="text-text-muted hover:text-text-primary text-xs cursor-pointer p-1"
               >
                 ✕
               </button>
@@ -2709,7 +2710,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
             <div className="space-y-3.5 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Código / Abreviatura:</label>
+                  <label className="font-bold text-text-secondary block mb-1">Código / Abreviatura:</label>
                   <input
                     type="text"
                     value={editingNormativaModal.item.code || ""}
@@ -2720,11 +2721,11 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       })
                     }
                     placeholder="ej. Instrucciones 2026/27"
-                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-xs focus:border-cyan-500 focus:outline-none"
+                    className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary font-mono text-xs focus:border-cyan-500 focus:outline-none"
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="font-bold text-slate-300 block mb-1">Título Oficial de la Norma:</label>
+                  <label className="font-bold text-text-secondary block mb-1">Título Oficial de la Norma:</label>
                   <input
                     type="text"
                     value={editingNormativaModal.item.title || ""}
@@ -2735,14 +2736,14 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       })
                     }
                     placeholder="ej. Instrucciones de la Viceconsejería sobre organización de centros de FP..."
-                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-cyan-500 focus:outline-none"
+                    className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-cyan-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Ámbito Oficial:</label>
+                  <label className="font-bold text-text-secondary block mb-1">Ámbito Oficial:</label>
                   <select
                     value={editingNormativaModal.item.officialScope || "Andalucía (BOJA)"}
                     onChange={(e) =>
@@ -2751,7 +2752,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                         item: { ...editingNormativaModal.item, officialScope: e.target.value as any },
                       })
                     }
-                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-cyan-500 focus:outline-none cursor-pointer"
+                    className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-cyan-500 focus:outline-none cursor-pointer"
                   >
                     <option value="Andalucía (BOJA)">Andalucía (BOJA)</option>
                     <option value="Consejería de Desarrollo Educativo">Consejería de Desarrollo Educativo (Andalucía)</option>
@@ -2760,7 +2761,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Categoría Temática:</label>
+                  <label className="font-bold text-text-secondary block mb-1">Categoría Temática:</label>
                   <select
                     value={editingNormativaModal.item.category || "andalucia_autonomica"}
                     onChange={(e) =>
@@ -2769,7 +2770,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                         item: { ...editingNormativaModal.item, category: e.target.value as any },
                       })
                     }
-                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-cyan-500 focus:outline-none cursor-pointer"
+                    className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-cyan-500 focus:outline-none cursor-pointer"
                   >
                     <option value="andalucia_autonomica">Andalucía Autonómica (BOJA / ROC)</option>
                     <option value="jornada_horarios">Jornada 30h y 18h Lectivas</option>
@@ -2781,7 +2782,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
               </div>
 
               <div>
-                <label className="font-bold text-slate-300 block mb-1">Referencia de Publicación Oficial:</label>
+                <label className="font-bold text-text-secondary block mb-1">Referencia de Publicación Oficial:</label>
                 <input
                   type="text"
                   value={editingNormativaModal.item.publicationRef || ""}
@@ -2792,12 +2793,12 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                     })
                   }
                   placeholder="ej. BOJA núm. 90, de 15/05/2023 o Resolución de 25 de junio de 2026"
-                  className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-xs focus:border-cyan-500 focus:outline-none"
+                  className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary font-mono text-xs focus:border-cyan-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="font-bold text-slate-300 block mb-1">Resumen y Alcance Jurídico:</label>
+                <label className="font-bold text-text-secondary block mb-1">Resumen y Alcance Jurídico:</label>
                 <textarea
                   rows={2}
                   value={editingNormativaModal.item.summary || ""}
@@ -2808,12 +2809,12 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                     })
                   }
                   placeholder="Describe brevemente el objeto y alcance de la disposición..."
-                  className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-cyan-500 focus:outline-none"
+                  className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-cyan-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="font-bold text-slate-300 block mb-1">
+                <label className="font-bold text-text-secondary block mb-1">
                   Puntos Clave y Criterios Horarios (uno por línea):
                 </label>
                 <textarea
@@ -2829,13 +2830,13 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                     })
                   }
                   placeholder="Criterio 1: 18h lectivas ordinarias&#10;Criterio 2: Desdobles en taller de frío y calor..."
-                  className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-cyan-500 focus:outline-none"
+                  className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-cyan-500 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Repercusión en SIGRE:</label>
+                  <label className="font-bold text-text-secondary block mb-1">Repercusión en SIGRE:</label>
                   <input
                     type="text"
                     value={editingNormativaModal.item.applicabilityNotes || ""}
@@ -2846,11 +2847,11 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       })
                     }
                     placeholder="ej. Ajuste de horas lectivas en la configuración docente"
-                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-cyan-500 focus:outline-none"
+                    className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-cyan-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Artículos Específicos:</label>
+                  <label className="font-bold text-text-secondary block mb-1">Artículos Específicos:</label>
                   <input
                     type="text"
                     value={editingNormativaModal.item.legalArticles || ""}
@@ -2861,13 +2862,13 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       })
                     }
                     placeholder="ej. Artículos 14 (Desdobles) y 18 (Dual)"
-                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-cyan-500 focus:outline-none"
+                    className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-cyan-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-bold text-slate-300 block mb-1">Enlace / URL Oficial (Opcional):</label>
+                <label className="font-bold text-text-secondary block mb-1">Enlace / URL Oficial (Opcional):</label>
                 <input
                   type="url"
                   value={editingNormativaModal.item.sourceUrl || ""}
@@ -2878,16 +2879,16 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                     })
                   }
                   placeholder="https://www.juntadeandalucia.es/eboja..."
-                  className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-xs focus:border-cyan-500 focus:outline-none"
+                  className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary font-mono text-xs focus:border-cyan-500 focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+            <div className="flex items-center justify-end gap-2 border-t border-border-default pt-3">
               <button
                 type="button"
                 onClick={() => setEditingNormativaModal(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                className="px-4 py-2 bg-alt hover:bg-hover text-text-secondary hover:text-text-primary rounded-xl text-xs font-bold cursor-pointer transition-colors border border-border-default"
               >
                 Cancelar
               </button>
@@ -2896,7 +2897,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                 onClick={() =>
                   handleSaveNormativaItem(editingNormativaModal.item, editingNormativaModal.isNew)
                 }
-                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center gap-1.5 shadow-md shadow-cyan-600/20"
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center gap-1.5 shadow-xs"
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>{editingNormativaModal.isNew ? "Guardar Nueva Norma" : "Guardar Cambios"}</span>
@@ -2908,9 +2909,9 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
       {/* TEACHER WORKLOAD & REDUCTIONS MODAL (EDIT / CREATE) */}
       {editingTeacher && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface border border-border-default rounded-2xl max-w-2xl w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border-default pb-3">
               <div className="flex items-center gap-2.5">
                 <div
                   className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-md"
@@ -2919,10 +2920,10 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                   {editingTeacher.code.substring(0, 3)}
                 </div>
                 <div>
-                  <h3 className="font-bold text-white text-sm">
+                  <h3 className="font-bold text-text-primary text-sm">
                     {isCreatingTeacher ? "Alta de Nuevo Profesor/a" : `Configuración Laboral: ${editingTeacher.name || editingTeacher.code}`}
                   </h3>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-text-muted">
                     Jornada de permanencia (30h), horas lectivas y reducciones normativas (LO 3/2022 y &gt;55 años).
                   </p>
                 </div>
@@ -2933,7 +2934,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                   setEditingTeacher(null);
                   setIsCreatingTeacher(false);
                 }}
-                className="text-slate-400 hover:text-white text-xs cursor-pointer p-1"
+                className="text-text-muted hover:text-text-primary text-xs cursor-pointer p-1"
               >
                 ✕
               </button>
@@ -2943,71 +2944,71 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
               {/* Basic Details */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Código / Acrónimo:</label>
+                  <label className="font-bold text-text-secondary block mb-1">Código / Acrónimo:</label>
                   <input
                     type="text"
                     value={editingTeacher.code}
                     onChange={(e) => setEditingTeacher({ ...editingTeacher, code: e.target.value })}
                     placeholder="ej. EVM-Mont"
-                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-xs focus:border-amber-500 focus:outline-none"
+                    className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary font-mono text-xs focus:border-amber-500 focus:outline-none"
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="font-bold text-slate-300 block mb-1">Nombre Completo:</label>
+                  <label className="font-bold text-text-secondary block mb-1">Nombre Completo:</label>
                   <input
                     type="text"
                     value={editingTeacher.name}
                     onChange={(e) => setEditingTeacher({ ...editingTeacher, name: e.target.value })}
                     placeholder="ej. Montserrat Elena García"
-                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-amber-500 focus:outline-none"
+                    className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-amber-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Departamento:</label>
+                  <label className="font-bold text-text-secondary block mb-1">Departamento:</label>
                   <input
                     type="text"
                     value={editingTeacher.department || ""}
                     onChange={(e) => setEditingTeacher({ ...editingTeacher, department: e.target.value })}
                     placeholder="ej. Instalación y Mantenimiento"
-                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-amber-500 focus:outline-none"
+                    className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-amber-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Email:</label>
+                  <label className="font-bold text-text-secondary block mb-1">Email:</label>
                   <input
                     type="email"
                     value={editingTeacher.email || ""}
                     onChange={(e) => setEditingTeacher({ ...editingTeacher, email: e.target.value })}
                     placeholder="ej. m.elena@fp.centro.es"
-                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-amber-500 focus:outline-none"
+                    className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-amber-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Color Identificativo:</label>
+                  <label className="font-bold text-text-secondary block mb-1">Color Identificativo:</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
                       value={editingTeacher.color || "#8B5CF6"}
                       onChange={(e) => setEditingTeacher({ ...editingTeacher, color: e.target.value })}
-                      className="w-9 h-8 rounded border border-slate-700 bg-slate-950 cursor-pointer"
+                      className="w-9 h-8 rounded border border-border-default bg-surface cursor-pointer"
                     />
-                    <span className="font-mono text-slate-400 text-[11px]">{editingTeacher.color}</span>
+                    <span className="font-mono text-text-muted text-[11px]">{editingTeacher.color}</span>
                   </div>
                 </div>
               </div>
 
               {/* Working Hours & Normative Parameters */}
-              <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
-                <h4 className="font-bold text-amber-400 flex items-center gap-2 text-xs">
+              <div className="p-3.5 bg-alt/60 border border-border-default rounded-xl space-y-3">
+                <h4 className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2 text-xs">
                   <Clock className="w-4 h-4" /> Parámetros de Jornada Docente
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="font-bold text-slate-300 block mb-1">
+                    <label className="font-bold text-text-secondary block mb-1">
                       Horas de Permanencia en el Centro (h/semana):
                     </label>
                     <div className="flex items-center gap-2">
@@ -3023,16 +3024,16 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                             horasPermanenciaCentro: parseFloat(e.target.value) || 30,
                           })
                         }
-                        className="w-24 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono text-xs focus:border-amber-500 focus:outline-none"
+                        className="w-24 px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary font-mono text-xs focus:border-amber-500 focus:outline-none"
                       />
-                      <span className="text-slate-400 text-[11px]">
+                      <span className="text-text-muted text-[11px]">
                         Por defecto <strong>30h</strong> (25h regulares + 5h)
                       </span>
                     </div>
                   </div>
 
                   <div>
-                    <label className="font-bold text-slate-300 block mb-1">
+                    <label className="font-bold text-text-secondary block mb-1">
                       Horas Lectivas Base de Referencia (h/semana):
                     </label>
                     <div className="flex items-center gap-2">
@@ -3047,9 +3048,9 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                             horasLectivasBase: parseInt(e.target.value) || 18,
                           })
                         }
-                        className="w-24 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono text-xs focus:border-amber-500 focus:outline-none"
+                        className="w-24 px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary font-mono text-xs focus:border-amber-500 focus:outline-none"
                       />
-                      <span className="text-slate-400 text-[11px]">
+                      <span className="text-text-muted text-[11px]">
                         Por defecto <strong>18h</strong> (LOMLOE / Ley 4/2019)
                       </span>
                     </div>
@@ -3057,14 +3058,14 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                 </div>
 
                 {/* Switch for >55 years reduction */}
-                <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between bg-slate-900/60 p-2.5 rounded-lg">
+                <div className="pt-2 border-t border-border-default flex items-center justify-between bg-surface p-2.5 rounded-lg border border-border-default/60">
                   <div className="flex items-center gap-2.5">
-                    <HeartPulse className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <HeartPulse className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
                     <div>
-                      <div className="font-bold text-white text-xs">
+                      <div className="font-bold text-text-primary text-xs">
                         Profesor/a Mayor de 55 Años (&gt;55 Años)
                       </div>
-                      <div className="text-[10px] text-slate-400">
+                      <div className="text-[10px] text-text-muted">
                         Aplica automáticamente reducción de <strong>2 horas lectivas</strong> (de 18h a 16h) según Acuerdo Marco.
                       </div>
                     </div>
@@ -3102,19 +3103,19 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                         reducciones: updatedReductions,
                       });
                     }}
-                    className="w-4 h-4 text-amber-500 rounded border-slate-700 bg-slate-950 focus:ring-amber-500"
+                    className="w-4 h-4 text-amber-500 rounded border-border-default bg-surface focus:ring-amber-500"
                   />
                 </div>
               </div>
 
               {/* Reductions and Roles Section (Fully Editable, Addable, Suppressible) */}
-              <div className="space-y-3 p-3.5 bg-slate-950/90 border border-slate-800 rounded-xl">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+              <div className="space-y-3 p-3.5 bg-surface border border-border-default rounded-xl">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-default pb-2.5">
                   <div>
-                    <h4 className="font-bold text-white flex items-center gap-2 text-xs">
-                      <Award className="w-4 h-4 text-amber-400" /> Reducciones Horarias & Cargos de Coordinación
+                    <h4 className="font-bold text-text-primary flex items-center gap-2 text-xs">
+                      <Award className="w-4 h-4 text-amber-500" /> Reducciones Horarias & Cargos de Coordinación
                     </h4>
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-[10px] text-text-muted">
                       Entradas editables: modifica horas, añade casuísticas anuales (ej. tamaño del departamento) o suprime cargos.
                     </p>
                   </div>
@@ -3146,7 +3147,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                         }
                         e.target.value = "";
                       }}
-                      className="px-2.5 py-1 bg-slate-900 border border-slate-700 hover:border-amber-500/50 rounded-lg text-slate-300 text-[11px] font-bold focus:outline-none cursor-pointer"
+                      className="px-2.5 py-1 bg-surface border border-border-default hover:border-amber-500/50 rounded-lg text-text-secondary text-[11px] font-bold focus:outline-none cursor-pointer"
                       defaultValue=""
                     >
                       <option value="" disabled>
@@ -3177,7 +3178,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                           reducciones: [...(editingTeacher.reducciones || []), newCustom],
                         });
                       }}
-                      className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                      className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
                     >
                       <Plus className="w-3 h-3" />
                       Personalizada
@@ -3187,11 +3188,11 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
                 {/* List of Configured Reductions */}
                 {(!editingTeacher.reducciones || editingTeacher.reducciones.length === 0) ? (
-                  <div className="p-4 bg-slate-900/60 border border-dashed border-slate-800 rounded-xl text-center space-y-1.5">
-                    <p className="text-slate-400 text-xs">
+                  <div className="p-4 bg-alt/50 border border-dashed border-border-default rounded-xl text-center space-y-1.5">
+                    <p className="text-text-muted text-xs">
                       Este docente no tiene reducciones horarias ni cargos de coordinación asignados.
                     </p>
-                    <p className="text-slate-500 text-[10px]">
+                    <p className="text-text-muted text-[10px]">
                       Utiliza el menú superior para añadir Jefatura de Departamento, Coordinación FFEoE/Dual, ATECA, PRL o una entrada personalizada.
                     </p>
                   </div>
@@ -3205,8 +3206,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                           key={red.id || `red_${index}`}
                           className={`p-3 rounded-xl border transition-all space-y-2 ${
                             red.activo
-                              ? "bg-slate-900/90 border-amber-500/40 ring-1 ring-amber-500/10"
-                              : "bg-slate-950/60 border-slate-800 opacity-60 hover:opacity-100"
+                              ? "bg-surface border-amber-500/40 ring-1 ring-amber-500/10 shadow-xs"
+                              : "bg-alt/40 border-border-default opacity-60 hover:opacity-100"
                           }`}
                         >
                           {/* Row 1: Active switch, Name & Delete button */}
@@ -3225,7 +3226,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                     reducciones: updated,
                                   });
                                 }}
-                                className="w-4 h-4 text-amber-500 rounded border-slate-700 bg-slate-950 focus:ring-amber-500 cursor-pointer"
+                                className="w-4 h-4 text-amber-500 rounded border-border-default bg-surface focus:ring-amber-500 cursor-pointer"
                                 title="Activar/Desactivar reducción"
                               />
 
@@ -3241,7 +3242,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                   });
                                 }}
                                 placeholder="Nombre del Cargo / Reducción"
-                                className="flex-1 px-2.5 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white font-bold text-xs focus:border-amber-500 focus:outline-none"
+                                className="flex-1 px-2.5 py-1 bg-surface border border-border-default rounded-lg text-text-primary font-bold text-xs focus:border-amber-500 focus:outline-none"
                               />
                             </div>
 
@@ -3255,7 +3256,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                   reducciones: updated,
                                 });
                               }}
-                              className="p-1 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors cursor-pointer"
+                              className="p-1 text-text-muted hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors cursor-pointer"
                               title="Suprimir esta reducción"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -3265,7 +3266,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                           {/* Row 2: Hours and Normative Reference */}
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
                             <div>
-                              <label className="text-slate-400 font-semibold block mb-0.5">
+                              <label className="text-text-muted font-semibold block mb-0.5">
                                 Reducción Lectiva (h/sem):
                               </label>
                               <div className="flex items-center gap-1.5">
@@ -3284,16 +3285,16 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                       reducciones: updated,
                                     });
                                   }}
-                                  className="w-16 px-2 py-1 bg-slate-950 border border-slate-700 rounded text-amber-300 font-mono font-bold text-xs focus:border-amber-500 focus:outline-none"
+                                  className="w-16 px-2 py-1 bg-surface border border-border-default rounded text-amber-600 dark:text-amber-300 font-mono font-bold text-xs focus:border-amber-500 focus:outline-none"
                                 />
-                                <span className="text-[10px] text-amber-400/80 font-mono">
+                                <span className="text-[10px] text-amber-600 dark:text-amber-400/80 font-mono">
                                   -{red.horasLectivas}h lectivas
                                 </span>
                               </div>
                             </div>
 
                             <div>
-                              <label className="text-slate-400 font-semibold block mb-0.5">
+                              <label className="text-text-muted font-semibold block mb-0.5">
                                 Horas Complementarias:
                               </label>
                               <div className="flex items-center gap-1.5">
@@ -3312,16 +3313,16 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                       reducciones: updated,
                                     });
                                   }}
-                                  className="w-16 px-2 py-1 bg-slate-950 border border-slate-700 rounded text-indigo-300 font-mono font-bold text-xs focus:border-amber-500 focus:outline-none"
+                                  className="w-16 px-2 py-1 bg-surface border border-border-default rounded text-indigo-600 dark:text-indigo-300 font-mono font-bold text-xs focus:border-amber-500 focus:outline-none"
                                 />
-                                <span className="text-[10px] text-indigo-300/80 font-mono">
+                                <span className="text-[10px] text-indigo-600 dark:text-indigo-300/80 font-mono">
                                   +{red.horasComplementarias ?? 2}h comp
                                 </span>
                               </div>
                             </div>
 
                             <div>
-                              <label className="text-slate-400 font-semibold block mb-0.5">
+                              <label className="text-text-muted font-semibold block mb-0.5">
                                 Referencia / Normativa / Casuística:
                               </label>
                               <input
@@ -3336,16 +3337,16 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                   });
                                 }}
                                 placeholder="ej. ROC FP / Dpto 4-7 profesores"
-                                className="w-full px-2 py-1 bg-slate-950 border border-slate-700 rounded text-cyan-300 text-[10px] font-mono focus:border-amber-500 focus:outline-none"
+                                className="w-full px-2 py-1 bg-surface border border-border-default rounded text-cyan-700 dark:text-cyan-300 text-[10px] font-mono focus:border-amber-500 focus:outline-none"
                               />
                             </div>
                           </div>
 
                           {/* Quick Helper for Jefatura de Departamento FP (Casuística según nº profesores) */}
                           {isJefatura && (
-                            <div className="pt-1 border-t border-slate-800/60 flex flex-wrap items-center gap-1.5 text-[10px]">
-                              <span className="text-slate-400 font-bold flex items-center gap-1">
-                                <Users className="w-3 h-3 text-amber-400" /> Ajuste por Plantilla Dpto FP:
+                            <div className="pt-1 border-t border-border-default flex flex-wrap items-center gap-1.5 text-[10px]">
+                              <span className="text-text-muted font-bold flex items-center gap-1">
+                                <Users className="w-3 h-3 text-amber-500" /> Ajuste por Plantilla Dpto FP:
                               </span>
                               <button
                                 type="button"
@@ -3361,8 +3362,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                 }}
                                 className={`px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
                                   red.horasLectivas === 2
-                                    ? "bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold"
-                                    : "bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700"
+                                    ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40 font-bold"
+                                    : "bg-surface text-text-muted border-border-default hover:border-border-hover"
                                 }`}
                               >
                                 1-3 profes: 2h
@@ -3382,8 +3383,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                 }}
                                 className={`px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
                                   red.horasLectivas === 3
-                                    ? "bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold"
-                                    : "bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700"
+                                    ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40 font-bold"
+                                    : "bg-surface text-text-muted border-border-default hover:border-border-hover"
                                 }`}
                               >
                                 4-7 profes: 3h
@@ -3403,8 +3404,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                 }}
                                 className={`px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
                                   red.horasLectivas === 4
-                                    ? "bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold"
-                                    : "bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700"
+                                    ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40 font-bold"
+                                    : "bg-surface text-text-muted border-border-default hover:border-border-hover"
                                 }`}
                               >
                                 8+ profes: 4h
@@ -3424,8 +3425,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                 }}
                                 className={`px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
                                   red.horasLectivas === 5
-                                    ? "bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold"
-                                    : "bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700"
+                                    ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40 font-bold"
+                                    : "bg-surface text-text-muted border-border-default hover:border-border-hover"
                                 }`}
                               >
                                 CIFP (&gt;12 profes): 5h
@@ -3443,18 +3444,18 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
               {(() => {
                 const previewStats = getTeacherWorkloadDetails(editingTeacher);
                 return (
-                  <div className="p-3 bg-gradient-to-r from-slate-950 to-slate-900 border border-amber-500/30 rounded-xl space-y-1.5 font-mono text-xs">
-                    <div className="flex items-center justify-between text-white font-bold">
+                  <div className="p-3 bg-alt/60 border border-amber-500/30 rounded-xl space-y-1.5 font-mono text-xs">
+                    <div className="flex items-center justify-between text-text-primary font-bold">
                       <span className="flex items-center gap-1.5">
-                        <Scale className="w-3.5 h-3.5 text-amber-400" /> Cómputo Resultante:
+                        <Scale className="w-3.5 h-3.5 text-amber-500" /> Cómputo Resultante:
                       </span>
-                      <span className="text-cyan-300">
+                      <span className="text-cyan-700 dark:text-cyan-300">
                         {previewStats.lectivasBase}h base - {previewStats.totalReduccionLectiva}h reducciones = <strong>{previewStats.lectivasObjetivo}h lectivas a impartir</strong>
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <div className="flex items-center justify-between text-[11px] text-text-muted">
                       <span>Permanencia semanal en centro:</span>
-                      <strong className="text-white">{previewStats.permanenciaObligada} horas</strong>
+                      <strong className="text-text-primary">{previewStats.permanenciaObligada} horas</strong>
                     </div>
                   </div>
                 );
@@ -3462,21 +3463,21 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
             </div>
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+            <div className="flex items-center justify-end gap-2 border-t border-border-default pt-3">
               <button
                 type="button"
                 onClick={() => {
                   setEditingTeacher(null);
                   setIsCreatingTeacher(false);
                 }}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                className="px-3 py-1.5 bg-alt hover:bg-hover text-text-secondary hover:text-text-primary rounded-lg text-xs font-bold transition-colors cursor-pointer border border-border-default"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={() => handleSaveTeacher(editingTeacher)}
-                className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-black rounded-lg text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
+                className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-black rounded-lg text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Check className="w-3.5 h-3.5" />
                 Guardar Configuración
@@ -3488,17 +3489,17 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
       {/* DRAG AND DROP CONFLICT RESOLUTION MODAL */}
       {dragConflictModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface border border-border-default rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3 border-b border-border-default pb-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
                 <ArrowLeftRight className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-white text-sm">
+                <h3 className="font-bold text-text-primary text-sm">
                   Franja Horaria Ocupada
                 </h3>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-text-muted">
                   Ya existe una sesión programada en {DAYS.find((d) => d.key === dragConflictModal.target.targetDay)?.fullLabel},{" "}
                   {timeSlots.find((s) => s.id === dragConflictModal.target.targetSlotId)?.label}.
                 </p>
@@ -3506,22 +3507,22 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
             </div>
 
             <div className="space-y-2 text-xs">
-              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+              <div className="p-3 bg-alt/60 border border-border-default rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Sesión a Mover:</span>
-                  <strong className="text-amber-400 font-mono">
+                  <span className="text-text-muted">Sesión a Mover:</span>
+                  <strong className="text-amber-600 dark:text-amber-400 font-mono">
                     {dragConflictModal.source.cellData.code || "Sesión"}
                   </strong>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Sesión Existente:</span>
-                  <strong className="text-cyan-400 font-mono">
+                  <span className="text-text-muted">Sesión Existente:</span>
+                  <strong className="text-cyan-600 dark:text-cyan-400 font-mono">
                     {dragConflictModal.target.existingCellData.code || "Sesión"}
                   </strong>
                 </div>
               </div>
 
-              <p className="text-slate-300 font-semibold pt-1">
+              <p className="text-text-secondary font-semibold pt-1">
                 ¿Cómo deseas proceder?
               </p>
 
@@ -3529,45 +3530,45 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                 <button
                   type="button"
                   onClick={() => handleResolveConflict("swap")}
-                  className="w-full p-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer"
+                  className="w-full p-2.5 bg-surface hover:bg-hover border border-border-default rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-2.5">
-                    <ArrowLeftRight className="w-4 h-4 text-amber-400" />
+                    <ArrowLeftRight className="w-4 h-4 text-amber-500" />
                     <div>
-                      <div className="font-bold text-white text-xs">Intercambiar (Swap)</div>
-                      <div className="text-[10px] text-slate-400">Permuta las 2 sesiones entre sí</div>
+                      <div className="font-bold text-text-primary text-xs">Intercambiar (Swap)</div>
+                      <div className="text-[10px] text-text-muted">Permuta las 2 sesiones entre sí</div>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                  <ChevronRight className="w-4 h-4 text-text-muted" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleResolveConflict("merge_split")}
-                  className="w-full p-2.5 bg-purple-950/40 hover:bg-purple-900/40 border border-purple-800/60 rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer"
+                  className="w-full p-2.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-2.5">
-                    <Users className="w-4 h-4 text-purple-400" />
+                    <Users className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                     <div>
-                      <div className="font-bold text-purple-200 text-xs">Crear Desdoble / Co-docencia</div>
-                      <div className="text-[10px] text-purple-300/80">
+                      <div className="font-bold text-purple-900 dark:text-purple-200 text-xs">Crear Desdoble / Co-docencia</div>
+                      <div className="text-[10px] text-purple-700 dark:text-purple-300/80">
                         Compartir franja con ambos profesores (prácticas de taller / clases numerosas)
                       </div>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-purple-400" />
+                  <ChevronRight className="w-4 h-4 text-purple-500" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleResolveConflict("overwrite")}
-                  className="w-full p-2.5 bg-red-950/30 hover:bg-red-900/30 border border-red-800/40 rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer"
+                  className="w-full p-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-xl text-left flex items-center justify-between transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-2.5">
-                    <Trash2 className="w-4 h-4 text-red-400" />
+                    <Trash2 className="w-4 h-4 text-red-500" />
                     <div>
-                      <div className="font-bold text-red-300 text-xs">Sobrescribir / Reemplazar</div>
-                      <div className="text-[10px] text-red-400/80">Elimina la sesión previa y coloca la nueva</div>
+                      <div className="font-bold text-red-800 dark:text-red-300 text-xs">Sobrescribir / Reemplazar</div>
+                      <div className="text-[10px] text-red-600 dark:text-red-400/80">Elimina la sesión previa y coloca la nueva</div>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-red-400" />
@@ -3575,11 +3576,11 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
               </div>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-slate-800">
+            <div className="flex justify-end pt-2 border-t border-border-default">
               <button
                 type="button"
                 onClick={() => setDragConflictModal(null)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                className="px-3 py-1.5 bg-alt hover:bg-hover text-text-secondary hover:text-text-primary rounded-lg text-xs font-bold transition-colors cursor-pointer border border-border-default"
               >
                 Cancelar
               </button>
@@ -3590,18 +3591,18 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
       {/* EDIT CELL MODAL */}
       {editingCell && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <Edit2 className="w-4 h-4 text-amber-400" />
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface border border-border-default rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border-default pb-3">
+              <h3 className="font-bold text-text-primary text-sm flex items-center gap-2">
+                <Edit2 className="w-4 h-4 text-amber-500" />
                 Editar Celda ({DAYS.find((d) => d.key === editingCell.day)?.fullLabel},{" "}
                 {timeSlots.find((s) => s.id === editingCell.slotId)?.label})
               </h3>
               <button
                 type="button"
                 onClick={() => setEditingCell(null)}
-                className="text-slate-400 hover:text-white text-xs cursor-pointer"
+                className="text-text-muted hover:text-text-primary text-xs cursor-pointer p-1"
               >
                 ✕
               </button>
@@ -3610,15 +3611,15 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
             <div className="space-y-3 text-xs">
               {/* Type selector */}
               <div>
-                <label className="font-bold text-slate-300 block mb-1">Tipo de Actividad:</label>
+                <label className="font-bold text-text-secondary block mb-1">Tipo de Actividad:</label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
-                    { id: "clase", label: "Clase Lectiva", color: "border-amber-500 text-amber-300" },
-                    { id: "guardia", label: "Guardia (GUA)", color: "border-red-500 text-red-300" },
-                    { id: "guardia_recreo", label: "GUA Recreo", color: "border-rose-500 text-rose-300" },
-                    { id: "tutoria", label: "Tutoría", color: "border-blue-500 text-blue-300" },
-                    { id: "reunion_dpto", label: "Reunión Dpto", color: "border-purple-500 text-purple-300" },
-                    { id: "libre", label: "Libre / Vacía", color: "border-slate-500 text-slate-400" },
+                    { id: "clase", label: "Clase Lectiva", color: "border-amber-500 text-amber-700 dark:text-amber-300 bg-amber-500/10" },
+                    { id: "guardia", label: "Guardia (GUA)", color: "border-red-500 text-red-700 dark:text-red-300 bg-red-500/10" },
+                    { id: "guardia_recreo", label: "GUA Recreo", color: "border-rose-500 text-rose-700 dark:text-rose-300 bg-rose-500/10" },
+                    { id: "tutoria", label: "Tutoría", color: "border-blue-500 text-blue-700 dark:text-blue-300 bg-blue-500/10" },
+                    { id: "reunion_dpto", label: "Reunión Dpto", color: "border-purple-500 text-purple-700 dark:text-purple-300 bg-purple-500/10" },
+                    { id: "libre", label: "Libre / Vacía", color: "border-border-default text-text-muted bg-alt/50" },
                   ].map((t) => (
                     <button
                       key={t.id}
@@ -3640,8 +3641,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       }
                       className={`p-2 rounded-lg border text-center font-bold text-[11px] transition-all cursor-pointer ${
                         editingCell.cellData.type === t.id
-                          ? `bg-slate-800 ${t.color} ring-1`
-                          : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
+                          ? `${t.color} ring-1`
+                          : "bg-surface border-border-default text-text-muted hover:border-border-hover hover:text-text-primary"
                       }`}
                     >
                       {t.label}
@@ -3653,7 +3654,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
               {editingCell.cellData.type !== "libre" && (
                 <>
                   <div>
-                    <label className="font-bold text-slate-300 block mb-1">
+                    <label className="font-bold text-text-secondary block mb-1">
                       Código / Acrónimo (ej. CALOR 0302, GUA, SOLAR 0392):
                     </label>
                     <input
@@ -3665,7 +3666,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                           cellData: { ...editingCell.cellData, code: e.target.value },
                         })
                       }
-                      className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-xs focus:border-amber-500 focus:outline-none"
+                      className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary font-mono text-xs focus:border-amber-500 focus:outline-none"
                       placeholder="ej. CALOR 0302"
                     />
                   </div>
@@ -3673,7 +3674,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                   {editingCell.cellData.type === "clase" && (
                     <>
                       <div>
-                        <label className="font-bold text-slate-300 block mb-1">
+                        <label className="font-bold text-text-secondary block mb-1">
                           Nombre Asignatura / Módulo:
                         </label>
                         <input
@@ -3685,14 +3686,14 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                               cellData: { ...editingCell.cellData, subject: e.target.value },
                             })
                           }
-                          className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-amber-500 focus:outline-none"
+                          className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-amber-500 focus:outline-none"
                           placeholder="ej. Instalaciones de Producción de Calor"
                         />
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="font-bold text-slate-300 block mb-1">Aula / Taller:</label>
+                          <label className="font-bold text-text-secondary block mb-1">Aula / Taller:</label>
                           <input
                             type="text"
                             value={editingCell.cellData.classroom || ""}
@@ -3702,13 +3703,13 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                 cellData: { ...editingCell.cellData, classroom: e.target.value },
                               })
                             }
-                            className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-amber-500 focus:outline-none"
+                            className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-amber-500 focus:outline-none"
                             placeholder="ej. Aula 2º Calor / Nave 2º"
                           />
                         </div>
 
                         <div>
-                          <label className="font-bold text-slate-300 block mb-1">Grupo:</label>
+                          <label className="font-bold text-text-secondary block mb-1">Grupo:</label>
                           <input
                             type="text"
                             value={editingCell.cellData.group || ""}
@@ -3718,7 +3719,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                 cellData: { ...editingCell.cellData, group: e.target.value },
                               })
                             }
-                            className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-amber-500 focus:outline-none"
+                            className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-amber-500 focus:outline-none"
                             placeholder="ej. 2º Calor"
                           />
                         </div>
@@ -3726,11 +3727,11 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
                       {/* Desdoble / Co-docencia con otros profesores */}
                       <div>
-                        <label className="font-bold text-slate-300 block mb-1 flex items-center gap-1.5">
-                          <Users className="w-3.5 h-3.5 text-purple-400" />
+                        <label className="font-bold text-text-secondary block mb-1 flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5 text-purple-500" />
                           Desdoble de Taller / Co-docencia (Profesores Compartidos):
                         </label>
-                        <div className="flex flex-wrap gap-1.5 p-2 bg-slate-950 rounded-lg border border-slate-800">
+                        <div className="flex flex-wrap gap-1.5 p-2 bg-alt/50 rounded-lg border border-border-default">
                           {teachers
                             .filter((t) => t.id !== editingCell.teacherId)
                             .map((otherT) => {
@@ -3754,8 +3755,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                   }}
                                   className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer border ${
                                     isSelected
-                                      ? "bg-purple-900/60 text-purple-200 border-purple-500"
-                                      : "bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700"
+                                      ? "bg-purple-600/20 text-purple-800 dark:text-purple-200 border-purple-500"
+                                      : "bg-surface text-text-muted border-border-default hover:border-border-hover hover:text-text-primary"
                                   }`}
                                 >
                                   <span
@@ -3763,12 +3764,12 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                                     style={{ backgroundColor: otherT.color || "#8B5CF6" }}
                                   />
                                   <span>{otherT.code}</span>
-                                  {isSelected && <Check className="w-3 h-3 text-purple-300" />}
+                                  {isSelected && <Check className="w-3 h-3 text-purple-600 dark:text-purple-300" />}
                                 </button>
                               );
                             })}
                         </div>
-                        <span className="text-[10px] text-slate-500 mt-1 block">
+                        <span className="text-[10px] text-text-muted mt-1 block">
                           Ideal para talleres con clases numerosas conforme a la LO 3/2022 y RD 659/2023.
                         </span>
                       </div>
@@ -3779,11 +3780,11 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
             </div>
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-between border-t border-slate-800 pt-3">
+            <div className="flex items-center justify-between border-t border-border-default pt-3">
               <button
                 type="button"
                 onClick={handleDeleteCell}
-                className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-300 border border-red-500/30 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Vaciar
@@ -3793,14 +3794,14 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                 <button
                   type="button"
                   onClick={() => setEditingCell(null)}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  className="px-3 py-1.5 bg-alt hover:bg-hover text-text-secondary hover:text-text-primary rounded-lg text-xs font-bold transition-colors cursor-pointer border border-border-default"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveCell}
-                  className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-black rounded-lg text-xs transition-colors flex items-center gap-1 cursor-pointer shadow-md shadow-amber-500/20"
+                  className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-black rounded-lg text-xs transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
                 >
                   <Check className="w-3.5 h-3.5" />
                   Guardar
@@ -3812,25 +3813,25 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
       )}
       {/* ADD GROUP FROM CATALOG MODAL */}
       {showAddGroupCatalogModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface border border-border-default rounded-2xl max-w-2xl w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border-default pb-3">
               <div className="flex items-center gap-2">
-                <GraduationCap className="w-5 h-5 text-indigo-400" />
-                <h3 className="font-bold text-white text-base">
+                <GraduationCap className="w-5 h-5 text-indigo-500" />
+                <h3 className="font-bold text-text-primary text-base">
                   Catálogo de Ciclos y Grupos Formativos
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAddGroupCatalogModal(false)}
-                className="text-slate-400 hover:text-white text-xs cursor-pointer"
+                className="text-text-muted hover:text-text-primary text-xs cursor-pointer p-1"
               >
                 ✕
               </button>
             </div>
 
-            <p className="text-slate-300 text-xs">
+            <p className="text-text-secondary text-xs">
               Selecciona un grupo o curso del catálogo para añadirlo al centro y habilitar su cuadrícula de horarios:
             </p>
 
@@ -3843,8 +3844,8 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                     key={preset.id}
                     className={`p-3 rounded-xl border text-left transition-all ${
                       isAlreadyAdded
-                        ? "bg-slate-950/60 border-slate-800 opacity-70"
-                        : "bg-slate-950 border-slate-800 hover:border-indigo-500/50 hover:bg-slate-900/60 cursor-pointer"
+                        ? "bg-alt/40 border-border-default opacity-70"
+                        : "bg-surface border-border-default hover:border-indigo-500/50 hover:bg-alt/60 cursor-pointer shadow-xs"
                     }`}
                     onClick={() => {
                       if (!isAlreadyAdded) {
@@ -3856,33 +3857,33 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       <span
                         className={`text-[10px] font-black px-2 py-0.5 rounded ${
                           preset.course === "1º"
-                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                            ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
                             : preset.course === "2º"
-                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                            : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                            ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                            : "bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30"
                         }`}
                       >
                         {preset.course} Curso
                       </span>
-                      <span className="font-mono text-xs font-bold text-indigo-300">
+                      <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-300">
                         {preset.shortName}
                       </span>
                     </div>
 
-                    <div className="font-bold text-white text-xs line-clamp-2">
+                    <div className="font-bold text-text-primary text-xs line-clamp-2">
                       {preset.name}
                     </div>
 
-                    <div className="text-[11px] text-slate-400 mt-1">
+                    <div className="text-[11px] text-text-muted mt-1">
                       {preset.description}
                     </div>
 
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/80 text-[10px]">
-                      <span className="text-cyan-400/90 font-mono truncate max-w-[180px]">
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-border-default text-[10px]">
+                      <span className="text-cyan-700 dark:text-cyan-400 font-mono truncate max-w-[180px]">
                         {preset.defaultClassroom}
                       </span>
                       {isAlreadyAdded ? (
-                        <span className="text-emerald-400 font-bold flex items-center gap-1">
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" /> Añadido
                         </span>
                       ) : (
@@ -3904,7 +3905,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
             </div>
 
             {/* Custom group option */}
-            <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+            <div className="pt-2 border-t border-border-default flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => {
@@ -3919,7 +3920,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                     isNew: true,
                   });
                 }}
-                className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer"
+                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Crear un Grupo o Ciclo Personalizado</span>
@@ -3928,7 +3929,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
               <button
                 type="button"
                 onClick={() => setShowAddGroupCatalogModal(false)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                className="px-3 py-1.5 bg-alt hover:bg-hover text-text-secondary hover:text-text-primary rounded-lg text-xs font-bold transition-colors cursor-pointer border border-border-default"
               >
                 Cerrar
               </button>
@@ -3939,19 +3940,19 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
       {/* EDIT / CREATE GROUP MODAL */}
       {editingGroupModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface border border-border-default rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-border-default pb-3">
               <div className="flex items-center gap-2">
-                <GraduationCap className="w-5 h-5 text-amber-400" />
-                <h3 className="font-bold text-white text-base">
+                <GraduationCap className="w-5 h-5 text-amber-500" />
+                <h3 className="font-bold text-text-primary text-base">
                   {editingGroupModal.isNew ? "Crear Nuevo Grupo / Ciclo" : "Editar Grupo / Ciclo"}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingGroupModal(null)}
-                className="text-slate-400 hover:text-white text-xs cursor-pointer"
+                className="text-text-muted hover:text-text-primary text-xs cursor-pointer p-1"
               >
                 ✕
               </button>
@@ -3959,7 +3960,7 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="font-bold text-slate-300 block mb-1">
+                <label className="font-bold text-text-secondary block mb-1">
                   Nombre Completo del Ciclo / Grupo:
                 </label>
                 <input
@@ -3971,14 +3972,14 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                       group: { ...editingGroupModal.group, name: e.target.value },
                     })
                   }
-                  className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:border-amber-500 focus:outline-none"
+                  className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs focus:border-amber-500 focus:outline-none"
                   placeholder="ej. 1º CFGM Técnico en Instalaciones Frigoríficas..."
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">
+                  <label className="font-bold text-text-secondary block mb-1">
                     Código Corto / Acrónimo:
                   </label>
                   <input
@@ -3990,13 +3991,13 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                         group: { ...editingGroupModal.group, shortName: e.target.value },
                       })
                     }
-                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-xs focus:border-amber-500 focus:outline-none"
+                    className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary font-mono text-xs focus:border-amber-500 focus:outline-none"
                     placeholder="ej. 1º Frío"
                   />
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">
+                  <label className="font-bold text-text-secondary block mb-1">
                     Identificador Único (ID):
                   </label>
                   <input
@@ -4009,25 +4010,25 @@ export const SigreScheduleGuardManager: React.FC<SigreScheduleGuardManagerProps>
                         group: { ...editingGroupModal.group, id: e.target.value },
                       })
                     }
-                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-xs focus:border-amber-500 focus:outline-none disabled:opacity-50"
+                    className="w-full px-3 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary font-mono text-xs focus:border-amber-500 focus:outline-none disabled:opacity-50"
                     placeholder="ej. cfgm_frio_1"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+            <div className="flex items-center justify-end gap-2 border-t border-border-default pt-3">
               <button
                 type="button"
                 onClick={() => setEditingGroupModal(null)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                className="px-3 py-1.5 bg-alt hover:bg-hover text-text-secondary hover:text-text-primary rounded-lg text-xs font-bold transition-colors cursor-pointer border border-border-default"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={() => handleSaveGroup(editingGroupModal.group as any, editingGroupModal.isNew)}
-                className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-black rounded-lg text-xs transition-colors flex items-center gap-1 cursor-pointer shadow-md shadow-amber-500/20"
+                className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-black rounded-lg text-xs transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
               >
                 <Check className="w-3.5 h-3.5" />
                 Guardar Grupo

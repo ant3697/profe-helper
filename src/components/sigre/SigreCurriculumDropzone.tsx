@@ -138,7 +138,7 @@ export const SigreCurriculumDropzone: React.FC<SigreCurriculumDropzoneProps> = (
         className={`relative border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-200 ${
           isDragOver
             ? "border-amber-400 bg-amber-500/10 scale-[1.01] shadow-lg shadow-amber-500/20"
-            : "border-slate-700 hover:border-amber-500/50 bg-slate-900/60 hover:bg-slate-900"
+            : "border-border-default hover:border-amber-500/50 bg-alt/60 hover:bg-alt"
         }`}
       >
         <input
@@ -153,35 +153,35 @@ export const SigreCurriculumDropzone: React.FC<SigreCurriculumDropzoneProps> = (
         <div className="flex flex-col items-center justify-center gap-3">
           <div
             className={`p-3.5 rounded-2xl transition-colors ${
-              isDragOver ? "bg-amber-500 text-black animate-bounce" : "bg-slate-800 text-amber-400"
+              isDragOver ? "bg-amber-500 text-black animate-bounce" : "bg-surface border border-border-default text-amber-500 shadow-xs"
             }`}
           >
             <UploadCloud className="w-8 h-8" />
           </div>
 
           <div className="space-y-1">
-            <h4 className="text-sm font-bold text-white">
+            <h4 className="text-sm font-bold text-text-primary">
               {isDragOver
                 ? "¡Suelta los documentos curriculares aquí!"
                 : "Arrastra y suelta aquí el currículo (PDF, DOCX, TXT, MD...)"}
             </h4>
-            <p className="text-xs text-slate-400 max-w-lg mx-auto">
-              La IA analizará el documento oficial (Real Decreto, Orden Autonómica o Programación) y extraerá automáticamente el <strong className="text-amber-400 font-bold">Desglose Curricular (Bloques, RAs y Criterios)</strong>.
+            <p className="text-xs text-text-muted max-w-lg mx-auto">
+              La IA analizará el documento oficial (Real Decreto, Orden Autonómica o Programación) y extraerá automáticamente el <strong className="text-amber-500 font-bold">Desglose Curricular (Bloques, RAs y Criterios)</strong>.
             </p>
           </div>
 
           {/* Supported formats chips */}
           <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-            <span className="px-2 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/30 text-[10px] font-bold">
+            <span className="px-2 py-0.5 rounded-md bg-red-500/15 text-red-500 border border-red-500/30 text-[10px] font-bold">
               PDF (Digital o Escaneado)
             </span>
-            <span className="px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/30 text-[10px] font-bold">
+            <span className="px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-500 border border-blue-500/30 text-[10px] font-bold">
               Word (DOCX / DOC)
             </span>
-            <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+            <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 text-[10px] font-bold">
               Texto / Markdown (.TXT, .MD)
             </span>
-            <span className="px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-400 border border-purple-500/30 text-[10px] font-bold">
+            <span className="px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-500 border border-purple-500/30 text-[10px] font-bold">
               Moodle GIFT / XML
             </span>
           </div>
@@ -189,8 +189,8 @@ export const SigreCurriculumDropzone: React.FC<SigreCurriculumDropzoneProps> = (
 
         {/* Real-time Extraction Status */}
         {extractingStatus && (
-          <div className="mt-4 p-3 bg-amber-500/20 border border-amber-500/40 rounded-xl flex items-center justify-center gap-2.5 text-amber-300 text-xs font-bold animate-pulse">
-            <RefreshCw className="w-4 h-4 animate-spin text-amber-400 shrink-0" />
+          <div className="mt-4 p-3 bg-amber-500/20 border border-amber-500/40 rounded-xl flex items-center justify-center gap-2.5 text-amber-500 text-xs font-bold animate-pulse">
+            <RefreshCw className="w-4 h-4 animate-spin text-amber-500 shrink-0" />
             <span>{extractingStatus}</span>
           </div>
         )}
@@ -198,14 +198,14 @@ export const SigreCurriculumDropzone: React.FC<SigreCurriculumDropzoneProps> = (
 
       {/* Uploaded Reference Documents (Documentos de Consulta Curricular RAG) */}
       {documents.length > 0 && (
-        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+        <div className="bg-surface border border-border-default rounded-xl p-4 space-y-3 shadow-xs">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-amber-400" />
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-300">
+              <BookOpen className="w-4 h-4 text-amber-500" />
+              <h4 className="text-xs font-black uppercase tracking-wider text-text-primary">
                 Documentos de Consulta Curricular ({documents.length})
               </h4>
-              <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-mono">
+              <span className="px-2 py-0.5 rounded-full bg-alt border border-border-default text-text-muted text-[10px] font-mono">
                 {totalWords.toLocaleString()} palabras indexadas
               </span>
             </div>
@@ -217,7 +217,7 @@ export const SigreCurriculumDropzone: React.FC<SigreCurriculumDropzoneProps> = (
                 const combined = documents.map((d) => d.text).join("\n\n---\n\n");
                 onExtractCurriculumWithAI(combined, "Documentos Curriculares");
               }}
-              className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-200 border border-amber-500/40 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-600 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 border border-amber-500/40 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
             >
               {isAnalyzingAI ? (
                 <>
@@ -236,22 +236,22 @@ export const SigreCurriculumDropzone: React.FC<SigreCurriculumDropzoneProps> = (
               <div
                 key={doc.id}
                 onClick={() => onViewDocument(doc)}
-                className="p-3 bg-slate-950/70 border border-slate-800 hover:border-slate-700 rounded-xl flex items-center justify-between gap-3 group transition-all cursor-pointer hover:bg-slate-950"
+                className="p-3 bg-alt border border-border-default hover:border-amber-500/40 rounded-xl flex items-center justify-between gap-3 group transition-all cursor-pointer shadow-2xs"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="p-2 bg-slate-900 rounded-lg shrink-0 group-hover:scale-105 transition-transform">
+                  <div className="p-2 bg-surface border border-border-default rounded-lg shrink-0 group-hover:scale-105 transition-transform shadow-xs">
                     {getFileIcon(doc.name)}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-white truncate group-hover:text-amber-400 transition-colors">
+                    <p className="text-xs font-bold text-text-primary truncate group-hover:text-amber-500 transition-colors">
                       {doc.name}
                     </p>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                    <div className="flex items-center gap-2 text-[10px] text-text-muted mt-0.5">
                       <span>{(doc.size / 1024).toFixed(1)} KB</span>
                       <span>•</span>
                       <span>{doc.wordCount.toLocaleString()} palabras</span>
                       <span>•</span>
-                      <span className="text-emerald-400 font-medium">Indexado</span>
+                      <span className="text-emerald-500 font-medium">Indexado</span>
                     </div>
                   </div>
                 </div>
@@ -264,7 +264,7 @@ export const SigreCurriculumDropzone: React.FC<SigreCurriculumDropzoneProps> = (
                       onViewDocument(doc);
                     }}
                     title="Ver texto del documento"
-                    className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                    className="p-1.5 text-text-muted hover:text-text-primary hover:bg-hover rounded-lg transition-colors cursor-pointer"
                   >
                     <Eye className="w-4 h-4" />
                   </button>
@@ -273,7 +273,7 @@ export const SigreCurriculumDropzone: React.FC<SigreCurriculumDropzoneProps> = (
                     disabled={isAnalyzingAI}
                     onClick={(e) => handleExtractSingleDoc(doc, e)}
                     title="Extraer desglose curricular de este documento"
-                    className="p-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/20 rounded-lg transition-colors"
+                    className="p-1.5 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 rounded-lg transition-colors cursor-pointer"
                   >
                     <Sparkles className="w-4 h-4" />
                   </button>
@@ -281,7 +281,7 @@ export const SigreCurriculumDropzone: React.FC<SigreCurriculumDropzoneProps> = (
                     type="button"
                     onClick={(e) => handleDeleteDocument(doc.id, e)}
                     title="Eliminar documento de consulta"
-                    className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                    className="p-1.5 text-text-muted hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

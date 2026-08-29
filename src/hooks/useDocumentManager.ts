@@ -25,7 +25,8 @@ export function useDocumentManager() {
         newDocs.push({
           id: `doc_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 4)}`,
           name: file.name,
-          type: file.type || file.name.split(".").pop() || "unknown",
+          role: "base",
+          timestamp: Date.now(),
           size: file.size,
           text,
           active: true,

@@ -174,13 +174,17 @@ export type SigreCalendarDayType =
 
 export interface SigreCalendarLegendItem {
   id: string;
-  code: string; // ej. "TEMINS. RA08", "MMIAG. RA01", "DUAL", "EVAL 1T", "RECUP"
-  title: string; // "TEMINS. RA08 (PRL y PA)", "Formación Dual (02/02 - 20/02)", "Sesión de evaluación 1º trimestre"
+  code: string; // ej. "UD01. BC7 (14h/7s)", "DUAL", "16 Dic", "RECUP"
+  title: string; // "[UD01] [BC7] [14/160h] [7 sesiones] Prevención de riesgos laborales y protección ambiental"
   type: "ud_ra" | "evaluacion" | "dual" | "recuperacion" | "festivo" | "vacaciones" | "hito" | "otro";
   color: string; // Hex color code (e.g., "#fed7aa", "#bae6fd", "#fef08a", "#bbf7d0", "#e9d5ff", "#fecdd3")
   textColor?: string;
   borderColor?: string;
   udId?: string; // ID de la SigreUDItem vinculada si procede (ej. "UD01", "UD02")
+  bcCode?: string; // Código de bloque o resultado (ej. "BC7", "BC1", "RA08")
+  horasAsignadas?: number; // Horas asignadas a la UD
+  totalHoras?: number; // Total horas del módulo
+  sesiones?: number; // Número de sesiones de la UD
   monthTarget?: number; // 9=Sep, 10=Oct...
   sidePosition?: "left" | "right";
   dayRangeText?: string; // ej. "15-30", "02/02 - 20/02 - 120h"

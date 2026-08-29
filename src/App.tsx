@@ -670,8 +670,85 @@ export default function App() {
     }
   };
 
-  const calculateScore = (): ExamSessionScore | null => {
-    if (!currentExamData) return null;
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      processUploadedFiles(e.target.files);
+      e.target.value = "";
+    }
+  };
+
+  const handleShuffleQuestions = () => {
+    if (!currentExamData) return;
+    const updated = { ...currentExamData };
+    updated.bloques.forEach((b) => {
+      for (let i = b.preguntas.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [b.preguntas[i], b.preguntas[j]] = [b.preguntas[j], b.preguntas[i]];
+      }
+    });
+    setCurrentExamData(updated);
+    showToast("Preguntas reordenadas aleatoriamente");
+  };
+
+  const handleSortQuestions = () => {
+    if (!currentExamData) return;
+    const updated = { ...currentExamData };
+    updated.bloques.forEach((b) => {
+      b.preguntas.sort((a, bQ) => (a.origQId ?? 0) - (bQ.origQId ?? 0));
+    });
+    setCurrentExamData(updated);
+    showToast("Preguntas restauradas al orden original");
+  };
+
+  const handleShuffleOptions = () => {
+    if (!currentExamData) return;
+    const updated = { ...currentExamData };
+    updated.bloques.forEach((b) => {
+      b.preguntas.forEach((q) => {
+        if (!q.opcionesObjs) return;
+        for (let i = q.opcionesObjs.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [q.opcionesObjs[i], q.opcionesObjs[j]] = [q.opcionesObjs[j], q.opcionesObjs[i]];
+        }
+        q.opciones = q.opcionesObjs.map((o) => o.text);
+        q.indiceCorrecta = q.opcionesObjs.findIndex((o) => o.isCorrect);
+        q.userSelectedIndex = null;
+        q.isAnswered = false;
+      });
+    });
+    setCurrentExamData(updated);
+    showToast("Opciones de respuesta barajadas");
+  };
+
+  const handleSortOptions = () => {
+    if (!currentExamData) return;
+    const updated = { ...currentExamData };
+    updated.bloques.forEach((b) => {
+      b.preguntas.forEach((q) => {
+        if (!q.opcionesObjs) return;
+        q.opcionesObjs.sort((a, bOpt) => (a.origOId ?? 0) - (bOpt.origOId ?? 0));
+        q.opciones = q.opcionesObjs.map((o) => o.text);
+        q.indiceCorrecta = q.opcionesObjs.findIndex((o) => o.isCorrect);
+        q.userSelectedIndex = null;
+        q.isAnswered = false;
+      });
+    });
+    setCurrentExamData(updated);
+    showToast("Opciones de respuesta restauradas al orden original");
+  };
+
+  const calculateScore = (): ExamSessionScore => {
+    if (!currentExamData) {
+      return {
+        total: 0,
+        answered: 0,
+        correct: 0,
+        incorrect: 0,
+        unanswered: 0,
+        grade10: "0.00",
+        percentage: 0,
+      };
+    }
     let totalQuestions = 0;
     let correctCount = 0;
     let incorrectCount = 0;
@@ -692,13 +769,15 @@ export default function App() {
 
     const netScore = Math.max(0, correctCount - incorrectCount * 0.33);
     const percentage = totalQuestions > 0 ? (netScore / totalQuestions) * 100 : 0;
+    const grade10 = (percentage / 10).toFixed(2);
 
     return {
-      totalQuestions,
-      correctCount,
-      incorrectCount,
-      unansweredCount,
-      netScore,
+      total: totalQuestions,
+      answered: correctCount + incorrectCount,
+      correct: correctCount,
+      incorrect: incorrectCount,
+      unanswered: unansweredCount,
+      grade10,
       percentage,
     };
   };
@@ -754,7 +833,6 @@ export default function App() {
 
   const filteredQuestions = allQuestions.filter((q) => {
     if (activeFilter === "flagged") return q.flagged;
-    if (activeFilter === "answered") return q.isAnswered;
     if (activeFilter === "unanswered") return !q.isAnswered;
     if (activeFilter === "correct") return isExamSubmitted && q.userSelectedIndex === q.indiceCorrecta;
     if (activeFilter === "incorrect") return isExamSubmitted && q.userSelectedIndex !== null && q.userSelectedIndex !== q.indiceCorrecta;
@@ -773,23 +851,40 @@ export default function App() {
         onToggleTheme={toggleTheme}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
-        isFocusMode={isFocusMode}
-        onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
-        appMode={appMode}
-        onSelectAppMode={setAppMode}
-        onOpenAISettings={() => setIsAIModalOpen(true)}
-        activeProviderId={aiSettings.activeProviderId}
-        activeModel={aiSettings.providers[aiSettings.activeProviderId]?.selectedModel || "gemini-3.6-flash"}
+        onImportFile={handleImportFile}
+        activeProviderConfig={
+          aiSettings.providers[aiSettings.activeProviderId] ||
+          DEFAULT_AI_PROVIDERS[aiSettings.activeProviderId]
+        }
+        onOpenAIModal={() => setIsAIModalOpen(true)}
+        isExtendedMode={isExtendedMode}
+        onToggleExtendedMode={toggleExtendedMode}
+        onOpenOmrScanner={() => setIsOmrScannerOpen(true)}
+        currentAppMode={appMode}
+        onAppModeChange={setAppMode}
       />
 
       {/* Primary Sub-Applications Routing */}
       {appMode === "topic_builder" ? (
         <TopicGeneratorView
-          onSendExamToExamsModule={handleReceiveExamFromTopic}
+          activeProviderConfig={
+            aiSettings.providers[aiSettings.activeProviderId] ||
+            DEFAULT_AI_PROVIDERS[aiSettings.activeProviderId]
+          }
+          onShowToast={showToast}
+          onSendExamToApp={handleReceiveExamFromTopic}
           onTransferDocumentToExams={handleTransferDocumentToExams}
+          onOpenAIModal={() => setIsAIModalOpen(true)}
         />
       ) : appMode === "sigre_curricular" ? (
-        <SigreCurricularView />
+        <SigreCurricularView
+          theme={theme}
+          activeProviderConfig={
+            aiSettings.providers[aiSettings.activeProviderId] ||
+            DEFAULT_AI_PROVIDERS[aiSettings.activeProviderId]
+          }
+          onOpenAIModal={() => setIsAIModalOpen(true)}
+        />
       ) : (
         /* Exams Generator & Active Recall Suite */
         <main className="container mx-auto px-4 py-6 max-w-7xl">
@@ -798,37 +893,39 @@ export default function App() {
             {!isFocusMode && (
               <div className="lg:col-span-4 space-y-6">
                 <ConfigPanel
-                  baseMode={baseMode}
-                  setBaseMode={setBaseMode}
+                  activeProviderConfig={
+                    aiSettings.providers[aiSettings.activeProviderId] ||
+                    DEFAULT_AI_PROVIDERS[aiSettings.activeProviderId]
+                  }
+                  onOpenAIModal={() => setIsAIModalOpen(true)}
+                  accumulatedTokens={accumulatedTokens}
                   uploadedFiles={uploadedFiles}
-                  onFileUpload={processUploadedFiles}
+                  onUploadFiles={processUploadedFiles}
                   onRemoveFile={handleRemoveFile}
                   onToggleFileActive={handleToggleFileActive}
+                  onTransferDocumentToTopic={handleTransferDocumentToTopic}
+                  onClearFiles={() => setIsConfirmModalOpen(true)}
                   onSelectDocument={handleSelectDocument}
                   selectedDocumentId={selectedDocumentId}
                   pastedText={pastedText}
-                  setPastedText={setPastedText}
+                  onPastedTextChange={setPastedText}
+                  baseMode={baseMode}
+                  onBaseModeChange={setBaseMode}
                   difficulty={difficulty}
-                  setDifficulty={setDifficulty}
+                  onDifficultyChange={setDifficulty}
                   creativityStyle={creativityStyle}
-                  setCreativityStyle={setCreativityStyle}
+                  onCreativityStyleChange={setCreativityStyle}
                   numQuestions={numQuestions}
-                  setNumQuestions={setNumQuestions}
+                  onNumQuestionsChange={setNumQuestions}
                   batchCount={batchCount}
-                  setBatchCount={setBatchCount}
+                  onBatchCountChange={setBatchCount}
                   customPrompt={customPrompt}
-                  setCustomPrompt={setCustomPrompt}
-                  onGenerate={handleGenerateExam}
+                  onCustomPromptChange={setCustomPrompt}
+                  onOpenThematicBuilder={() => setIsThematicModalOpen(true)}
+                  onRequestGenerate={handleGenerateExam}
                   isLoading={isLoading}
-                  onCancelGeneration={handleCancelGeneration}
-                  thematics={thematics}
-                  onOpenThematicModal={() => setIsThematicModalOpen(true)}
-                  accumulatedTokens={accumulatedTokens}
-                  onClearFiles={handleClearFiles}
                   isProcessingFiles={isProcessingFiles}
                   processingStatusText={processingStatusText}
-                  onOpenZipgradeModal={() => setIsOmrModalOpen(true)}
-                  onTransferDocumentToTopic={handleTransferDocumentToTopic}
                 />
               </div>
             )}
@@ -838,77 +935,118 @@ export default function App() {
               {currentExamData || selectedBaseDoc ? (
                 <>
                   <ExamHeader
-                    title={loadedFileName}
-                    totalQuestions={allQuestions.length}
-                    answeredQuestions={allQuestions.filter((q) => q.isAnswered).length}
-                    flaggedQuestions={allQuestions.filter((q) => q.flagged).length}
-                    onClose={handleCloseViewer}
-                    model={generationModel}
+                    fileName={loadedFileName}
+                    modelName={generationModel}
                     usage={lastUsage}
+                    hasCotAudit={!!currentExamData?.analisis_anticolision}
+                    isCotVisible={isCotVisible}
+                    onToggleCot={() => setIsCotVisible(!isCotVisible)}
+                    isFocusMode={isFocusMode}
+                    onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+                    onCopyToWord={() => handleExportText("docx")}
+                    onPrintPDF={() => window.print()}
+                    onExportHTML={() => handleExportText("html")}
+                    onExportJSON={() => handleExportText("json")}
+                    onCloseExam={handleCloseViewer}
                   />
 
                   {currentExamData && (
                     <>
-                      <FormatTabs currentTab={currentTab} onSelectTab={setCurrentTab} />
+                      <FormatTabs currentTab={currentTab} onTabChange={setCurrentTab} />
 
                       {currentTab === "interactive" && (
                         <>
                           <InteractiveToolbar
+                            onShuffleQuestions={handleShuffleQuestions}
+                            onSortQuestions={handleSortQuestions}
+                            onShuffleOptions={handleShuffleOptions}
+                            onSortOptions={handleSortOptions}
                             evalMode={evalMode}
-                            onSelectEvalMode={setEvalMode}
+                            onEvalModeChange={setEvalMode}
                             hideDistractors={hideDistractors}
                             onToggleHideDistractors={() => setHideDistractors(!hideDistractors)}
                             highlightCorrect={highlightCorrect}
                             onToggleHighlightCorrect={() => setHighlightCorrect(!highlightCorrect)}
                             showAllFeedback={showAllFeedback}
                             onToggleShowAllFeedback={() => setShowAllFeedback(!showAllFeedback)}
-                            isCotVisible={isCotVisible}
-                            onToggleCotVisible={() => setIsCotVisible(!isCotVisible)}
+                            isCodeTab={false}
+                            onOpenOmrSheet={() => setIsOmrModalOpen(true)}
+                            onOpenOmrScanner={() => setIsOmrScannerOpen(true)}
                             activeFilter={activeFilter}
-                            onSelectFilter={setActiveFilter}
-                            isSubmitted={isExamSubmitted}
+                            onFilterChange={setActiveFilter}
+                            filterCounts={{
+                              all: allQuestions.length,
+                              unanswered: allQuestions.filter((q) => !q.isAnswered).length,
+                              flagged: allQuestions.filter((q) => q.flagged).length,
+                              incorrect: allQuestions.filter(
+                                (q) => isExamSubmitted && q.userSelectedIndex !== null && q.userSelectedIndex !== q.indiceCorrecta
+                              ).length,
+                              correct: allQuestions.filter(
+                                (q) => isExamSubmitted && q.userSelectedIndex === q.indiceCorrecta
+                              ).length,
+                            }}
                           />
 
                           {isCotVisible && currentExamData.analisis_anticolision && (
-                            <CotAuditCard reasoning={currentExamData.analisis_anticolision} />
+                            <CotAuditCard cotText={currentExamData.analisis_anticolision} />
                           )}
 
                           <div ref={renderedContentRef} className="space-y-4">
-                            {filteredQuestions.map((q, idx) => (
-                              <QuestionCard
-                                key={`${q.blockIndex}-${q.questionIndexInBlock}`}
-                                question={q}
-                                globalIndex={allQuestions.findIndex(
-                                  (item) => item.blockIndex === q.blockIndex && item.questionIndexInBlock === q.questionIndexInBlock
-                                )}
-                                evalMode={evalMode}
-                                isSubmitted={isExamSubmitted}
-                                hideDistractors={hideDistractors}
-                                highlightCorrect={highlightCorrect}
-                                showFeedback={showAllFeedback}
-                                onSelectAnswer={handleSelectAnswer}
-                                onToggleFlag={handleToggleFlag}
-                              />
-                            ))}
+                            {filteredQuestions.map((q) => {
+                              const globalIndex = allQuestions.findIndex(
+                                (item) =>
+                                  item.blockIndex === q.blockIndex &&
+                                  item.questionIndexInBlock === q.questionIndexInBlock
+                              );
+                              return (
+                                <QuestionCard
+                                  key={`${q.blockIndex}-${q.questionIndexInBlock}`}
+                                  question={q}
+                                  index={globalIndex !== -1 ? globalIndex : 0}
+                                  evalMode={evalMode}
+                                  isExamSubmitted={isExamSubmitted}
+                                  onSelectOption={handleSelectAnswer}
+                                  onToggleFlag={handleToggleFlag}
+                                  hideDistractors={hideDistractors}
+                                  highlightCorrect={highlightCorrect}
+                                  forceShowFeedback={showAllFeedback}
+                                />
+                              );
+                            })}
                           </div>
 
                           <ExamFooterBar
-                            onSubmit={handleSubmitExam}
-                            isSubmitted={isExamSubmitted}
-                            onExport={handleExportText}
-                            onCopy={handleCopyText}
-                            onOpenOmrSheet={() => setIsOmrScannerOpen(true)}
+                            answeredCount={allQuestions.filter((q) => q.isAnswered).length}
+                            totalQuestions={allQuestions.length}
+                            onScrollToTop={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                            onSubmitExam={handleSubmitExam}
                           />
                         </>
                       )}
 
                       {currentTab !== "interactive" && (
                         <CodeViewPanel
-                          format={currentTab}
-                          examData={currentExamData}
                           title={loadedFileName}
-                          onCopy={handleCopyText}
-                          onExport={handleExportText}
+                          description={`Visualizador y exportador en formato ${currentTab.toUpperCase()}`}
+                          content={
+                            currentTab === "gift"
+                              ? jsonToGIFT(currentExamData)
+                              : currentTab === "txt-full"
+                              ? jsonToTxtCompleto(currentExamData)
+                              : currentTab === "txt-correct"
+                              ? jsonToTxtCorrectas(currentExamData)
+                              : jsonToJSONString(currentExamData)
+                          }
+                          downloadFilename={
+                            currentTab === "gift"
+                              ? `${loadedFileName.replace(/\.[^/.]+$/, "")}.gift`
+                              : currentTab === "txt-full"
+                              ? `${loadedFileName.replace(/\.[^/.]+$/, "")}_completo.txt`
+                              : currentTab === "txt-correct"
+                              ? `${loadedFileName.replace(/\.[^/.]+$/, "")}_soluciones.txt`
+                              : `${loadedFileName.replace(/\.[^/.]+$/, "")}.json`
+                          }
+                          onShowToast={showToast}
                         />
                       )}
                     </>
@@ -916,16 +1054,22 @@ export default function App() {
 
                   {selectedBaseDoc && (
                     <DocumentViewerPanel
-                      doc={selectedBaseDoc}
-                      onUpdateText={(text) => handleUpdateDocumentText(selectedBaseDoc.id, text)}
-                      preferredMode={docViewerPreferredMode}
-                      onGenerateFromFragment={handleGenerateFromFragment}
+                      document={selectedBaseDoc}
                       onClose={handleCloseViewer}
+                      initialViewMode={docViewerPreferredMode}
+                      onUpdateDocumentText={handleUpdateDocumentText}
+                      onRequestGenerateExam={() => handleGenerateExam()}
+                      onGenerateFromFragment={handleGenerateFromFragment}
+                      onShowToast={showToast}
                     />
                   )}
                 </>
               ) : (
-                <EmptyState onOpenFileSelect={() => {}} />
+                <EmptyState
+                  onUploadFiles={processUploadedFiles}
+                  onOpenThematicBuilder={() => setIsThematicModalOpen(true)}
+                  onOpenOmrScanner={() => setIsOmrScannerOpen(true)}
+                />
               )}
             </div>
           </div>
@@ -937,22 +1081,36 @@ export default function App() {
         isOpen={isAIModalOpen}
         onClose={() => setIsAIModalOpen(false)}
         settings={aiSettings}
-        onSave={handleSaveAISettings}
+        onSaveSettings={handleSaveAISettings}
+        onShowToast={showToast}
       />
 
       <ThematicBuilderModal
         isOpen={isThematicModalOpen}
         onClose={() => setIsThematicModalOpen(false)}
-        groups={thematics}
-        onSave={handleUpdateThematics}
+        thematics={thematics}
+        onUpdateThematics={handleUpdateThematics}
+        onApplySelection={(selectedGroups) => {
+          handleUpdateThematics(selectedGroups);
+          setIsThematicModalOpen(false);
+          showToast("Selección temática aplicada");
+        }}
+        onShowToast={showToast}
       />
 
       <ConfirmationModal
         isOpen={isConfirmModalOpen}
         onClose={() => setIsConfirmModalOpen(false)}
         onConfirm={handleClearFiles}
-        title="¿Limpiar todos los archivos?"
-        message="Esta acción eliminará todos los documentos cargados y exámenes generados de la memoria actual."
+        numQuestions={numQuestions}
+        batchCount={batchCount}
+        difficulty={difficulty}
+        hasBaseDocs={uploadedFiles.filter((f) => f.role === "base" && f.active !== false).length > 0}
+        baseDocsCount={uploadedFiles.filter((f) => f.role === "base" && f.active !== false).length}
+        antiCollisionCount={uploadedFiles.filter((f) => f.role === "exam" && f.active !== false).length}
+        hasCustomPrompt={!!customPrompt.trim()}
+        activeProviderName={aiSettings.providers[aiSettings.activeProviderId]?.name || "Gemini"}
+        activeModelName={aiSettings.providers[aiSettings.activeProviderId]?.selectedModel || "gemini-3.6-flash"}
       />
 
       {isResultsModalOpen && currentExamData && (
@@ -960,6 +1118,7 @@ export default function App() {
           isOpen={isResultsModalOpen}
           onClose={() => setIsResultsModalOpen(false)}
           score={calculateScore()}
+          examTitle={loadedFileName}
         />
       )}
 
@@ -967,7 +1126,9 @@ export default function App() {
         <OmrSheetModal
           isOpen={isOmrModalOpen}
           onClose={() => setIsOmrModalOpen(false)}
-          examData={currentExamData}
+          examData={currentExamData || undefined}
+          examTitle={loadedFileName}
+          onShowToast={showToast}
         />
       )}
 
@@ -976,15 +1137,15 @@ export default function App() {
           isOpen={isOmrScannerOpen}
           onClose={() => setIsOmrScannerOpen(false)}
           examData={currentExamData}
+          examTitle={loadedFileName}
+          onShowToast={showToast}
         />
       )}
 
-      {isLoading && (
-        <LoadingOverlay
-          onCancel={handleCancelGeneration}
-          statusText="Generando preguntas active recall con IA..."
-        />
-      )}
+      <LoadingOverlay
+        isLoading={isLoading}
+        onCancel={handleCancelGeneration}
+      />
 
       <NotificationToast message={toastMessage} isError={toastIsError} />
     </div>

@@ -32,15 +32,17 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
   });
 
   React.useEffect(() => {
-    const defaultHoursPerUd = Math.round(horasTotales / (initialUds.length || 8));
-    setUds(
-      initialUds.map((u) => ({
-        ...u,
-        horasEstimadas: u.horasEstimadas || defaultHoursPerUd,
-        sesionesEstimadas: u.sesionesEstimadas || Math.max(1, Math.round((u.horasEstimadas || defaultHoursPerUd) / 2)),
-      }))
-    );
-  }, [initialUds, horasTotales]);
+    if (isOpen) {
+      const defaultHoursPerUd = Math.round(horasTotales / (initialUds.length || 8));
+      setUds(
+        initialUds.map((u) => ({
+          ...u,
+          horasEstimadas: u.horasEstimadas || defaultHoursPerUd,
+          sesionesEstimadas: u.sesionesEstimadas || Math.max(1, Math.round((u.horasEstimadas || defaultHoursPerUd) / 2)),
+        }))
+      );
+    }
+  }, [isOpen, initialUds, horasTotales]);
 
   if (!isOpen) return null;
 

@@ -47,8 +47,8 @@ export const DEFAULT_LEGEND_ITEMS_2026_2027: SigreCalendarLegendItem[] = [
   // Unidades Didácticas / Resultados de Aprendizaje (RAs) del Módulo
   {
     id: "leg_ud_01",
-    code: "TEMINS. RA08",
-    title: "TEMINS. RA08 (Prevención de Riesgos Laborales y Protección Ambiental)",
+    code: "UD01. BC7 (14h/7s)",
+    title: "[UD01] [BC7] [14/160h] [7 sesiones] Prevención de riesgos laborales y protección ambiental",
     type: "ud_ra",
     color: "#fcd5b4", // Melocotón Crema Cálido
     textColor: "#431407",
@@ -58,8 +58,8 @@ export const DEFAULT_LEGEND_ITEMS_2026_2027: SigreCalendarLegendItem[] = [
   },
   {
     id: "leg_ud_02",
-    code: "TEMINS. RA01",
-    title: "TEMINS. RA01 (Procesos de mecanizado y unión en instalaciones)",
+    code: "UD02. BC1 (13h/7s)",
+    title: "[UD02] [BC1] [13/160h] [7 sesiones] Interpretación de esquemas y simbología de instalaciones térmicas",
     type: "ud_ra",
     color: "#e2d5e8", // Lavanda / Malva suave
     textColor: "#3b0764",
@@ -69,8 +69,8 @@ export const DEFAULT_LEGEND_ITEMS_2026_2027: SigreCalendarLegendItem[] = [
   },
   {
     id: "leg_ud_03",
-    code: "TEMINS. RA02",
-    title: "TEMINS. RA02 (Interpretación de planos y trazado de tuberías)",
+    code: "UD03. BC1 (13h/7s)",
+    title: "[UD03] [BC1] [13/160h] [7 sesiones] Selección de componentes térmicos y fotovoltaicos",
     type: "ud_ra",
     color: "#f5deb3", // Marrón Canela / Crema Tostado
     textColor: "#7c2d12",
@@ -80,8 +80,8 @@ export const DEFAULT_LEGEND_ITEMS_2026_2027: SigreCalendarLegendItem[] = [
   },
   {
     id: "leg_ud_04",
-    code: "TEMINS. RA03",
-    title: "TEMINS. RA03 (Técnicas anticorrosión y aislamiento térmico)",
+    code: "UD04. BC2 (14h/7s)",
+    title: "[UD04] [BC2] [14/160h] [7 sesiones] Planificación, replanteo y montaje de estructuras",
     type: "ud_ra",
     color: "#fff2b2", // Amarillo Pastel / Crema Dorada
     textColor: "#713f12",
@@ -91,8 +91,8 @@ export const DEFAULT_LEGEND_ITEMS_2026_2027: SigreCalendarLegendItem[] = [
   },
   {
     id: "leg_ud_05",
-    code: "TEMINS. RA04",
-    title: "TEMINS. RA04 (Montaje de equipos y accesorios en instalaciones térmicas)",
+    code: "UD05. BC2 (15h/8s)",
+    title: "[UD05] [BC2] [15/160h] [8 sesiones] Montaje e interconexión de colectores y redes",
     type: "ud_ra",
     color: "#ffc482", // Naranja Melocotón Salmón
     textColor: "#7c2d12",
@@ -112,8 +112,8 @@ export const DEFAULT_LEGEND_ITEMS_2026_2027: SigreCalendarLegendItem[] = [
   },
   {
     id: "leg_ud_06",
-    code: "TEMINS. RA05",
-    title: "TEMINS. RA05 (Montaje de redes de fluidos y bombas de circulación)",
+    code: "UD06. BC3 (13h/7s)",
+    title: "[UD06] [BC3] [13/160h] [7 sesiones] Pruebas de estanqueidad y presión hidráulica",
     type: "ud_ra",
     color: "#99e6ff", // Azul Cielo / Cyan Pastel
     textColor: "#0c4a6e",
@@ -123,8 +123,8 @@ export const DEFAULT_LEGEND_ITEMS_2026_2027: SigreCalendarLegendItem[] = [
   },
   {
     id: "leg_ud_07",
-    code: "TEMINS. RA06",
-    title: "TEMINS. RA06 (Puesta en servicio y pruebas de estanqueidad)",
+    code: "UD07. BC3 (13h/7s)",
+    title: "[UD07] [BC3] [13/160h] [7 sesiones] Llenado, purgado y equilibrado para la puesta en servicio",
     type: "ud_ra",
     color: "#b2e6b2", // Verde Menta Pastel
     textColor: "#14532d",
@@ -134,8 +134,8 @@ export const DEFAULT_LEGEND_ITEMS_2026_2027: SigreCalendarLegendItem[] = [
   },
   {
     id: "leg_ud_08",
-    code: "TEMINS. RA07",
-    title: "TEMINS. RA07 (Mantenimiento preventivo e higienización)",
+    code: "UD08. BC4 (14h/7s)",
+    title: "[UD08] [BC4] [14/160h] [7 sesiones] Mantenimiento preventivo e higienización",
     type: "ud_ra",
     color: "#80deea", // Turquesa / Aguamarina Claro
     textColor: "#134e4a",
@@ -429,15 +429,15 @@ export const PRESET_CALENDAR_2025_2026: SigreAcademicCalendar = {
     { id: "leg25_ini_10", code: "10", title: "2º ciclo Ed. Inf., Prim., E.E.", type: "hito", color: "#ff00ff", textColor: "#fff", sidePosition: "left", monthTarget: 9 },
     { id: "leg25_ini_15", code: "15", title: "E.S.O., Bach., F.P.", type: "hito", color: "#ff00ff", textColor: "#fff", sidePosition: "left", monthTarget: 9 },
     { id: "leg25_ini_20", code: "20", title: "Evaluación inicial", type: "evaluacion", color: "#99cc33", textColor: "#000", sidePosition: "left", monthTarget: 9 },
-    { id: "leg25_ra08", code: "TEMINS. RA08", title: "TEMINS. RA08 (PRL y PA)", type: "ud_ra", color: "#fcd5b4", textColor: "#431407", monthTarget: 9 },
-    { id: "leg25_ra01", code: "TEMINS. RA01", title: "TEMINS. RA01 (Proc. de mecanizado)", type: "ud_ra", color: "#e2d5e8", textColor: "#3b0764", monthTarget: 10 },
-    { id: "leg25_ra02", code: "TEMINS. RA02", title: "TEMINS. RA02. Dibujo", type: "ud_ra", color: "#f5deb3", textColor: "#7c2d12", monthTarget: 11 },
-    { id: "leg25_ra03", code: "TEMINS. RA03", title: "TEMINS. RA03. Corrosión", type: "ud_ra", color: "#fff2b2", textColor: "#713f12", monthTarget: 12 },
-    { id: "leg25_ra04", code: "TEMINS. RA04", title: "TEMINS. RA04 (Montaje de equipos)", type: "ud_ra", color: "#ffc482", textColor: "#7c2d12", monthTarget: 1 },
+    { id: "leg25_ra08", code: "UD01. BC7 (14h/7s)", title: "[UD01] [BC7] [14/160h] [7 sesiones] Prevención de riesgos laborales y protección ambiental", type: "ud_ra", color: "#fcd5b4", textColor: "#431407", monthTarget: 9 },
+    { id: "leg25_ra01", code: "UD02. BC1 (13h/7s)", title: "[UD02] [BC1] [13/160h] [7 sesiones] Interpretación de esquemas y simbología de instalaciones térmicas", type: "ud_ra", color: "#e2d5e8", textColor: "#3b0764", monthTarget: 10 },
+    { id: "leg25_ra02", code: "UD03. BC1 (13h/7s)", title: "[UD03] [BC1] [13/160h] [7 sesiones] Selección de componentes térmicos y fotovoltaicos", type: "ud_ra", color: "#f5deb3", textColor: "#7c2d12", monthTarget: 11 },
+    { id: "leg25_ra03", code: "UD04. BC2 (14h/7s)", title: "[UD04] [BC2] [14/160h] [7 sesiones] Planificación, replanteo y montaje de estructuras", type: "ud_ra", color: "#fff2b2", textColor: "#713f12", monthTarget: 12 },
+    { id: "leg25_ra04", code: "UD05. BC2 (15h/8s)", title: "[UD05] [BC2] [15/160h] [8 sesiones] Montaje e interconexión de colectores y redes", type: "ud_ra", color: "#ffc482", textColor: "#7c2d12", monthTarget: 1 },
     { id: "leg25_dual", code: "DUAL", title: "Formación Dual (02/02 - 20/02 - 120h)", type: "dual", color: "#fff2b2", textColor: "#713f12", monthTarget: 2 },
-    { id: "leg25_ra05", code: "TEMINS. RA05", title: "TEMINS. RA05 (Bombas y fluidos)", type: "ud_ra", color: "#99e6ff", textColor: "#0c4a6e", monthTarget: 3 },
-    { id: "leg25_ra06", code: "TEMINS. RA06", title: "TEMINS. RA06 (Pruebas estanqueidad)", type: "ud_ra", color: "#b2e6b2", textColor: "#14532d", monthTarget: 4 },
-    { id: "leg25_ra07", code: "TEMINS. RA07", title: "TEMINS. RA07 (Mantenimiento)", type: "ud_ra", color: "#80deea", textColor: "#134e4a", monthTarget: 5 },
+    { id: "leg25_ra05", code: "UD06. BC3 (13h/7s)", title: "[UD06] [BC3] [13/160h] [7 sesiones] Pruebas de estanqueidad y presión hidráulica", type: "ud_ra", color: "#99e6ff", textColor: "#0c4a6e", monthTarget: 3 },
+    { id: "leg25_ra06", code: "UD07. BC3 (13h/7s)", title: "[UD07] [BC3] [13/160h] [7 sesiones] Llenado, purgado y equilibrado para la puesta en servicio", type: "ud_ra", color: "#b2e6b2", textColor: "#14532d", monthTarget: 4 },
+    { id: "leg25_ra07", code: "UD08. BC4 (14h/7s)", title: "[UD08] [BC4] [14/160h] [7 sesiones] Mantenimiento preventivo e higienización", type: "ud_ra", color: "#80deea", textColor: "#134e4a", monthTarget: 5 },
     { id: "leg25_ev1", code: "17", title: "Sesión de evaluación 1º trimestre", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 12 },
     { id: "leg25_ev2", code: "18", title: "Sesion de evaluación 2 trimestre", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 3 },
     { id: "leg25_ev3", code: "28", title: "Sesión de evaluación 3º trim. (1ª, final)", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 5 },
@@ -446,30 +446,86 @@ export const PRESET_CALENDAR_2025_2026: SigreAcademicCalendar = {
     { id: "leg25_fin23", code: "23", title: "Último día lectivo en el resto de enseñanzas", type: "hito", color: "#ff00ff", textColor: "#fff", sidePosition: "right", monthTarget: 6 },
   ],
   dayOverrides: {
-    // 2025
-    "2025-09-03": { date: "2025-09-03", type: "inicio_fin_curso", customColor: "#ff00ff", customTextColor: "#fff" },
-    "2025-09-10": { date: "2025-09-10", type: "inicio_fin_curso", customColor: "#ff00ff", customTextColor: "#fff" },
-    "2025-09-15": { date: "2025-09-15", type: "inicio_fin_curso", customColor: "#ff00ff", customTextColor: "#fff" },
-    "2025-09-20": { date: "2025-09-20", type: "evaluacion_inicial", customColor: "#99cc33", customTextColor: "#000" },
-    "2025-10-12": { date: "2025-10-12", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#fff" },
-    "2025-10-13": { date: "2025-10-13", type: "festivo_autonomico", customColor: "#ff0000", customTextColor: "#fff" },
-    "2025-11-01": { date: "2025-11-01", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#fff" },
-    "2025-12-06": { date: "2025-12-06", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#fff" },
-    "2025-12-08": { date: "2025-12-08", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#fff" },
-    "2025-12-17": { date: "2025-12-17", type: "evaluacion_trimestral", customColor: "#0080ff", customTextColor: "#fff" },
-    "2025-12-25": { date: "2025-12-25", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#fff" },
-    // 2026
-    "2026-01-01": { date: "2026-01-01", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#fff" },
-    "2026-01-06": { date: "2026-01-06", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#fff" },
-    "2026-02-27": { date: "2026-02-27", type: "dia_comunidad_educativa", customColor: "#ffc000", customTextColor: "#000" },
-    "2026-02-28": { date: "2026-02-28", type: "festivo_autonomico", customColor: "#99cc33", customTextColor: "#000" },
-    "2026-03-18": { date: "2026-03-18", type: "evaluacion_trimestral", customColor: "#0080ff", customTextColor: "#fff" },
-    "2026-04-02": { date: "2026-04-02", type: "festivo_autonomico", customColor: "#00b050", customTextColor: "#fff" },
-    "2026-04-03": { date: "2026-04-03", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#fff" },
-    "2026-05-01": { date: "2026-05-01", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#fff" },
-    "2026-05-28": { date: "2026-05-28", type: "evaluacion_final", customColor: "#0080ff", customTextColor: "#fff" },
-    "2026-06-23": { date: "2026-06-23", type: "inicio_fin_curso", customColor: "#ff00ff", customTextColor: "#fff" },
-    "2026-06-25": { date: "2026-06-25", type: "evaluacion_final", customColor: "#0080ff", customTextColor: "#fff" },
+    // Septiembre 2025
+    "2025-09-03": { date: "2025-09-03", type: "inicio_fin_curso", legendItemId: "leg25_ini_3", customColor: "#ff00ff", customTextColor: "#ffffff", title: "Enseñanzas Deportivas y 1º ciclo Ed. Inf." },
+    "2025-09-10": { date: "2025-09-10", type: "inicio_fin_curso", legendItemId: "leg25_ini_10", customColor: "#ff00ff", customTextColor: "#ffffff", title: "2º ciclo Ed. Inf., Prim., E.E." },
+    "2025-09-15": { date: "2025-09-15", type: "inicio_fin_curso", legendItemId: "leg25_ini_15", customColor: "#ff00ff", customTextColor: "#ffffff", title: "Inicio Régimen Ordinario FP / ESO / Bach." },
+    "2025-09-22": { date: "2025-09-22", type: "evaluacion_inicial", legendItemId: "leg25_ini_20", customColor: "#99cc33", customTextColor: "#000000", title: "Evaluación inicial" },
+
+    // Octubre 2025
+    "2025-10-12": { date: "2025-10-12", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#ffffff", title: "Fiesta Nacional de España" },
+    "2025-10-13": { date: "2025-10-13", type: "festivo_autonomico", customColor: "#ff0000", customTextColor: "#ffffff", title: "Festivo Autonómico (traslado 12 de Octubre)" },
+
+    // Noviembre 2025
+    "2025-11-01": { date: "2025-11-01", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#ffffff", title: "Todos los Santos" },
+    "2025-11-03": { date: "2025-11-03", type: "festivo_autonomico", customColor: "#ff0000", customTextColor: "#ffffff", title: "Festivo Autonómico (por Todos los Santos)" },
+
+    // Diciembre 2025
+    "2025-12-06": { date: "2025-12-06", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#ffffff", title: "Día de la Constitución Española" },
+    "2025-12-08": { date: "2025-12-08", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#ffffff", title: "Inmaculada Concepción" },
+    "2025-12-16": { date: "2025-12-16", type: "evaluacion_trimestral", legendItemId: "leg25_ev1", customColor: "#0080ff", customTextColor: "#ffffff", title: "Sesión de evaluación 1º trimestre" },
+    "2025-12-19": { date: "2025-12-19", type: "otro_evento", customColor: "#38bdf8", customTextColor: "#0f172a", title: "Entrega de Calificaciones y Boletines 1º Trimestre" },
+
+    // Vacaciones de Navidad (Diciembre 2025 - Enero 2026)
+    "2025-12-22": { date: "2025-12-22", type: "vacaciones_navidad", customColor: "#00ffff", customTextColor: "#000000", title: "Vacaciones de Navidad" },
+    "2025-12-23": { date: "2025-12-23", type: "vacaciones_navidad", customColor: "#00ffff", customTextColor: "#000000", title: "Vacaciones de Navidad" },
+    "2025-12-24": { date: "2025-12-24", type: "vacaciones_navidad", customColor: "#00ffff", customTextColor: "#000000", title: "Vacaciones de Navidad" },
+    "2025-12-25": { date: "2025-12-25", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#ffffff", title: "Natividad del Señor (Navidad)" },
+    "2025-12-26": { date: "2025-12-26", type: "vacaciones_navidad", customColor: "#00ffff", customTextColor: "#000000", title: "Vacaciones de Navidad" },
+    "2025-12-29": { date: "2025-12-29", type: "vacaciones_navidad", customColor: "#00ffff", customTextColor: "#000000", title: "Vacaciones de Navidad" },
+    "2025-12-30": { date: "2025-12-30", type: "vacaciones_navidad", customColor: "#00ffff", customTextColor: "#000000", title: "Vacaciones de Navidad" },
+    "2025-12-31": { date: "2025-12-31", type: "vacaciones_navidad", customColor: "#00ffff", customTextColor: "#000000", title: "Vacaciones de Navidad" },
+
+    // Enero 2026
+    "2026-01-01": { date: "2026-01-01", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#ffffff", title: "Año Nuevo" },
+    "2026-01-02": { date: "2026-01-02", type: "vacaciones_navidad", customColor: "#00ffff", customTextColor: "#000000", title: "Vacaciones de Navidad" },
+    "2026-01-05": { date: "2026-01-05", type: "vacaciones_navidad", customColor: "#00ffff", customTextColor: "#000000", title: "Vacaciones de Navidad" },
+    "2026-01-06": { date: "2026-01-06", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#ffffff", title: "Epifanía del Señor (Reyes)" },
+
+    // Febrero 2026 (Semana Blanca y Día de la Comunidad Educativa)
+    "2026-02-23": { date: "2026-02-23", type: "semana_blanca", customColor: "#80cbc4", customTextColor: "#000000", title: "Semana Blanca" },
+    "2026-02-24": { date: "2026-02-24", type: "semana_blanca", customColor: "#80cbc4", customTextColor: "#000000", title: "Semana Blanca" },
+    "2026-02-25": { date: "2026-02-25", type: "semana_blanca", customColor: "#80cbc4", customTextColor: "#000000", title: "Semana Blanca" },
+    "2026-02-26": { date: "2026-02-26", type: "semana_blanca", customColor: "#80cbc4", customTextColor: "#000000", title: "Semana Blanca" },
+    "2026-02-27": { date: "2026-02-27", type: "dia_comunidad_educativa", customColor: "#ffc000", customTextColor: "#000000", title: "Día de la Comunidad Educativa" },
+    "2026-02-28": { date: "2026-02-28", type: "festivo_autonomico", customColor: "#99cc33", customTextColor: "#000000", title: "Día de Andalucía" },
+
+    // Marzo 2026 (Día de Andalucía, 2ºT y Semana Santa)
+    "2026-03-02": { date: "2026-03-02", type: "festivo_autonomico", customColor: "#99cc33", customTextColor: "#000000", title: "Festivo Autonómico (traslado Día de Andalucía)" },
+    "2026-03-18": { date: "2026-03-18", type: "evaluacion_trimestral", legendItemId: "leg25_ev2", customColor: "#0080ff", customTextColor: "#ffffff", title: "Sesion de evaluación 2 trimestre" },
+    "2026-03-20": { date: "2026-03-20", type: "otro_evento", customColor: "#38bdf8", customTextColor: "#0f172a", title: "Entrega de Calificaciones 2º Trimestre" },
+    "2026-03-30": { date: "2026-03-30", type: "vacaciones_semana_santa", customColor: "#ff99ff", customTextColor: "#000000", title: "Vacaciones de Semana Santa" },
+    "2026-03-31": { date: "2026-03-31", type: "vacaciones_semana_santa", customColor: "#ff99ff", customTextColor: "#000000", title: "Vacaciones de Semana Santa" },
+
+    // Abril 2026
+    "2026-04-01": { date: "2026-04-01", type: "vacaciones_semana_santa", customColor: "#ff99ff", customTextColor: "#000000", title: "Vacaciones de Semana Santa" },
+    "2026-04-02": { date: "2026-04-02", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#ffffff", title: "Jueves Santo" },
+    "2026-04-03": { date: "2026-04-03", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#ffffff", title: "Viernes Santo" },
+
+    // Mayo 2026
+    "2026-05-01": { date: "2026-05-01", type: "festivo_nacional", customColor: "#ff0000", customTextColor: "#ffffff", title: "Fiesta del Trabajo" },
+    "2026-05-28": { date: "2026-05-28", type: "evaluacion_final", legendItemId: "leg25_ev3", customColor: "#0080ff", customTextColor: "#ffffff", title: "Sesión de evaluación 3º trim. (1ª, final)" },
+    "2026-05-29": { date: "2026-05-29", type: "otro_evento", customColor: "#38bdf8", customTextColor: "#0f172a", title: "Entrega de Calificaciones Evaluación Final Ordinaria" },
+
+    // Junio 2026 (Periodo de Recuperación Semanas 1-3 y Cierre)
+    "2026-06-01": { date: "2026-06-01", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-02": { date: "2026-06-02", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-03": { date: "2026-06-03", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-04": { date: "2026-06-04", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-05": { date: "2026-06-05", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-08": { date: "2026-06-08", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-09": { date: "2026-06-09", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-10": { date: "2026-06-10", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-11": { date: "2026-06-11", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-12": { date: "2026-06-12", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-15": { date: "2026-06-15", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-16": { date: "2026-06-16", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-17": { date: "2026-06-17", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-18": { date: "2026-06-18", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-19": { date: "2026-06-19", type: "periodo_recuperacion", legendItemId: "leg25_recup", customColor: "#f8cb9c", customTextColor: "#7c2d12", title: "Periodo de recup. aprend. No adquiridos" },
+    "2026-06-22": { date: "2026-06-22", type: "evaluacion_extraordinaria", legendItemId: "leg25_evfin2", customColor: "#0080ff", customTextColor: "#ffffff", title: "Sesión de evaluación segunda final" },
+    "2026-06-23": { date: "2026-06-23", type: "inicio_fin_curso", legendItemId: "leg25_fin23", customColor: "#ff00ff", customTextColor: "#ffffff", title: "Último día lectivo en el resto de enseñanzas" },
+    "2026-06-25": { date: "2026-06-25", type: "no_lectivo", customColor: "#e2e8f0", customTextColor: "#334155", title: "Planificación para el curso siguiente y memorias" },
   },
   specialEvents: [],
 };
@@ -494,13 +550,13 @@ export const PRESET_CALENDAR_2026_2027_IST: SigreAcademicCalendar = {
   legendItems: [
     { id: "ist_ini_fp", code: "15 Sep", title: "Inicio Régimen Ordinario 2º CFGM", type: "hito", color: "#ff00ff", textColor: "#fff", sidePosition: "left", monthTarget: 9 },
     { id: "ist_eval_ini", code: "22 Sep", title: "Evaluación Inicial 2º Curso", type: "evaluacion", color: "#99cc33", textColor: "#000", sidePosition: "left", monthTarget: 9 },
-    { id: "ist_ud_01", code: "IST. RA01", title: "IST. RA01 (Radiación solar y captadores térmicos)", type: "ud_ra", color: "#fcd5b4", textColor: "#431407", monthTarget: 9, udId: "UD01" },
-    { id: "ist_ud_02", code: "IST. RA02", title: "IST. RA02 (Circuitos primario y secundario de fluidos)", type: "ud_ra", color: "#e2d5e8", textColor: "#3b0764", monthTarget: 10, udId: "UD02" },
-    { id: "ist_ud_03", code: "IST. RA03", title: "IST. RA03 (Sistemas de acumulación, purgado y seguridad)", type: "ud_ra", color: "#f5deb3", textColor: "#7c2d12", monthTarget: 11, udId: "UD03" },
-    { id: "ist_ud_04", code: "IST. RA04", title: "IST. RA04 (Regulación electrónica y control solar)", type: "ud_ra", color: "#fff2b2", textColor: "#713f12", monthTarget: 12, udId: "UD04" },
+    { id: "ist_ud_01", code: "UD01. RA01", title: "[UD01] [RA01] [20/160h] [10 sesiones] Radiación solar y captadores térmicos", type: "ud_ra", color: "#fcd5b4", textColor: "#431407", monthTarget: 9, udId: "UD01" },
+    { id: "ist_ud_02", code: "UD02. RA02", title: "[UD02] [RA02] [22/160h] [11 sesiones] Circuitos primario y secundario de fluidos", type: "ud_ra", color: "#e2d5e8", textColor: "#3b0764", monthTarget: 10, udId: "UD02" },
+    { id: "ist_ud_03", code: "UD03. RA03", title: "[UD03] [RA03] [24/160h] [12 sesiones] Sistemas de acumulación, purgado y seguridad", type: "ud_ra", color: "#f5deb3", textColor: "#7c2d12", monthTarget: 11, udId: "UD03" },
+    { id: "ist_ud_04", code: "UD04. RA04", title: "[UD04] [RA04] [24/160h] [12 sesiones] Regulación electrónica y control solar", type: "ud_ra", color: "#fff2b2", textColor: "#713f12", monthTarget: 12, udId: "UD04" },
     { id: "ist_dual", code: "DUAL 2º FP", title: "Periodo Formación en Empresa / FP Dual 2º (160h)", type: "dual", color: "#fef08a", textColor: "#854d0e", monthTarget: 2 },
-    { id: "ist_ud_05", code: "IST. RA05", title: "IST. RA05 (Montaje e interconexión de campos solares)", type: "ud_ra", color: "#99e6ff", textColor: "#0c4a6e", monthTarget: 3, udId: "UD05" },
-    { id: "ist_ud_06", code: "IST. RA06", title: "IST. RA06 (Puesta en marcha, mantenimiento e higienización)", type: "ud_ra", color: "#b2e6b2", textColor: "#14532d", monthTarget: 4, udId: "UD06" },
+    { id: "ist_ud_05", code: "UD05. RA05", title: "[UD05] [RA05] [25/160h] [13 sesiones] Montaje e interconexión de campos solares", type: "ud_ra", color: "#99e6ff", textColor: "#0c4a6e", monthTarget: 3, udId: "UD05" },
+    { id: "ist_ud_06", code: "UD06. RA06", title: "[UD06] [RA06] [25/160h] [13 sesiones] Puesta en marcha, mantenimiento e higienización", type: "ud_ra", color: "#b2e6b2", textColor: "#14532d", monthTarget: 4, udId: "UD06" },
     { id: "ist_ev1", code: "16 Dic", title: "Sesión de Evaluación 1º Trimestre", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 12 },
     { id: "ist_ev2", code: "17 Mar", title: "Sesión de Evaluación 2º Trimestre", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 3 },
     { id: "ist_ev3", code: "27 May", title: "1ª Sesión Evaluación Final (2º Curso Ordinaria)", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 5 },
@@ -546,10 +602,10 @@ export const PRESET_CALENDAR_2026_2027_DIG: SigreAcademicCalendar = {
   legendItems: [
     { id: "dig_ini_fp", code: "15 Sep", title: "Inicio Curso Formación Profesional", type: "hito", color: "#ff00ff", textColor: "#fff", sidePosition: "left", monthTarget: 9 },
     { id: "dig_eval_ini", code: "22 Sep", title: "Evaluación Diagnóstica Competencia Digital", type: "evaluacion", color: "#99cc33", textColor: "#000", sidePosition: "left", monthTarget: 9 },
-    { id: "dig_ud_01", code: "DIG. RA01", title: "DIG. RA01 (Entornos cloud, gemelos digitales e IoT en instalaciones)", type: "ud_ra", color: "#80deea", textColor: "#134e4a", monthTarget: 9, udId: "UD01" },
-    { id: "dig_ud_02", code: "DIG. RA02", title: "DIG. RA02 (Ciberseguridad y protección de datos en infraestructuras)", type: "ud_ra", color: "#c7d2fe", textColor: "#3730a3", monthTarget: 11, udId: "UD02" },
-    { id: "dig_ud_03", code: "DIG. RA03", title: "DIG. RA03 (Inteligencia Artificial y analítica de datos en mantenimiento)", type: "ud_ra", color: "#fbcfe8", textColor: "#831843", monthTarget: 1, udId: "UD03" },
-    { id: "dig_ud_04", code: "DIG. RA04", title: "DIG. RA04 (Economía circular y gemelo digital en el sector térmico)", type: "ud_ra", color: "#a7f3d0", textColor: "#065f46", monthTarget: 4, udId: "UD04" },
+    { id: "dig_ud_01", code: "UD01. RA01", title: "[UD01] [RA01] [16/60h] [8 sesiones] Entornos cloud, gemelos digitales e IoT en instalaciones", type: "ud_ra", color: "#80deea", textColor: "#134e4a", monthTarget: 9, udId: "UD01" },
+    { id: "dig_ud_02", code: "UD02. RA02", title: "[UD02] [RA02] [14/60h] [7 sesiones] Ciberseguridad y protección de datos en infraestructuras", type: "ud_ra", color: "#c7d2fe", textColor: "#3730a3", monthTarget: 11, udId: "UD02" },
+    { id: "dig_ud_03", code: "UD03. RA03", title: "[UD03] [RA03] [15/60h] [8 sesiones] Inteligencia Artificial y analítica de datos en mantenimiento", type: "ud_ra", color: "#fbcfe8", textColor: "#831843", monthTarget: 1, udId: "UD03" },
+    { id: "dig_ud_04", code: "UD04. RA04", title: "[UD04] [RA04] [15/60h] [8 sesiones] Economía circular y gemelo digital en el sector térmico", type: "ud_ra", color: "#a7f3d0", textColor: "#065f46", monthTarget: 4, udId: "UD04" },
     { id: "dig_ev1", code: "16 Dic", title: "Evaluación 1º Trimestre DIG", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 12 },
     { id: "dig_ev2", code: "17 Mar", title: "Evaluación 2º Trimestre DIG", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 3 },
     { id: "dig_ev3", code: "23 Jun", title: "Evaluación Final Ordinaria DIG", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 6 },
@@ -582,14 +638,14 @@ export const PRESET_CALENDAR_2026_2027_CIT: SigreAcademicCalendar = {
   legendItems: [
     { id: "cit_ini_fp", code: "15 Sep", title: "Inicio Régimen Ordinario 2º CFGS", type: "hito", color: "#ff00ff", textColor: "#fff", sidePosition: "left", monthTarget: 9 },
     { id: "cit_eval_ini", code: "22 Sep", title: "Evaluación Inicial 2º CFGS", type: "evaluacion", color: "#99cc33", textColor: "#000", sidePosition: "left", monthTarget: 9 },
-    { id: "cit_ud_01", code: "CIT. RA01", title: "CIT. RA01 (Cálculo de cargas térmicas de calefacción y refrigeración)", type: "ud_ra", color: "#fcd5b4", textColor: "#431407", monthTarget: 9, udId: "UD01" },
-    { id: "cit_ud_02", code: "CIT. RA02", title: "CIT. RA02 (Dimensionado de redes hidráulicas y bombas centrífugas)", type: "ud_ra", color: "#e2d5e8", textColor: "#3b0764", monthTarget: 10, udId: "UD02" },
-    { id: "cit_ud_03", code: "CIT. RA03", title: "CIT. RA03 (Selección de calderas, bombas de calor y aerotermia)", type: "ud_ra", color: "#f5deb3", textColor: "#7c2d12", monthTarget: 11, udId: "UD03" },
-    { id: "cit_ud_04", code: "CIT. RA04", title: "CIT. RA04 (Dimensionado de conductos de aire y UTA según RITE)", type: "ud_ra", color: "#fff2b2", textColor: "#713f12", monthTarget: 12, udId: "UD04" },
+    { id: "cit_ud_01", code: "UD01. RA01", title: "[UD01] [RA01] [24/180h] [12 sesiones] Cálculo de cargas térmicas de calefacción y refrigeración", type: "ud_ra", color: "#fcd5b4", textColor: "#431407", monthTarget: 9, udId: "UD01" },
+    { id: "cit_ud_02", code: "UD02. RA02", title: "[UD02] [RA02] [26/180h] [13 sesiones] Dimensionado de redes hidráulicas y bombas centrífugas", type: "ud_ra", color: "#e2d5e8", textColor: "#3b0764", monthTarget: 10, udId: "UD02" },
+    { id: "cit_ud_03", code: "UD03. RA03", title: "[UD03] [RA03] [26/180h] [13 sesiones] Selección de calderas, bombas de calor y aerotermia", type: "ud_ra", color: "#f5deb3", textColor: "#7c2d12", monthTarget: 11, udId: "UD03" },
+    { id: "cit_ud_04", code: "UD04. RA04", title: "[UD04] [RA04] [26/180h] [13 sesiones] Dimensionado de conductos de aire y UTA según RITE", type: "ud_ra", color: "#fff2b2", textColor: "#713f12", monthTarget: 12, udId: "UD04" },
     { id: "cit_dual", code: "DUAL 2º GS", title: "Periodo de Formación en Empresa / FP Dual Superior (180h)", type: "dual", color: "#fef08a", textColor: "#854d0e", monthTarget: 2 },
-    { id: "cit_ud_05", code: "CIT. RA05", title: "CIT. RA05 (Sistemas de regulación DDC, domótica y KNX)", type: "ud_ra", color: "#99e6ff", textColor: "#0c4a6e", monthTarget: 3, udId: "UD05" },
-    { id: "cit_ud_06", code: "CIT. RA06", title: "CIT. RA06 (Eficiencia energética y certificación en edificios)", type: "ud_ra", color: "#b2e6b2", textColor: "#14532d", monthTarget: 4, udId: "UD06" },
-    { id: "cit_ud_07", code: "CIT. RA07", title: "CIT. RA07 (Elaboración de memoria técnica y planos de proyecto)", type: "ud_ra", color: "#80deea", textColor: "#134e4a", monthTarget: 5, udId: "UD07" },
+    { id: "cit_ud_05", code: "UD05. RA05", title: "[UD05] [RA05] [26/180h] [13 sesiones] Sistemas de regulación DDC, domótica y KNX", type: "ud_ra", color: "#99e6ff", textColor: "#0c4a6e", monthTarget: 3, udId: "UD05" },
+    { id: "cit_ud_06", code: "UD06. RA06", title: "[UD06] [RA06] [26/180h] [13 sesiones] Eficiencia energética y certificación en edificios", type: "ud_ra", color: "#b2e6b2", textColor: "#14532d", monthTarget: 4, udId: "UD06" },
+    { id: "cit_ud_07", code: "UD07. RA07", title: "[UD07] [RA07] [26/180h] [13 sesiones] Elaboración de memoria técnica y planos de proyecto", type: "ud_ra", color: "#80deea", textColor: "#134e4a", monthTarget: 5, udId: "UD07" },
     { id: "cit_ev1", code: "16 Dic", title: "Sesión Evaluación 1º Trimestre CIT", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 12 },
     { id: "cit_ev2", code: "17 Mar", title: "Sesión Evaluación 2º Trimestre CIT", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 3 },
     { id: "cit_ev3", code: "27 May", title: "1ª Sesión Evaluación Final (2º CFGS)", type: "evaluacion", color: "#0080ff", textColor: "#fff", sidePosition: "right", monthTarget: 5 },

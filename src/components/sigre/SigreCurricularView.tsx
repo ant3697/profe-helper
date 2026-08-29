@@ -58,6 +58,7 @@ import {
   cleanSigreLatexMath,
 } from "../../utils/sigrePromptGenerator";
 import { SigrePlanModal } from "./SigrePlanModal";
+import { SigreRegenerateModal } from "./SigreRegenerateModal";
 import { SigreMermaidViewer } from "./SigreMermaidViewer";
 import { SigreOpmlViewer } from "./SigreOpmlViewer";
 import { SigreMoodleGiftViewer } from "./SigreMoodleGiftViewer";
@@ -219,6 +220,8 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   >("ud_completa");
 
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState(false);
+  const [udToRegenerate, setUdToRegenerate] = useState<SigreUDItem | null>(null);
   const [isAnalyzingCurriculum, setIsAnalyzingCurriculum] = useState(false);
   const [isGeneratingUd, setIsGeneratingUd] = useState(false);
   const [isGeneratingCurricular, setIsGeneratingCurricular] = useState(false);
@@ -657,6 +660,11 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
     }
   };
 
+  const handleOpenRegenerateModal = (ud: SigreUDItem) => {
+    setUdToRegenerate(ud);
+    setIsRegenerateModalOpen(true);
+  };
+
   // Step 4: Batch generate all pending UDs sequentially
   const handleGenerateAllUds = async () => {
     const pendingUds = uds.filter((u) => u.status !== "completed");
@@ -927,7 +935,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   // Download OPML Mindmap
   const handleDownloadOpml = () => {
     if (!selectedUd || !selectedUd.data) return;
-    const opmlText = generateSigreOpml(selectedUd, selectedUd.data.modulo1);
+    const opmlText = generateSigreOpml(selectedUd, selectedUd.data.modulo1, selectedUd.data);
     const blob = new Blob([opmlText], { type: "text/xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -963,22 +971,26 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* Top Banner SIGRE v6.0 */}
-      <div className="bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#1e293b] border border-amber-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl relative overflow-hidden">
+      <div className={`border rounded-2xl p-5 sm:p-6 shadow-xl relative overflow-hidden transition-colors ${
+        theme === "dark"
+          ? "bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#1e293b] border-amber-500/30 text-white"
+          : "bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-indigo-500/10 border-amber-400/50 text-slate-900 shadow-md"
+      }`}>
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-black font-black text-[10px] tracking-wider uppercase">
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-black font-black text-[10px] tracking-wider uppercase shadow-xs">
                 SIGRE v6.0 CURRICULAR & HDI
               </span>
-              <span className="text-xs text-amber-400 font-semibold">
+              <span className={`text-xs font-semibold ${theme === "dark" ? "text-amber-400" : "text-amber-700"}`}>
                 Formación Profesional & LOMLOE
               </span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+            <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
               Diseñador Curricular e Interactivo de Unidades Didácticas
             </h2>
-            <p className="text-xs text-slate-300 max-w-2xl">
+            <p className={`text-xs max-w-2xl ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
               Genera la base pedagógica completa (U.D., Moodle GIFT de 60 preguntas con validación psicométrica, rúbricas XML y diagramas Mermaid) y construye micro-aplicaciones didácticas interactivas (HDI).
             </p>
           </div>
@@ -999,18 +1011,22 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                   });
                 }
               }}
-              className="px-3.5 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-3.5 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
               title="Abrir el Calendario Escolar Oficial y organizador temporal de UDs"
             >
-              <Calendar className="w-4 h-4 text-emerald-400" />
+              <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>Calendario Escolar</span>
             </button>
             <button
               type="button"
               onClick={() => setIsConfigOpen(!isConfigOpen)}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors"
+              className={`px-3.5 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer border ${
+                theme === "dark"
+                  ? "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700"
+                  : "bg-white hover:bg-slate-100 text-slate-800 border-slate-300 shadow-xs"
+              }`}
             >
-              <Settings2 className="w-4 h-4 text-amber-400" />
+              <Settings2 className="w-4 h-4 text-amber-500" />
               {isConfigOpen ? "Ocultar Parámetros" : "Configurar Currículo"}
             </button>
             <button
@@ -1034,9 +1050,11 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
 
         {/* Collapsible Curriculum Configuration Form */}
         {isConfigOpen && (
-          <div className="mt-6 pt-5 border-t border-slate-700/60 space-y-4 text-xs">
+          <div className={`mt-6 pt-5 border-t space-y-4 text-xs ${theme === "dark" ? "border-slate-700/60" : "border-slate-300/80"}`}>
             {/* Configuration Tabs Header */}
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800">
+            <div className={`flex flex-wrap items-center justify-between gap-3 p-1.5 rounded-2xl border ${
+              theme === "dark" ? "bg-slate-950/80 border-slate-800" : "bg-slate-200/60 border-slate-300"
+            }`}>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
@@ -1044,7 +1062,9 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                     configTab === "curricular"
                       ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                      : theme === "dark"
+                      ? "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white"
                   }`}
                 >
                   <Sliders className="w-3.5 h-3.5" />
@@ -1056,12 +1076,14 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                     configTab === "horarios"
                       ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                      : theme === "dark"
+                      ? "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white"
                   }`}
                 >
                   <Calendar className="w-3.5 h-3.5" />
                   Horarios y Guardias Docentes
-                  <span className="px-1.5 py-0.5 rounded-md bg-red-500/20 text-red-400 text-[10px] font-mono border border-red-500/30">
+                  <span className="px-1.5 py-0.5 rounded-md bg-red-500/20 text-red-600 dark:text-red-400 text-[10px] font-mono border border-red-500/30">
                     GUA
                   </span>
                 </button>
@@ -1071,7 +1093,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setConfigTab("horarios")}
-                  className="px-3 py-1 text-xs text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                  className="px-3 py-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-bold flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   <span>Abrir Horarios & Guardias</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -1098,36 +1120,36 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-300">Módulo Formativo:</label>
+                  <label className="font-bold text-text-primary">Módulo Formativo:</label>
                   <input
                     type="text"
                     value={config.moduloFormativo}
                     onChange={(e) => setConfig({ ...config, moduloFormativo: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-medium focus:border-amber-500 focus:outline-none"
+                    className="w-full px-3 py-2 bg-surface border border-border-default rounded-lg text-text-primary font-medium focus:border-amber-500 focus:outline-none"
                   />
                 </div>
             <div className="space-y-1">
-              <label className="font-bold text-slate-300">Código / Ciclo / Grado:</label>
+              <label className="font-bold text-text-primary">Código / Ciclo / Grado:</label>
               <input
                 type="text"
                 value={config.cicloFormativo}
                 onChange={(e) => setConfig({ ...config, cicloFormativo: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-medium focus:border-amber-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-surface border border-border-default rounded-lg text-text-primary font-medium focus:border-amber-500 focus:outline-none"
               />
             </div>
             <div className="space-y-1">
-              <label className="font-bold text-slate-300">Contexto del Centro (IES / Entorno):</label>
+              <label className="font-bold text-text-primary">Contexto del Centro (IES / Entorno):</label>
               <input
                 type="text"
                 value={config.contextoAplicacion}
                 onChange={(e) => setConfig({ ...config, contextoAplicacion: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-medium focus:border-amber-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-surface border border-border-default rounded-lg text-text-primary font-medium focus:border-amber-500 focus:outline-none"
               />
             </div>
 
             {/* Iterations, Adhesion, User Level */}
             <div className="space-y-1">
-              <label className="font-bold text-slate-300">
+              <label className="font-bold text-text-primary">
                 Iteraciones de Refinamiento ({config.iterations} ciclos):
               </label>
               <input
@@ -1140,7 +1162,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
               />
             </div>
             <div className="space-y-1">
-              <label className="font-bold text-slate-300">
+              <label className="font-bold text-text-primary">
                 Adhesión al Currículo ({config.adhesion}/5):
               </label>
               <input
@@ -1153,11 +1175,11 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
               />
             </div>
             <div className="space-y-1">
-              <label className="font-bold text-slate-300">Nivel de Destinatario:</label>
+              <label className="font-bold text-text-primary">Nivel de Destinatario:</label>
               <select
                 value={config.userLevel}
                 onChange={(e) => setConfig({ ...config, userLevel: Number(e.target.value) as SigreUserLevel })}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-medium focus:border-amber-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-surface border border-border-default rounded-lg text-text-primary font-medium focus:border-amber-500 focus:outline-none"
               >
                 <option value={1}>1: Secundaria (ESO)</option>
                 <option value={2}>2: Bachillerato / Formación Profesional</option>
@@ -1167,25 +1189,25 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
             </div>
 
             {/* Dimensionamiento Curricular: Horas Totales, Horas Semanales y Número de UDs */}
-            <div className="col-span-1 md:col-span-3 space-y-3 pt-3 border-t border-slate-700/60">
+            <div className="col-span-1 md:col-span-3 space-y-3 pt-3 border-t border-border-default">
               <div className="flex items-center justify-between">
-                <label className="font-bold text-slate-200 flex items-center gap-1.5 text-xs">
-                  <Clock className="w-4 h-4 text-amber-400" />
+                <label className="font-bold text-text-primary flex items-center gap-1.5 text-xs">
+                  <Clock className="w-4 h-4 text-amber-500" />
                   CARGA HORARIA Y DIMENSIONAMIENTO DEL PLAN DE UDs:
                 </label>
-                <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" /> Calibración temporal automática y manual
                 </span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {/* Horas Totales */}
-                <div className="p-3 bg-slate-900/90 border border-slate-700 rounded-xl space-y-2">
+                <div className="p-3 bg-surface border border-border-default rounded-xl space-y-2 shadow-2xs">
                   <div className="flex items-center justify-between">
-                    <label className="font-bold text-slate-300 flex items-center gap-1.5 text-[11px]">
-                      <Clock className="w-3.5 h-3.5 text-amber-400" /> Horas Totales del Módulo:
+                    <label className="font-bold text-text-primary flex items-center gap-1.5 text-[11px]">
+                      <Clock className="w-3.5 h-3.5 text-amber-500" /> Horas Totales del Módulo:
                     </label>
-                    <span className="font-mono font-black text-amber-400 text-xs">
+                    <span className="font-mono font-black text-amber-600 dark:text-amber-400 text-xs">
                       {config.horasTotales || 160}h
                     </span>
                   </div>
@@ -1199,10 +1221,10 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                       onChange={(e) =>
                         setConfig({ ...config, horasTotales: Math.max(1, Number(e.target.value) || 160) })
                       }
-                      className="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs focus:border-amber-500 focus:outline-none"
+                      className="flex-1 px-3 py-1.5 bg-alt border border-border-default rounded-lg text-text-primary font-mono font-bold text-xs focus:border-amber-500 focus:outline-none"
                       placeholder="Ej. 160"
                     />
-                    <span className="text-slate-400 font-semibold text-xs">horas</span>
+                    <span className="text-text-muted font-semibold text-xs">horas</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1 pt-1">
                     {[96, 128, 160, 200, 240].map((h) => (
@@ -1210,10 +1232,10 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                         key={h}
                         type="button"
                         onClick={() => setConfig({ ...config, horasTotales: h })}
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-colors ${
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-colors cursor-pointer ${
                           config.horasTotales === h
-                            ? "bg-amber-500 text-black"
-                            : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                            ? "bg-amber-500 text-black shadow-xs"
+                            : "bg-alt text-text-secondary hover:bg-hover border border-border-subtle"
                         }`}
                       >
                         {h}h
@@ -1223,12 +1245,12 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                 </div>
 
                 {/* Horas Semanales */}
-                <div className="p-3 bg-slate-900/90 border border-slate-700 rounded-xl space-y-2">
+                <div className="p-3 bg-surface border border-border-default rounded-xl space-y-2 shadow-2xs">
                   <div className="flex items-center justify-between">
-                    <label className="font-bold text-slate-300 flex items-center gap-1.5 text-[11px]">
-                      <Calendar className="w-3.5 h-3.5 text-cyan-400" /> Horas Semanales Lectivas:
+                    <label className="font-bold text-text-primary flex items-center gap-1.5 text-[11px]">
+                      <Calendar className="w-3.5 h-3.5 text-cyan-500" /> Horas Semanales Lectivas:
                     </label>
-                    <span className="font-mono font-black text-cyan-400 text-xs">
+                    <span className="font-mono font-black text-cyan-600 dark:text-cyan-400 text-xs">
                       {config.horasSemanales || 5} h/sem
                     </span>
                   </div>
@@ -1241,10 +1263,10 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                       onChange={(e) =>
                         setConfig({ ...config, horasSemanales: Math.max(1, Number(e.target.value) || 5) })
                       }
-                      className="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs focus:border-amber-500 focus:outline-none"
+                      className="flex-1 px-3 py-1.5 bg-alt border border-border-default rounded-lg text-text-primary font-mono font-bold text-xs focus:border-amber-500 focus:outline-none"
                       placeholder="Ej. 5"
                     />
-                    <span className="text-slate-400 font-semibold text-xs">h/semana</span>
+                    <span className="text-text-muted font-semibold text-xs">h/semana</span>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-1 pt-1">
                     <div className="flex flex-wrap items-center gap-1">
@@ -1253,10 +1275,10 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                           key={s}
                           type="button"
                           onClick={() => setConfig({ ...config, horasSemanales: s })}
-                          className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-colors ${
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-colors cursor-pointer ${
                             config.horasSemanales === s
-                              ? "bg-cyan-500 text-black"
-                              : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                              ? "bg-cyan-500 text-black shadow-xs"
+                              : "bg-alt text-text-secondary hover:bg-hover border border-border-subtle"
                           }`}
                         >
                           {s}h/sem
@@ -1266,7 +1288,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setConfigTab("horarios")}
-                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 flex items-center gap-1 cursor-pointer"
+                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-alt hover:bg-hover text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1 cursor-pointer"
                       title="Gestionar en el generador de horarios"
                     >
                       <Calendar className="w-2.5 h-2.5" /> Horario
@@ -1275,12 +1297,12 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                 </div>
 
                 {/* Número de Unidades Didácticas */}
-                <div className="p-3 bg-slate-900/90 border border-slate-700 rounded-xl space-y-2">
+                <div className="p-3 bg-surface border border-border-default rounded-xl space-y-2 shadow-2xs">
                   <div className="flex items-center justify-between">
-                    <label className="font-bold text-slate-300 flex items-center gap-1.5 text-[11px]">
-                      <Hash className="w-3.5 h-3.5 text-purple-400" /> Número de Unidades Didácticas:
+                    <label className="font-bold text-text-primary flex items-center gap-1.5 text-[11px]">
+                      <Hash className="w-3.5 h-3.5 text-purple-500" /> Número de Unidades Didácticas:
                     </label>
-                    <span className="font-mono font-black text-purple-400 text-xs">
+                    <span className="font-mono font-black text-purple-600 dark:text-purple-400 text-xs">
                       {config.numUnidadesDidacticas && config.numUnidadesDidacticas > 0
                         ? `${config.numUnidadesDidacticas} UDs`
                         : "Automático"}
@@ -1295,7 +1317,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                           numUnidadesDidacticas: e.target.value === "auto" ? 0 : config.numUnidadesDidacticas || 8,
                         })
                       }
-                      className="px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-medium text-xs focus:border-amber-500 focus:outline-none"
+                      className="px-2 py-1.5 bg-alt border border-border-default rounded-lg text-text-primary font-medium text-xs focus:border-amber-500 focus:outline-none"
                     >
                       <option value="auto">Automático (por Bloques)</option>
                       <option value="custom">Número Personalizado</option>
@@ -1313,20 +1335,20 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                             numUnidadesDidacticas: Math.max(1, Number(e.target.value) || 1),
                           })
                         }
-                        className="w-16 px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs focus:border-amber-500 focus:outline-none text-center"
+                        className="w-16 px-2 py-1.5 bg-alt border border-border-default rounded-lg text-text-primary font-mono font-bold text-xs focus:border-amber-500 focus:outline-none text-center"
                       />
                     ) : (
-                      <span className="text-[11px] text-slate-400 italic">Por defecto</span>
+                      <span className="text-[11px] text-text-muted italic">Por defecto</span>
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-1 pt-1">
                     <button
                       type="button"
                       onClick={() => setConfig({ ...config, numUnidadesDidacticas: 0 })}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
                         !config.numUnidadesDidacticas || config.numUnidadesDidacticas === 0
-                          ? "bg-purple-500 text-white"
-                          : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                          ? "bg-purple-500 text-white shadow-xs"
+                          : "bg-alt text-text-secondary hover:bg-hover border border-border-subtle"
                       }`}
                     >
                       Auto
@@ -1336,10 +1358,10 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                         key={num}
                         type="button"
                         onClick={() => setConfig({ ...config, numUnidadesDidacticas: num })}
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-colors ${
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-colors cursor-pointer ${
                           config.numUnidadesDidacticas === num
-                            ? "bg-purple-500 text-white"
-                            : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                            ? "bg-purple-500 text-white shadow-xs"
+                            : "bg-alt text-text-secondary hover:bg-hover border border-border-subtle"
                         }`}
                       >
                         {num} UDs
@@ -1350,33 +1372,33 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
               </div>
 
               {/* Live Temporal Metrics Helper */}
-              <div className="p-3 bg-gradient-to-r from-amber-500/10 via-cyan-500/10 to-purple-500/10 border border-slate-700 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="p-3 bg-gradient-to-r from-amber-500/10 via-cyan-500/10 to-purple-500/10 border border-border-default rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="font-bold text-slate-200">Distribución Temporal Estimada:</span>
+                  <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span className="font-bold text-text-primary">Distribución Temporal Estimada:</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-4 text-xs">
-                  <span className="text-slate-300">
-                    Duración: <strong className="text-cyan-300 font-mono">~{Math.round((config.horasTotales || 160) / (config.horasSemanales || 5))} semanas lectivas</strong>
+                  <span className="text-text-secondary">
+                    Duración: <strong className="text-cyan-600 dark:text-cyan-400 font-mono">~{Math.round((config.horasTotales || 160) / (config.horasSemanales || 5))} semanas lectivas</strong>
                   </span>
-                  <span className="text-slate-300">
-                    Carga media: <strong className="text-amber-300 font-mono">~{((config.horasTotales || 160) / (config.numUnidadesDidacticas || (uds.length > 0 ? uds.length : 8))).toFixed(1)} h / UD</strong>
+                  <span className="text-text-secondary">
+                    Carga media: <strong className="text-amber-600 dark:text-amber-400 font-mono">~{((config.horasTotales || 160) / (config.numUnidadesDidacticas || (uds.length > 0 ? uds.length : 8))).toFixed(1)} h / UD</strong>
                   </span>
-                  <span className="text-slate-300">
-                    Sesiones: <strong className="text-purple-300 font-mono">~{Math.max(1, Math.round(((config.horasTotales || 160) / (config.numUnidadesDidacticas || (uds.length > 0 ? uds.length : 8))) / 2))} sesiones</strong>
+                  <span className="text-text-secondary">
+                    Sesiones: <strong className="text-purple-600 dark:text-purple-400 font-mono">~{Math.max(1, Math.round(((config.horasTotales || 160) / (config.numUnidadesDidacticas || (uds.length > 0 ? uds.length : 8))) / 2))} sesiones</strong>
                   </span>
                 </div>
               </div>
             </div>
 
             {/* Pedagogical Audit Configuration (6 Axes) */}
-            <div className="col-span-1 md:col-span-3 space-y-2 pt-3 border-t border-slate-700/60">
+            <div className="col-span-1 md:col-span-3 space-y-2 pt-3 border-t border-border-default">
               <div className="flex items-center justify-between">
-                <label className="font-bold text-slate-200 flex items-center gap-1.5 text-xs">
-                  <Award className="w-4 h-4 text-purple-400" />
+                <label className="font-bold text-text-primary flex items-center gap-1.5 text-xs">
+                  <Award className="w-4 h-4 text-purple-500" />
                   AUDITORÍA Y ENFOQUE PEDAGÓGICO AVANZADO (6 EJES):
                 </label>
-                <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" /> Paridad total con Generador de Temas y Exámenes
                 </span>
               </div>
@@ -1396,16 +1418,16 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                   }
                   className={`p-2 rounded-lg border text-left flex flex-col justify-between transition-all cursor-pointer ${
                     (config.pedagogicalOptions?.testWiseness ?? true)
-                      ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-300 shadow-sm"
-                      : "bg-slate-900 border-slate-700 text-slate-400 opacity-60"
+                      ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-700 dark:text-emerald-300 shadow-xs"
+                      : "bg-surface border-border-default text-text-muted opacity-60"
                   }`}
                 >
                   <div className="flex items-center justify-between w-full">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <ShieldCheck className="w-4 h-4 text-emerald-500" />
                     <span className="text-[9px] font-bold font-mono">1</span>
                   </div>
                   <span className="text-[11px] font-bold mt-1 leading-tight">Test-Wiseness</span>
-                  <span className="text-[9px] text-slate-400">Glosario & Anti-Pistas</span>
+                  <span className="text-[9px] text-text-muted">Glosario & Anti-Pistas</span>
                 </button>
 
                 {/* 2. CoT Anticolisión */}
@@ -1422,16 +1444,16 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                   }
                   className={`p-2 rounded-lg border text-left flex flex-col justify-between transition-all cursor-pointer ${
                     (config.pedagogicalOptions?.cotAnticolision ?? true)
-                      ? "bg-purple-500/10 border-purple-500/50 text-purple-300 shadow-sm"
-                      : "bg-slate-900 border-slate-700 text-slate-400 opacity-60"
+                      ? "bg-purple-500/15 border-purple-500/50 text-purple-700 dark:text-purple-300 shadow-xs"
+                      : "bg-surface border-border-default text-text-muted opacity-60"
                   }`}
                 >
                   <div className="flex items-center justify-between w-full">
-                    <Zap className="w-4 h-4 text-purple-400" />
+                    <Zap className="w-4 h-4 text-purple-500" />
                     <span className="text-[9px] font-bold font-mono">2</span>
                   </div>
                   <span className="text-[11px] font-bold mt-1 leading-tight">CoT Anticolisión</span>
-                  <span className="text-[9px] text-slate-400">Unicidad Temática</span>
+                  <span className="text-[9px] text-text-muted">Unicidad Temática</span>
                 </button>
 
                 {/* 3. Práctica Intercalada */}
@@ -1448,16 +1470,16 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                   }
                   className={`p-2 rounded-lg border text-left flex flex-col justify-between transition-all cursor-pointer ${
                     (config.pedagogicalOptions?.practicaIntercalada ?? true)
-                      ? "bg-blue-500/10 border-blue-500/50 text-blue-300 shadow-sm"
-                      : "bg-slate-900 border-slate-700 text-slate-400 opacity-60"
+                      ? "bg-blue-500/15 border-blue-500/50 text-blue-700 dark:text-blue-300 shadow-xs"
+                      : "bg-surface border-border-default text-text-muted opacity-60"
                   }`}
                 >
                   <div className="flex items-center justify-between w-full">
-                    <RefreshCw className="w-4 h-4 text-blue-400" />
+                    <RefreshCw className="w-4 h-4 text-blue-500" />
                     <span className="text-[9px] font-bold font-mono">3</span>
                   </div>
                   <span className="text-[11px] font-bold mt-1 leading-tight">Práctica Intercalada</span>
-                  <span className="text-[9px] text-slate-400">4 Dominios</span>
+                  <span className="text-[9px] text-text-muted">4 Dominios</span>
                 </button>
 
                 {/* 4. Active Recall */}
@@ -1474,16 +1496,16 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                   }
                   className={`p-2 rounded-lg border text-left flex flex-col justify-between transition-all cursor-pointer ${
                     (config.pedagogicalOptions?.activeRecall ?? true)
-                      ? "bg-red-500/10 border-red-500/50 text-red-300 shadow-sm"
-                      : "bg-slate-900 border-slate-700 text-slate-400 opacity-60"
+                      ? "bg-red-500/15 border-red-500/50 text-red-700 dark:text-red-300 shadow-xs"
+                      : "bg-surface border-border-default text-text-muted opacity-60"
                   }`}
                 >
                   <div className="flex items-center justify-between w-full">
-                    <HelpCircle className="w-4 h-4 text-red-400" />
+                    <HelpCircle className="w-4 h-4 text-red-500" />
                     <span className="text-[9px] font-bold font-mono">4</span>
                   </div>
                   <span className="text-[11px] font-bold mt-1 leading-tight">Active Recall</span>
-                  <span className="text-[9px] text-slate-400">Verificación Activa</span>
+                  <span className="text-[9px] text-text-muted">Verificación Activa</span>
                 </button>
 
                 {/* 5. Mnemotecnias */}
@@ -1500,16 +1522,16 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                   }
                   className={`p-2 rounded-lg border text-left flex flex-col justify-between transition-all cursor-pointer ${
                     (config.pedagogicalOptions?.mnemotecnias ?? true)
-                      ? "bg-orange-500/10 border-orange-500/50 text-orange-300 shadow-sm"
-                      : "bg-slate-900 border-slate-700 text-slate-400 opacity-60"
+                      ? "bg-orange-500/15 border-orange-500/50 text-orange-700 dark:text-orange-300 shadow-xs"
+                      : "bg-surface border-border-default text-text-muted opacity-60"
                   }`}
                 >
                   <div className="flex items-center justify-between w-full">
-                    <BrainCircuit className="w-4 h-4 text-orange-400" />
+                    <BrainCircuit className="w-4 h-4 text-orange-500" />
                     <span className="text-[9px] font-bold font-mono">5</span>
                   </div>
                   <span className="text-[11px] font-bold mt-1 leading-tight">Mnemotecnias</span>
-                  <span className="text-[9px] text-slate-400">Trucos & Acrónimos</span>
+                  <span className="text-[9px] text-text-muted">Trucos & Acrónimos</span>
                 </button>
 
                 {/* 6. Anti-Visión de Túnel */}
@@ -1526,22 +1548,22 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                   }
                   className={`p-2 rounded-lg border text-left flex flex-col justify-between transition-all cursor-pointer ${
                     (config.pedagogicalOptions?.antiTunel ?? true)
-                      ? "bg-cyan-500/10 border-cyan-500/50 text-cyan-300 shadow-sm"
-                      : "bg-slate-900 border-slate-700 text-slate-400 opacity-60"
+                      ? "bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-300 shadow-xs"
+                      : "bg-surface border-border-default text-text-muted opacity-60"
                   }`}
                 >
                   <div className="flex items-center justify-between w-full">
-                    <Scan className="w-4 h-4 text-cyan-400" />
+                    <Scan className="w-4 h-4 text-cyan-500" />
                     <span className="text-[9px] font-bold font-mono">6</span>
                   </div>
                   <span className="text-[11px] font-bold mt-1 leading-tight">Anti-Túnel</span>
-                  <span className="text-[9px] text-slate-400">Cobertura 100%</span>
+                  <span className="text-[9px] text-text-muted">Cobertura 100%</span>
                 </button>
               </div>
             </div>
 
             {/* Drag & Drop Document Reference Zone & Curricular Breakdown */}
-            <div className="col-span-1 md:col-span-3 space-y-4 pt-2 border-t border-slate-700/60">
+            <div className="col-span-1 md:col-span-3 space-y-4 pt-2 border-t border-border-default">
               <SigreCurriculumDropzone
                 documents={ragDocuments}
                 onDocumentsChange={setRagDocuments}
@@ -1552,11 +1574,11 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
 
               <div className="space-y-1">
                 <div className="flex justify-between items-center">
-                  <label className="font-bold text-slate-300 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <label className="font-bold text-text-primary flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                     Desglose Curricular Extraído (Bloques de Contenido, RAs y Criterios de Evaluación):
                   </label>
-                  <span className="text-[10px] text-slate-400">
+                  <span className="text-[10px] text-text-muted">
                     Editable manualmente o mediante IA
                   </span>
                 </div>
@@ -1564,7 +1586,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                   rows={6}
                   value={config.desgloseCurricular}
                   onChange={(e) => setConfig({ ...config, desgloseCurricular: e.target.value })}
-                  className="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono text-xs focus:border-amber-500 focus:outline-none leading-relaxed"
+                  className="w-full p-3 bg-surface border border-border-default rounded-lg text-text-primary font-mono text-xs focus:border-amber-500 focus:outline-none leading-relaxed"
                   placeholder="Pega o extrae con IA los Bloques de Contenido (BCs), Resultados de Aprendizaje (RAs) y Criterios de Evaluación (CrEvs)..."
                 />
               </div>
@@ -1613,28 +1635,13 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                   {uds.filter((u) => u.status === "completed").length}/{uds.length}
                 </span>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIsPlanModalOpen(true)}
-                  className="text-[11px] font-bold text-amber-500 hover:underline cursor-pointer"
+                  className="text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline cursor-pointer"
                 >
                   Editar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm("¿Seguro que deseas vaciar y reiniciar el Plan de Unidades Didácticas?")) {
-                      setUds([]);
-                      setSelectedUdId("");
-                      localStorage.removeItem("docuexam_sigre_uds");
-                      localStorage.removeItem("docuexam_sigre_selected_ud");
-                    }
-                  }}
-                  className="text-[11px] font-bold text-text-muted hover:text-red-400 transition-colors cursor-pointer"
-                  title="Vaciar todo el plan de UDs"
-                >
-                  Vaciar
                 </button>
               </div>
             </div>
@@ -1717,7 +1724,21 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                         </span>
                       </div>
                       {isCompleted ? (
-                        <span className="text-emerald-500 font-bold text-[10px]">Completa (3 Módulos)</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-emerald-500 font-bold text-[10px]">Completa</span>
+                          <button
+                            type="button"
+                            disabled={isGeneratingUd}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenRegenerateModal(ud);
+                            }}
+                            className="px-1.5 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 hover:text-amber-300 font-bold rounded text-[10px] border border-amber-500/30 flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-40"
+                            title="Regenerar esta UD (requiere aprobación)"
+                          >
+                            <RefreshCw className="w-2.5 h-2.5" /> Regenerar
+                          </button>
+                        </div>
                       ) : isGenerating ? (
                         <button
                           type="button"
@@ -1790,6 +1811,15 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
+                        disabled={isGeneratingUd}
+                        onClick={() => handleOpenRegenerateModal(selectedUd)}
+                        className="px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-400 hover:text-amber-300 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+                        title="Regenerar esta Unidad Didáctica con IA (requiere aprobación previa)"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-amber-400" /> Regenerar UD
+                      </button>
+                      <button
+                        type="button"
                         onClick={handlePrintA4}
                         className="px-3 py-1.5 bg-surface border border-border-default hover:bg-alt text-text-primary text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
                         title="Imprimir / Guardar en PDF A4"
@@ -1829,37 +1859,37 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                 {selectedUd.data ? (
                   <div className="space-y-4">
                     {/* Pedagogical Quality & 6-Axes Audit Live Badges Bar */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-900/80 border border-slate-800 rounded-xl">
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-alt border border-border-default rounded-xl shadow-2xs">
                       <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
-                        <span className="text-slate-400 mr-1 text-[10px] uppercase font-mono tracking-wider flex items-center gap-1">
-                          <Award className="w-3.5 h-3.5 text-purple-400" /> Auditoría 6 Ejes:
+                        <span className="text-text-muted mr-1 text-[10px] uppercase font-mono tracking-wider flex items-center gap-1">
+                          <Award className="w-3.5 h-3.5 text-purple-500" /> Auditoría 6 Ejes:
                         </span>
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                          <ShieldCheck className="w-3 h-3 text-emerald-400" /> Test-Wiseness ({activeAuditResult?.testWisenessScore || 96}%)
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                          <ShieldCheck className="w-3 h-3 text-emerald-500" /> Test-Wiseness ({activeAuditResult?.testWisenessScore || 96}%)
                         </span>
-                        <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-300 border border-purple-500/30 flex items-center gap-1">
-                          <Zap className="w-3 h-3 text-purple-400" /> CoT Anticolisión
+                        <span className="px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-purple-500" /> CoT Anticolisión
                         </span>
-                        <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/30 flex items-center gap-1">
-                          <RefreshCw className="w-3 h-3 text-blue-400" /> Práctica Intercalada
+                        <span className="px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 flex items-center gap-1">
+                          <RefreshCw className="w-3 h-3 text-blue-500" /> Práctica Intercalada
                         </span>
-                        <span className="px-2 py-0.5 rounded-md bg-red-500/10 text-red-300 border border-red-500/30 flex items-center gap-1">
-                          <HelpCircle className="w-3 h-3 text-red-400" /> Active Recall ({activeAuditResult?.activeRecallCount || 20})
+                        <span className="px-2 py-0.5 rounded-md bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30 flex items-center gap-1">
+                          <HelpCircle className="w-3 h-3 text-red-500" /> Active Recall ({activeAuditResult?.activeRecallCount || 20})
                         </span>
-                        <span className="px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-300 border border-orange-500/30 flex items-center gap-1">
-                          <BrainCircuit className="w-3 h-3 text-orange-400" /> Mnemotecnias ({activeAuditResult?.mnemonicsCount || 2})
+                        <span className="px-2 py-0.5 rounded-md bg-orange-500/15 text-orange-700 dark:text-orange-300 border border-orange-500/30 flex items-center gap-1">
+                          <BrainCircuit className="w-3 h-3 text-orange-500" /> Mnemotecnias ({activeAuditResult?.mnemonicsCount || 2})
                         </span>
-                        <span className="px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
-                          <Scan className="w-3 h-3 text-cyan-400" /> Anti-Túnel (100%)
+                        <span className="px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                          <Scan className="w-3 h-3 text-cyan-500" /> Anti-Túnel (100%)
                         </span>
                       </div>
 
                       <button
                         type="button"
                         onClick={() => setIsAuditModalOpen(true)}
-                        className="px-3 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 text-[11px] font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                        className="px-3 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-700 dark:text-purple-300 border border-purple-500/40 text-[11px] font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
                       >
-                        <Bot className="w-3.5 h-3.5 text-purple-400" /> Auditoría IA
+                        <Bot className="w-3.5 h-3.5 text-purple-500" /> Auditoría IA
                       </button>
                     </div>
 
@@ -2097,7 +2127,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                           />
                         ) : (
                           <SigreOpmlViewer
-                            opmlCode={generateSigreOpml(selectedUd, selectedUd.data.modulo1)}
+                            opmlCode={generateSigreOpml(selectedUd, selectedUd.data.modulo1, selectedUd.data)}
                             title="5. Mapa Mental Estructurado (OPML XML)"
                             onDownload={handleDownloadOpml}
                           />
@@ -2229,6 +2259,20 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
         onClose={() => setIsAuditModalOpen(false)}
         auditResult={activeAuditResult}
         ud={selectedUd}
+      />
+
+      {/* Regenerate UD Validation Modal */}
+      <SigreRegenerateModal
+        isOpen={isRegenerateModalOpen}
+        onClose={() => {
+          setIsRegenerateModalOpen(false);
+          setUdToRegenerate(null);
+        }}
+        ud={udToRegenerate}
+        onConfirm={(target) => {
+          handleGenerateChosenUD(target, false);
+        }}
+        isGenerating={isGeneratingUd}
       />
     </div>
   );

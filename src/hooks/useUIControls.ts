@@ -30,8 +30,10 @@ export function useUIControls() {
   useEffect(() => {
     if (theme === "dark") {
       document.documentElement.setAttribute("data-theme", "dark");
+      document.documentElement.classList.add("dark");
     } else {
       document.documentElement.removeAttribute("data-theme");
+      document.documentElement.classList.remove("dark");
     }
     localStorage.setItem("docuexam_theme", theme);
   }, [theme]);
