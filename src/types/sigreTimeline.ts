@@ -7,6 +7,8 @@ export type TimelineEventCategory =
   | "evaluacion"
   | "dual"
   | "festivo"
+  | "vacaciones"
+  | "hito"
   | "reunion"
   | "practica"
   | "recuperacion"
@@ -27,6 +29,8 @@ export interface TimelineEvent {
   borderColor?: string;
   category?: TimelineEventCategory;
   level?: TimelineLevel;
+  moduleId?: string; // e.g. "cal_2026_2027_malaga_andalucia" or "0392"
+  moduleCode?: string; // e.g. "0392", "DIG 1664", "TEMINS 0037"
   udId?: string; // e.g. "UD01", "UD02" for unit-level events
   sesionNum?: number; // e.g. 1, 2, 3... for lesson sessions
   horas?: number;
@@ -44,9 +48,11 @@ export interface TimelineColorPreset {
 export interface MultiLevelTimelineData {
   schoolYear: string; // e.g. "2025-2026" or "2026-2027"
   activeLevel: TimelineLevel;
+  activeModuleId?: string;
   cursoEvents: TimelineEvent[];
   profesorEvents: TimelineEvent[];
   moduloEvents: TimelineEvent[];
+  moduloEventsByModule?: Record<string, TimelineEvent[]>; // keyed by moduleId e.g. "cal_2026_2027_dig_1664"
   unidadEvents: Record<string, TimelineEvent[]>; // keyed by udId e.g. "UD01"
 }
 

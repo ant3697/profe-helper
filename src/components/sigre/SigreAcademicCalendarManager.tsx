@@ -92,6 +92,7 @@ import {
   buildUdLegendTitleAndCode,
 } from "../../utils/sigreCalendarUtils";
 import { preparePrintableHtmlDocument } from "../../utils/topicPromptGenerator";
+import { SigreMultiLevelTimeline } from "./SigreMultiLevelTimeline";
 
 interface SigreAcademicCalendarManagerProps {
   currentUds?: SigreUDItem[];
@@ -177,6 +178,9 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
   }, [activeCalendarId]);
 
   const calendar = calendarsList.find((c) => c.id === activeCalendarId) || calendarsList[0] || PRESET_CALENDAR_2026_2027;
+
+  // View Mode: Traditional Monthly Grid vs Module Timeline vs Global Portfolio Timeline
+  const [calendarViewMode, setCalendarViewMode] = useState<"calendario" | "cronograma_modulo" | "cronograma_global">("calendario");
 
   // History Stack for Undo / Redo
   const [history, setHistory] = useState<SigreAcademicCalendar[]>([]);
@@ -2520,6 +2524,49 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
 
           {/* Quick Actions & Tools */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* View Mode Toggle: Calendario Mensual vs Cronograma Módulo vs Cronograma Cartera */}
+            <div className="flex items-center gap-1 bg-alt p-1 rounded-xl border border-border-default">
+              <button
+                type="button"
+                onClick={() => setCalendarViewMode("calendario")}
+                className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1.5 cursor-pointer ${
+                  calendarViewMode === "calendario"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-text-secondary hover:text-text-primary hover:bg-hover"
+                }`}
+                title="Ver matriz mensual del calendario escolar oficial"
+              >
+                <CalendarIcon className="w-3.5 h-3.5" />
+                <span>Calendario Mensual</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCalendarViewMode("cronograma_modulo")}
+                className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1.5 cursor-pointer ${
+                  calendarViewMode === "cronograma_modulo"
+                    ? "bg-amber-500 text-black shadow-xs font-black"
+                    : "text-text-secondary hover:text-text-primary hover:bg-hover"
+                }`}
+                title={`Ver y gestionar el cronograma temporal interactivo del módulo ${calendar.codigoModulo || "MOD"}`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Cronograma del Módulo ({calendar.codigoModulo || "MOD"})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCalendarViewMode("cronograma_global")}
+                className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1.5 cursor-pointer ${
+                  calendarViewMode === "cronograma_global"
+                    ? "bg-purple-600 text-white shadow-xs font-black"
+                    : "text-text-secondary hover:text-text-primary hover:bg-hover"
+                }`}
+                title="Ver y comparar cronogramas de toda la cartera docente"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Cronograma Global ({calendarsList.length})</span>
+              </button>
+            </div>
+
             {/* Global Undo / Redo */}
             <div className="flex items-center gap-1 bg-alt p-1 rounded-xl border border-border-default">
               <button
@@ -2874,9 +2921,19 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                         {udsCount} UDs
                       </span>
-                      <span className="text-text-muted">
-                        {calItem.province || "Andalucía"}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveCalendarId(calItem.id);
+                          setCalendarViewMode("cronograma_modulo");
+                        }}
+                        className="px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500 text-amber-800 dark:text-amber-300 hover:text-black font-bold border border-amber-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                        title={`Ver cronograma del módulo ${calItem.codigoModulo}`}
+                      >
+                        <Clock className="w-2.5 h-2.5" />
+                        <span>Cronograma</span>
+                      </button>
                     </div>
                   </div>
                 );
@@ -3140,8 +3197,54 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
         </div>
       )}
 
-      {/* ACADEMIC TRIMESTERS & JUNE ASSESSMENT STRUCTURE ACCORDION */}
-      <div className="bg-surface border border-border-default rounded-2xl overflow-hidden shadow-sm transition-all">
+      {/* Main Content Area: Interactive Multi-Level Cronogramas vs Monthly Calendar Matrix */}
+      {calendarViewMode !== "calendario" ? (
+        <div className="space-y-4 animate-in fade-in">
+          {/* Cronograma Context Notification Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-surface border border-amber-500/40 rounded-2xl shadow-sm">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-500 border border-amber-500/40 flex items-center justify-center font-bold">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-black text-text-primary text-xs sm:text-sm">
+                    {calendarViewMode === "cronograma_modulo"
+                      ? `Cronograma Temporal del Módulo: [${calendar.codigoModulo || "MOD"}] ${calendar.moduloFormativo || "Módulo"}`
+                      : `Cartera de Cronogramas Multimódulo (${calendarsList.length} Módulos Docentes)`}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40">
+                    Nivel de Módulo / Asignatura
+                  </span>
+                </div>
+                <p className="text-[11px] text-text-muted mt-0.5">
+                  Planificación jerárquica con escala temporal interactiva, arrastre visual de hitos/periodos y sincronización automática.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCalendarViewMode("calendario")}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer text-xs shadow-xs shrink-0"
+            >
+              <CalendarIcon className="w-3.5 h-3.5" />
+              <span>Volver a Matriz Mensual</span>
+            </button>
+          </div>
+
+          <SigreMultiLevelTimeline
+            modulesList={calendarsList}
+            activeModuleId={activeCalendarId}
+            onSelectModule={(modId) => setActiveCalendarId(modId)}
+            initialLevel="modulo"
+            onClose={() => setCalendarViewMode("calendario")}
+          />
+        </div>
+      ) : (
+        <>
+          {/* ACADEMIC TRIMESTERS & JUNE ASSESSMENT STRUCTURE ACCORDION */}
+          <div className="bg-surface border border-border-default rounded-2xl overflow-hidden shadow-sm transition-all">
         <div
           onClick={() => setIsTrimestersExpanded(!isTrimestersExpanded)}
           className="p-3.5 bg-alt hover:bg-hover cursor-pointer flex flex-wrap items-center justify-between gap-3 border-b border-border-default select-none transition-colors"
@@ -4335,6 +4438,8 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             </button>
           </div>
         </div>
+      )}
+      </>
       )}
 
       {/* MODAL 1: ADD NEW ACADEMIC COURSE / MODULE */}

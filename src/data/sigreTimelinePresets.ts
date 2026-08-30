@@ -2,31 +2,32 @@ import { TimelineEvent, TimelineColorPreset } from "../types/sigreTimeline";
 
 export const TIMELINE_COLOR_PRESETS: TimelineColorPreset[] = [
   { name: "Por Defecto", bg: "", text: "", border: "", isDefault: true },
+  { name: "Amarillo / Negro (A11y)", bg: "#ffd700", text: "#000000", border: "#000000" },
+  { name: "Negro / Amarillo (A11y)", bg: "#000000", text: "#ffd700", border: "#ffd700" },
+  { name: "Blanco / Azul Marino", bg: "#ffffff", text: "#000080", border: "#000080" },
+  { name: "Azul Marino / Blanco", bg: "#000080", text: "#ffffff", border: "#ffffff" },
+  { name: "Crema / Marrón", bg: "#fffdd0", text: "#4b3621", border: "#4b3621" },
+  { name: "Verde Esmeralda", bg: "#10b981", text: "#000000", border: "#059669" },
+  { name: "Rojo Marca Inexmoda / SIGRE", bg: "#dc0d15", text: "#ffffff", border: "#ffffff" },
   { name: "Ámbar SIGRE", bg: "#f59e0b", text: "#000000", border: "#d97706" },
   { name: "Cian Tecnológico", bg: "#06b6d4", text: "#000000", border: "#0891b2" },
-  { name: "Esmeralda Práctica", bg: "#10b981", text: "#000000", border: "#059669" },
   { name: "Púrpura Innovación", bg: "#a855f7", text: "#ffffff", border: "#9333ea" },
-  { name: "Azul Institucional", bg: "#2563eb", text: "#ffffff", border: "#1d4ed8" },
-  { name: "Rojo Examen / Hito", bg: "#ef4444", text: "#ffffff", border: "#dc2626" },
-  { name: "Alto Contraste Amarillo/Negro", bg: "#ffd700", text: "#000000", border: "#000000" },
-  { name: "Alto Contraste Negro/Amarillo", bg: "#000000", text: "#ffd700", border: "#ffd700" },
-  { name: "Blanco / Azul Marino", bg: "#ffffff", text: "#000080", border: "#000080" },
   { name: "Gris Pizarra", bg: "#475569", text: "#ffffff", border: "#334155" },
 ];
 
 export const MONTH_COLORS_TIMELINE = [
-  "#8b5cf6", // Ene (Púrpura)
-  "#ec4899", // Feb (Rosa)
-  "#06b6d4", // Mar (Cian)
-  "#10b981", // Abr (Esmeralda)
-  "#f59e0b", // May (Ámbar)
-  "#3b82f6", // Jun (Azul)
-  "#6366f1", // Jul (Índigo)
-  "#64748b", // Ago (Pizarra)
-  "#f97316", // Sep (Naranja)
-  "#14b8a6", // Oct (Teal)
-  "#a855f7", // Nov (Violeta)
-  "#ef4444", // Dic (Rojo)
+  "#6610f2", // Ene (Índigo / Azul profundo)
+  "#d63384", // Feb (Rosa / Magenta)
+  "#20c997", // Mar (Verde Azulado / Teal)
+  "#0dcaf0", // Abr (Cian)
+  "#ffc107", // May (Ámbar / Amarillo)
+  "#0d6efd", // Jun (Azul)
+  "#6f42c1", // Jul (Púrpura)
+  "#dc3545", // Ago (Carmesí / Rojo)
+  "#198754", // Sep (Verde Bosque)
+  "#6c757d", // Oct (Gris Pizarra)
+  "#6f42c1", // Nov (Púrpura)
+  "#fd7e14", // Dic (Naranja Brillante)
 ];
 
 // Generates default course events for a given start year (e.g. 2025 -> 2025-2026)

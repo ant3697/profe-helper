@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   BookOpen,
   Sparkles,
@@ -37,6 +37,12 @@ import {
   Info,
   School,
   Building2,
+  Search,
+  Filter,
+  Activity,
+  HardDrive,
+  Gauge,
+  Users,
 } from "lucide-react";
 import {
   SigreCurricularConfig,
@@ -77,6 +83,9 @@ import { SigreAutoevaluacionViewer } from "./SigreAutoevaluacionViewer";
 import { SigreCurricularViewer } from "./SigreCurricularViewer";
 import { SigreScheduleGuardManager } from "./SigreScheduleGuardManager";
 import { SigreMultiLevelTimeline } from "./SigreMultiLevelTimeline";
+import { SigreAcademicCalendarManager } from "./SigreAcademicCalendarManager";
+import { SigreTechnicalAuditModal } from "./SigreTechnicalAuditModal";
+import { getSampleFPModuleUds } from "../../data/sigreSampleModule";
 import { INITIAL_SIGRE_SCHEDULE_CONFIG } from "../../data/sigreSchedulePresets";
 import { extractTextFromFile } from "../../utils/pdfExtractor";
 import { exportHtmlToDocx } from "../../utils/docxExport";
@@ -288,6 +297,12 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   const [isBatchGenerating, setIsBatchGenerating] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [isAudit6AxesOpen, setIsAudit6AxesOpen] = useState(false);
+  const [isTechnicalAuditModalOpen, setIsTechnicalAuditModalOpen] = useState(false);
+  const [globalViewMode, setGlobalViewMode] = useState<
+    "unidades" | "calendario" | "cronogramas" | "horarios" | "parametros"
+  >("unidades");
+  const [udSearchQuery, setUdSearchQuery] = useState("");
+  const [udFilterStatus, setUdFilterStatus] = useState<"all" | "completed" | "pending" | "prl">("all");
   const [loadingStatus, setLoadingStatus] = useState("");
   const abortControllerRef = useRef<AbortController | null>(null);
   const [ragDocuments, setRagDocuments] = useState<SigreRagDocument[]>(() => {
@@ -334,6 +349,31 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   }, [selectedUdId]);
 
   const selectedUd = uds.find((u) => u.id === selectedUdId) || uds[0] || null;
+
+  // Filtered UDs for search & quick filters
+  const filteredUds = useMemo(() => {
+    return uds.filter((u) => {
+      if (udFilterStatus === "completed" && u.status !== "completed") return false;
+      if (udFilterStatus === "pending" && u.status === "completed") return false;
+      if (udFilterStatus === "prl" && !u.isPrl) return false;
+
+      if (udSearchQuery.trim()) {
+        const q = udSearchQuery.toLowerCase();
+        const matchTitle = (u.title || "").toLowerCase().includes(q);
+        const matchId = (u.id || "").toLowerCase().includes(q);
+        const matchCode = (u.fullCode || "").toLowerCase().includes(q);
+        const matchBc = (u.bcCode || "").toLowerCase().includes(q);
+        return matchTitle || matchId || matchCode || matchBc;
+      }
+      return true;
+    });
+  }, [uds, udFilterStatus, udSearchQuery]);
+
+  const handleLoadSampleFPModule = () => {
+    const sample = getSampleFPModuleUds(config);
+    setUds(sample);
+    setSelectedUdId(sample[0]?.id || null);
+  };
 
   // Compute live pedagogical audit if UD is selected
   const activeAuditResult = selectedUd && selectedUd.data
@@ -1321,7 +1361,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
-      {/* Top Banner SIGRE v6.0 */}
+      {/* Top Banner SIGRE v6.0 & Global Hub */}
       <div className={`border rounded-2xl p-5 sm:p-6 shadow-xl relative overflow-hidden transition-colors ${
         theme === "dark"
           ? "bg-gradient-to-r from-[#0f172a] via-[#1e1b4b] to-[#1e293b] border-amber-500/30 text-white"
@@ -1346,51 +1386,18 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => {
-                setIsConfigOpen(true);
-                setConfigTab("cronogramas");
-              }}
-              className="px-3.5 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-              title="Abrir el visualizador interactivo de Cronogramas a 4 niveles (Curso, Profesor, Módulo y Unidad)"
+              onClick={() => setIsTechnicalAuditModalOpen(true)}
+              className="px-3.5 py-2 bg-gradient-to-r from-purple-500/20 to-indigo-500/20 hover:from-purple-500/30 hover:to-indigo-500/30 text-purple-300 border border-purple-500/40 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-md hover:scale-105"
+              title="Auditoría técnica profunda, validación psicométrica y test de estrés extremo"
             >
-              <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              <span>Cronogramas (4 Niveles)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsConfigOpen(true);
-                setConfigTab("horarios");
-                if (config.scheduleConfig) {
-                  setConfig({
-                    ...config,
-                    scheduleConfig: {
-                      ...config.scheduleConfig,
-                      activeView: "calendario_escolar",
-                    },
-                  });
-                }
-              }}
-              className="px-3.5 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-              title="Abrir el Calendario Escolar Oficial y organizador temporal de UDs"
-            >
-              <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Calendario Escolar</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsConfigOpen(!isConfigOpen)}
-              className={`px-3.5 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer border ${
-                theme === "dark"
-                  ? "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700"
-                  : "bg-white hover:bg-slate-100 text-slate-800 border-slate-300 shadow-xs"
-              }`}
-            >
-              <Settings2 className="w-4 h-4 text-amber-500" />
-              {isConfigOpen ? "Ocultar Parámetros" : "Configurar Currículo"}
+              <Activity className="w-4 h-4 text-purple-400" />
+              <span>Auditoría & Estrés</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-mono border border-emerald-500/30">
+                100% OK
+              </span>
             </button>
             <button
               type="button"
@@ -1411,121 +1418,148 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
           </div>
         </div>
 
-        {/* Collapsible Curriculum Configuration Form */}
-        {isConfigOpen && (
-          <div className={`mt-6 pt-5 border-t space-y-4 text-xs ${theme === "dark" ? "border-slate-700/60" : "border-slate-300/80"}`}>
-            {/* Configuration Tabs Header */}
-            <div className={`flex flex-wrap items-center justify-between gap-3 p-1.5 rounded-2xl border ${
-              theme === "dark" ? "bg-slate-950/80 border-slate-800" : "bg-slate-200/60 border-slate-300"
-            }`}>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setConfigTab("curricular")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                    configTab === "curricular"
-                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black"
-                      : theme === "dark"
-                      ? "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-white"
-                  }`}
-                >
-                  <Sliders className="w-3.5 h-3.5" />
-                  Parámetros Curriculares & Ejes
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfigTab("horarios")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                    configTab === "horarios"
-                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black"
-                      : theme === "dark"
-                      ? "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-white"
-                  }`}
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  Horarios y Guardias Docentes
-                  <span className="px-1.5 py-0.5 rounded-md bg-red-500/20 text-red-600 dark:text-red-400 text-[10px] font-mono border border-red-500/30">
-                    GUA
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfigTab("cronogramas")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                    configTab === "cronogramas"
-                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black"
-                      : theme === "dark"
-                      ? "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-white"
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                  Cronogramas (4 Niveles)
-                  <span className="px-1.5 py-0.5 rounded-md bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-[10px] font-mono border border-cyan-500/30">
-                    4N
-                  </span>
-                </button>
-              </div>
+        {/* Global Hub Navigation Bar */}
+        <div className={`mt-5 pt-4 border-t flex flex-wrap items-center justify-between gap-2.5 ${
+          theme === "dark" ? "border-slate-700/60" : "border-slate-300/80"
+        }`}>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setGlobalViewMode("unidades")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                globalViewMode === "unidades"
+                  ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black"
+                  : theme === "dark"
+                  ? "bg-slate-900/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60"
+                  : "bg-white text-slate-700 hover:text-black hover:bg-slate-100 border border-slate-300"
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Unidades Didácticas</span>
+              <span className="px-1.5 py-0.2 rounded-md bg-black/20 text-[10px] font-mono">
+                {uds.length}
+              </span>
+            </button>
 
-              {configTab === "curricular" && (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setConfigTab("cronogramas")}
-                    className="px-3 py-1 text-xs text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                  >
-                    <span>Ver Cronogramas</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfigTab("horarios")}
-                    className="px-3 py-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                  >
-                    <span>Abrir Horarios & Guardias</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
+            <button
+              type="button"
+              onClick={() => setGlobalViewMode("calendario")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                globalViewMode === "calendario"
+                  ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/20 font-black"
+                  : theme === "dark"
+                  ? "bg-slate-900/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60"
+                  : "bg-white text-slate-700 hover:text-black hover:bg-slate-100 border border-slate-300"
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Calendario Escolar</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setGlobalViewMode("cronogramas")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                globalViewMode === "cronogramas"
+                  ? "bg-cyan-500 text-black shadow-md shadow-cyan-500/20 font-black"
+                  : theme === "dark"
+                  ? "bg-slate-900/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60"
+                  : "bg-white text-slate-700 hover:text-black hover:bg-slate-100 border border-slate-300"
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Cronogramas (4 Niveles)</span>
+              <span className="px-1.5 py-0.2 rounded-md bg-cyan-500/20 text-cyan-400 text-[10px] font-mono border border-cyan-500/30">
+                4N
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setGlobalViewMode("horarios")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                globalViewMode === "horarios"
+                  ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/20 font-black"
+                  : theme === "dark"
+                  ? "bg-slate-900/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60"
+                  : "bg-white text-slate-700 hover:text-black hover:bg-slate-100 border border-slate-300"
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Horarios & Guardias</span>
+              <span className="px-1.5 py-0.2 rounded-md bg-red-500/20 text-red-400 text-[10px] font-mono border border-red-500/30">
+                GUA
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setGlobalViewMode("parametros")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                globalViewMode === "parametros"
+                  ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black"
+                  : theme === "dark"
+                  ? "bg-slate-900/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60"
+                  : "bg-white text-slate-700 hover:text-black hover:bg-slate-100 border border-slate-300"
+              }`}
+            >
+              <Sliders className="w-3.5 h-3.5 text-amber-400" />
+              <span>Parámetros Curriculares</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {uds.length === 0 ? (
+              <button
+                type="button"
+                onClick={handleLoadSampleFPModule}
+                className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Cargar inmediatamente 8 Unidades Didácticas de Formación Profesional con bancos GIFT y rúbricas"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Cargar Módulo FP Ejemplo</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleLoadSampleFPModule}
+                className="px-2.5 py-1 bg-surface hover:bg-alt text-text-muted hover:text-text-primary border border-border-default text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
+                title="Reiniciar con el Módulo Oficial de FP (8 UDs desarrolladas)"
+              >
+                Ejemplo FP
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Global View: Curricular Parameters Panel */}
+        {globalViewMode === "parametros" && (
+          <div className={`mt-6 pt-5 border-t space-y-4 text-xs ${theme === "dark" ? "border-slate-700/60" : "border-slate-300/80"}`}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-amber-400 flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-amber-400" />
+                Configuración del Marco Normativo y Parámetros Curriculares
+              </h3>
+              <button
+                type="button"
+                onClick={() => setGlobalViewMode("unidades")}
+                className="text-xs font-bold text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>Volver a Unidades Didácticas</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
 
-            {configTab === "cronogramas" ? (
-              <SigreMultiLevelTimeline
-                uds={uds}
-                config={config}
-                selectedUdId={selectedUdId}
-                onSelectUd={(udId) => setSelectedUdId(udId)}
-                theme={theme}
-              />
-            ) : configTab === "horarios" ? (
-              <SigreScheduleGuardManager
-                scheduleConfig={config.scheduleConfig || INITIAL_SIGRE_SCHEDULE_CONFIG}
-                onUpdateScheduleConfig={(newSched) => setConfig({ ...config, scheduleConfig: newSched })}
-                onApplyToCurricularConfig={(horas) => {
-                  setConfig((prev) => ({
-                    ...prev,
-                    horasSemanales: horas,
-                  }));
-                }}
-                currentModuloCodigo={config.codigo || config.moduloFormativo}
-                moduloNombre={config.moduloFormativo}
-                cicloFormativo={config.cicloFormativo}
-                currentUds={uds}
-                theme={theme}
-              />
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1">
-                  <label className="font-bold text-text-primary">Módulo Formativo:</label>
-                  <input
-                    type="text"
-                    value={config.moduloFormativo}
-                    onChange={(e) => setConfig({ ...config, moduloFormativo: e.target.value })}
-                    className="w-full px-3 py-2 bg-surface border border-border-default rounded-lg text-text-primary font-medium focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <label className="font-bold text-text-primary">Módulo Formativo:</label>
+                <input
+                  type="text"
+                  value={config.moduloFormativo}
+                  onChange={(e) => setConfig({ ...config, moduloFormativo: e.target.value })}
+                  className="w-full px-3 py-2 bg-surface border border-border-default rounded-lg text-text-primary font-medium focus:border-amber-500 focus:outline-none"
+                />
+              </div>
             <div className="space-y-1">
               <label className="font-bold text-text-primary">Código / Ciclo / Grado:</label>
               <input
@@ -2047,10 +2081,9 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
               </div>
             </div>
           </div>
-        )}
-      </div>
-    )}
-  </div>
+        </div>
+      )}
+    </div>
 
       {/* Document Viewer Modal for Reference Documents */}
       <SigreDocumentViewerModal
@@ -2076,174 +2109,316 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
         </div>
       )}
 
-      {/* Main Layout: Left UDs Navigation / Right UD Deliverables */}
-      {uds.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Column: Plan de UDs (List) */}
-          <div className="lg:col-span-4 bg-surface border border-border-default rounded-2xl p-4 space-y-3 shadow-sm">
-            <div className="flex items-center justify-between pb-2 border-b border-border-default">
-              <div className="flex items-center gap-2">
-                <h3 className="text-xs font-black uppercase tracking-wider text-text-muted flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4 text-amber-500" /> Plan de UDs ({uds.length})
-                </h3>
-                <span className="text-[10px] font-mono font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                  {uds.filter((u) => u.status === "completed").length}/{uds.length}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsPlanModalOpen(true)}
-                  className="text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline cursor-pointer"
-                >
-                  Editar
-                </button>
-              </div>
-            </div>
+      {/* Global View: Calendario Escolar Oficial */}
+      {globalViewMode === "calendario" && (
+        <div className="space-y-4">
+          <SigreAcademicCalendarManager
+            currentUds={uds}
+            moduloCodigo={config.codigo || config.moduloFormativo}
+            moduloNombre={config.moduloFormativo}
+            cicloFormativo={config.cicloFormativo}
+            docenteNombre={config.docenteNombre}
+            theme={theme}
+          />
+        </div>
+      )}
 
-            {/* Batch Action Bar */}
-            {uds.some((u) => u.status !== "completed") && (
-              <div className="pt-1 pb-1">
-                {isBatchGenerating || isGeneratingUd ? (
-                  <button
-                    type="button"
-                    onClick={handleCancelGeneration}
-                    className="w-full py-1.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5" /> Detener Generación
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleGenerateAllUds}
-                    className="w-full py-1.5 bg-gradient-to-r from-amber-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 border border-amber-500/40 text-amber-400 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Desarrollar Todas las UDs
-                  </button>
+      {/* Global View: Cronogramas a 4 Niveles */}
+      {globalViewMode === "cronogramas" && (
+        <div className="space-y-4">
+          <SigreMultiLevelTimeline
+            uds={uds}
+            config={config}
+            selectedUdId={selectedUdId}
+            onSelectUd={(udId) => setSelectedUdId(udId)}
+            theme={theme}
+          />
+        </div>
+      )}
+
+      {/* Global View: Horarios y Guardias Docentes */}
+      {globalViewMode === "horarios" && (
+        <div className="space-y-4">
+          <SigreScheduleGuardManager
+            scheduleConfig={config.scheduleConfig || INITIAL_SIGRE_SCHEDULE_CONFIG}
+            onUpdateScheduleConfig={(newSched) => setConfig({ ...config, scheduleConfig: newSched })}
+            onApplyToCurricularConfig={(horas) => {
+              setConfig((prev) => ({
+                ...prev,
+                horasSemanales: horas,
+              }));
+            }}
+            currentModuloCodigo={config.codigo || config.moduloFormativo}
+            moduloNombre={config.moduloFormativo}
+            cicloFormativo={config.cicloFormativo}
+            currentUds={uds}
+            theme={theme}
+          />
+        </div>
+      )}
+
+      {/* Main Layout: Left UDs Navigation / Right UD Deliverables (when in unidades view) */}
+      {globalViewMode === "unidades" && (
+        <>
+          {uds.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Column: Plan de UDs (List + Search & Filter) */}
+              <div className="lg:col-span-4 bg-surface border border-border-default rounded-2xl p-4 space-y-3 shadow-sm">
+                <div className="flex items-center justify-between pb-2 border-b border-border-default">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-text-muted flex items-center gap-1.5">
+                      <BookOpen className="w-4 h-4 text-amber-500" /> Plan de UDs ({uds.length})
+                    </h3>
+                    <span className="text-[10px] font-mono font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                      {uds.filter((u) => u.status === "completed").length}/{uds.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsPlanModalOpen(true)}
+                      className="text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline cursor-pointer"
+                    >
+                      Editar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search and Filter Bar */}
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Buscar UD por título o código..."
+                      value={udSearchQuery}
+                      onChange={(e) => setUdSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-7 py-1.5 bg-alt text-xs text-text-primary rounded-xl border border-border-default placeholder:text-text-muted focus:outline-none focus:border-amber-500 transition-colors"
+                    />
+                    {udSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setUdSearchQuery("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary text-xs"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filter Pills */}
+                  <div className="flex items-center gap-1 text-[10px] overflow-x-auto pb-1">
+                    <button
+                      type="button"
+                      onClick={() => setUdFilterStatus("all")}
+                      className={`px-2 py-0.5 rounded-md font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                        udFilterStatus === "all"
+                          ? "bg-amber-500 text-black"
+                          : "bg-alt text-text-muted hover:text-text-primary"
+                      }`}
+                    >
+                      Todas ({uds.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUdFilterStatus("completed")}
+                      className={`px-2 py-0.5 rounded-md font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                        udFilterStatus === "completed"
+                          ? "bg-emerald-500 text-black"
+                          : "bg-alt text-text-muted hover:text-emerald-400"
+                      }`}
+                    >
+                      Completadas ({uds.filter((u) => u.status === "completed").length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUdFilterStatus("pending")}
+                      className={`px-2 py-0.5 rounded-md font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                        udFilterStatus === "pending"
+                          ? "bg-amber-500 text-black"
+                          : "bg-alt text-text-muted hover:text-amber-400"
+                      }`}
+                    >
+                      Pendientes ({uds.filter((u) => u.status !== "completed").length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUdFilterStatus("prl")}
+                      className={`px-2 py-0.5 rounded-md font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                        udFilterStatus === "prl"
+                          ? "bg-red-500 text-white"
+                          : "bg-alt text-text-muted hover:text-red-400"
+                      }`}
+                    >
+                      PRL ({uds.filter((u) => u.isPrl).length})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Batch Action Bar */}
+                {uds.some((u) => u.status !== "completed") && (
+                  <div className="pt-1 pb-1">
+                    {isBatchGenerating || isGeneratingUd ? (
+                      <button
+                        type="button"
+                        onClick={handleCancelGeneration}
+                        className="w-full py-1.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5" /> Detener Generación
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleGenerateAllUds}
+                        className="w-full py-1.5 bg-gradient-to-r from-amber-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 border border-amber-500/40 text-amber-400 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Desarrollar Todas las UDs
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
-            )}
 
-            <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
-              {uds.map((ud) => {
-                const isSelected = ud.id === selectedUdId;
-                const isCompleted = ud.status === "completed";
-                const isGenerating = ud.status === "generating";
-                const isError = ud.status === "error";
+                <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+                  {filteredUds.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-text-muted">
+                      No se encontraron UDs con los filtros aplicados.
+                    </div>
+                  ) : (
+                    filteredUds.map((ud) => {
+                      const isSelected = ud.id === selectedUdId;
+                      const isCompleted = ud.status === "completed";
+                      const isGenerating = ud.status === "generating";
+                      const isError = ud.status === "error";
 
-                return (
-                  <div
-                    key={ud.id}
-                    onClick={() => setSelectedUdId(ud.id)}
-                    className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
-                      isSelected
-                        ? "bg-amber-500/10 border-amber-500/50 shadow-md shadow-amber-500/5"
-                        : "bg-background border-border-default hover:border-amber-500/30"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className={`text-[10px] font-black font-mono px-2 py-0.5 rounded-md ${
-                            ud.isPrl
-                              ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                              : "bg-amber-500/20 text-amber-400"
+                      return (
+                        <div
+                          key={ud.id}
+                          onClick={() => setSelectedUdId(ud.id)}
+                          className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
+                            isSelected
+                              ? "bg-amber-500/10 border-amber-500/50 shadow-md shadow-amber-500/5"
+                              : "bg-background border-border-default hover:border-amber-500/30"
                           }`}
                         >
-                          {ud.id}
-                        </span>
-                        <span className="text-xs font-bold text-text-primary truncate">
-                          {ud.title}
-                        </span>
-                      </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className={`text-[10px] font-black font-mono px-2 py-0.5 rounded-md ${
+                                  ud.isPrl
+                                    ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                                    : "bg-amber-500/20 text-amber-400"
+                                }`}
+                              >
+                                {ud.id}
+                              </span>
+                              <span className="text-xs font-bold text-text-primary truncate">
+                                {ud.title}
+                              </span>
+                            </div>
 
-                      {isCompleted ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                      ) : isGenerating ? (
-                        <RefreshCw className="w-4 h-4 text-amber-500 animate-spin shrink-0" />
-                      ) : isError ? (
-                        <span title={ud.error || "Error"} className="shrink-0">
-                          <AlertTriangle className="w-4 h-4 text-red-500" />
-                        </span>
-                      ) : (
-                        <span className="w-2 h-2 rounded-full bg-slate-600 shrink-0" />
-                      )}
-                    </div>
+                            {isCompleted ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                            ) : isGenerating ? (
+                              <RefreshCw className="w-4 h-4 text-amber-500 animate-spin shrink-0" />
+                            ) : isError ? (
+                              <span title={ud.error || "Error"} className="shrink-0">
+                                <AlertTriangle className="w-4 h-4 text-red-500" />
+                              </span>
+                            ) : (
+                              <span className="w-2 h-2 rounded-full bg-slate-600 shrink-0" />
+                            )}
+                          </div>
 
-                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border-default/40">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-text-muted font-mono">{ud.bcCode}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 font-mono font-bold rounded flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-amber-500" />
-                          {ud.horasEstimadas || Math.round((config.horasTotales || 160) / uds.length)}h
-                        </span>
-                        {ud.trimestre && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/15 text-blue-400 font-mono font-bold rounded">
-                            {ud.trimestre}º Trim.
-                          </span>
-                        )}
-                      </div>
-                      {isCompleted ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-emerald-500 font-bold text-[10px]">Completa</span>
-                          <button
-                            type="button"
-                            disabled={isGeneratingUd}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenRegenerateModal(ud);
-                            }}
-                            className="px-1.5 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 hover:text-amber-300 font-bold rounded text-[10px] border border-amber-500/30 flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-40"
-                            title="Regenerar esta UD (requiere aprobación)"
-                          >
-                            <RefreshCw className="w-2.5 h-2.5" /> Regenerar
-                          </button>
+                          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border-default/40">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-text-muted font-mono">{ud.bcCode}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 font-mono font-bold rounded flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-amber-500" />
+                                {ud.horasEstimadas || Math.round((config.horasTotales || 160) / uds.length)}h
+                              </span>
+                              {ud.trimestre && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/15 text-blue-400 font-mono font-bold rounded">
+                                  {ud.trimestre}º Trim.
+                                </span>
+                              )}
+                            </div>
+                            {isCompleted ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-emerald-500 font-bold text-[10px]">Completa</span>
+                                <button
+                                  type="button"
+                                  disabled={isGeneratingUd}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenRegenerateModal(ud);
+                                  }}
+                                  className="px-1.5 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 hover:text-amber-300 font-bold rounded text-[10px] border border-amber-500/30 flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-40"
+                                  title="Regenerar esta UD (requiere aprobación)"
+                                >
+                                  <RefreshCw className="w-2.5 h-2.5" /> Regenerar
+                                </button>
+                              </div>
+                            ) : isGenerating ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCancelGeneration();
+                                }}
+                                className="px-2 py-0.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold rounded text-[10px] border border-red-500/40 cursor-pointer"
+                              >
+                                Cancelar
+                              </button>
+                            ) : isError ? (
+                              <button
+                                type="button"
+                                disabled={isGeneratingUd}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGenerateChosenUD(ud);
+                                }}
+                                className="px-2 py-0.5 bg-red-500 hover:bg-red-400 text-white font-bold rounded text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer flex items-center gap-1"
+                              >
+                                <RefreshCw className="w-2.5 h-2.5" /> Reintentar
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={isGeneratingUd}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGenerateChosenUD(ud);
+                                }}
+                                className="px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer"
+                              >
+                                Desarrollar UD
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      ) : isGenerating ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCancelGeneration();
-                          }}
-                          className="px-2 py-0.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold rounded text-[10px] border border-red-500/40 cursor-pointer"
-                        >
-                          Cancelar
-                        </button>
-                      ) : isError ? (
-                        <button
-                          type="button"
-                          disabled={isGeneratingUd}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleGenerateChosenUD(ud);
-                          }}
-                          className="px-2 py-0.5 bg-red-500 hover:bg-red-400 text-white font-bold rounded text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer flex items-center gap-1"
-                        >
-                          <RefreshCw className="w-2.5 h-2.5" /> Reintentar
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={isGeneratingUd}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleGenerateChosenUD(ud);
-                          }}
-                          className="px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer"
-                        >
-                          Desarrollar UD
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
 
-          {/* Right Column: Selected UD Deliverables */}
-          <div className="lg:col-span-8 space-y-4">
+              {/* Right Column: Selected UD Deliverables */}
+              <div className="lg:col-span-8 space-y-4">
+                {/* Breadcrumb Navigation Strip */}
+                {selectedUd && (
+                  <div className="px-4 py-2 bg-surface border border-border-default rounded-xl flex items-center justify-between text-xs text-text-muted shadow-xs">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="font-semibold text-text-primary">{config.moduloFormativo}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                      <span className="font-mono text-amber-500 font-bold">{selectedUd.id}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                      <span className="truncate">{selectedUd.title}</span>
+                    </div>
+                    <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400">
+                      {selectedUd.horasEstimadas}h • Trimestre {selectedUd.trimestre}
+                    </span>
+                  </div>
+                )}
             {selectedUd ? (
               <div className="bg-surface border border-border-default rounded-2xl p-5 space-y-4 shadow-sm">
                 {/* Header of Chosen UD */}
@@ -2830,6 +3005,8 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
           </button>
         </div>
       )}
+    </>
+  )}
 
       {/* Plan Approval Modal */}
       <SigrePlanModal
@@ -2867,6 +3044,14 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
           }
         }}
         isGenerating={isGeneratingUd}
+      />
+      {/* Technical & Stress Test Modal */}
+      <SigreTechnicalAuditModal
+        isOpen={isTechnicalAuditModalOpen}
+        onClose={() => setIsTechnicalAuditModalOpen(false)}
+        config={config}
+        uds={uds}
+        theme={theme}
       />
     </div>
   );

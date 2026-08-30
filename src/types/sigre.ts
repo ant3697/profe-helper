@@ -49,6 +49,7 @@ export interface SigreCurricularConfig {
   curso: string;
   curriculoReferencia: string;
   contextoAplicacion: string;
+  docenteNombre?: string;
   desgloseCurricular: string;
   pedagogicalOptions?: SigrePedagogicalOptions;
   // Configuración de horas y dimensionamiento curricular
