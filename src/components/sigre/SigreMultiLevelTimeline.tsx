@@ -9,6 +9,8 @@ import {
   Sparkles,
   Eye,
   EyeOff,
+  Tag,
+  Tags,
   GripVertical,
   Search,
   CheckSquare,
@@ -36,6 +38,7 @@ import {
   ArrowRightLeft,
   X,
   Copy,
+  Edit3,
   Sliders,
   Check,
   AlertCircle,
@@ -47,12 +50,14 @@ import {
   TimelineEventCategory,
   TimelineScale,
   MultiLevelTimelineData,
+  SigreCourseTimelineItem,
 } from "../../types/sigreTimeline";
 import { SigreUDItem, SigreCurricularConfig } from "../../types/sigre";
 import {
   TIMELINE_COLOR_PRESETS,
   MONTH_COLORS_TIMELINE,
   getDefaultCursoTimelineEvents,
+  getDefaultCursoCronogramas,
   getDefaultProfesorTimelineEvents,
   getDefaultModuloTimelineEvents,
   getDefaultUnidadTimelineEvents,
@@ -82,6 +87,10 @@ interface SigreMultiLevelTimelineProps {
   modulesList?: SigreAcademicCalendar[];
   activeModuleId?: string | null;
   onSelectModule?: (moduleId: string) => void;
+  onOpenModuleCurriculum?: (
+    cal: SigreAcademicCalendar,
+    targetView?: "unidades" | "parametros" | "cronogramas"
+  ) => void;
   initialLevel?: TimelineLevel;
   theme?: "dark" | "light";
   onClose?: () => void;
@@ -95,6 +104,7 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
   modulesList = ALL_PRESET_ACADEMIC_CALENDARS,
   activeModuleId,
   onSelectModule,
+  onOpenModuleCurriculum,
   initialLevel,
   theme = "dark",
   onClose,
@@ -126,11 +136,23 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
       const saved = localStorage.getItem("docuexam_sigre_multilevel_timeline_v3");
       if (saved) {
         const parsed = JSON.parse(saved);
+        const parsedCursoCronos: SigreCourseTimelineItem[] =
+          Array.isArray(parsed.cursoCronogramas) && parsed.cursoCronogramas.length > 0
+            ? parsed.cursoCronogramas
+            : getDefaultCursoCronogramas(2026);
+
+        const initialActiveCursoId =
+          parsed.activeCursoCronogramaId || parsedCursoCronos[0]?.id || "curso_general_centro";
+        const initialActiveCursoItem =
+          parsedCursoCronos.find((c) => c.id === initialActiveCursoId) || parsedCursoCronos[0];
+
         return {
           schoolYear: parsed.schoolYear || currentModule?.academicYear || "2026-2027",
           activeLevel: initialLevel || parsed.activeLevel || "modulo",
           activeModuleId: currentModuleId,
-          cursoEvents: parsed.cursoEvents || getDefaultCursoTimelineEvents(2026),
+          activeCursoCronogramaId: initialActiveCursoId,
+          cursoEvents: initialActiveCursoItem?.events || parsed.cursoEvents || getDefaultCursoTimelineEvents(2026),
+          cursoCronogramas: parsedCursoCronos,
           profesorEvents: parsed.profesorEvents || getDefaultProfesorTimelineEvents(2026),
           moduloEvents: parsed.moduloEvents || (currentModule ? generateModuleTimelineFromCalendar(currentModule) : getDefaultModuloTimelineEvents(2026, config.moduloFormativo, config.horasTotales)),
           moduloEventsByModule: parsed.moduloEventsByModule || {},
@@ -143,13 +165,16 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
       console.warn("Could not load saved timeline data", e);
     }
 
+    const defaultCursoCronos = getDefaultCursoCronogramas(2026);
     const initModEvents = currentModule ? generateModuleTimelineFromCalendar(currentModule) : getDefaultModuloTimelineEvents(2026, config.moduloFormativo, config.horasTotales);
 
     return {
       schoolYear: currentModule?.academicYear || "2026-2027",
       activeLevel: initialLevel || "modulo",
       activeModuleId: currentModuleId,
-      cursoEvents: getDefaultCursoTimelineEvents(2026),
+      activeCursoCronogramaId: defaultCursoCronos[0].id,
+      cursoEvents: defaultCursoCronos[0].events,
+      cursoCronogramas: defaultCursoCronos,
       profesorEvents: getDefaultProfesorTimelineEvents(2026),
       moduloEvents: initModEvents,
       moduloEventsByModule: {
@@ -162,8 +187,21 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
   });
 
   const [activeLevel, setActiveLevel] = useState<TimelineLevel>(initialLevel || timelineData.activeLevel || "modulo");
+  const [activeCursoCronogramaId, setActiveCursoCronogramaId] = useState<string>(
+    () => timelineData.activeCursoCronogramaId || timelineData.cursoCronogramas?.[0]?.id || "curso_general_centro"
+  );
   const [activeUdId, setActiveUdId] = useState<string>(selectedUdId || uds[0]?.id || "UD01");
   const [modulePortfolioView, setModulePortfolioView] = useState<"single" | "all_modules">("single");
+
+  // Modals state for Course Cronogramas
+  const [isNewCursoModalOpen, setIsNewCursoModalOpen] = useState<boolean>(false);
+  const [newCursoName, setNewCursoName] = useState<string>("");
+  const [newCursoCategory, setNewCursoCategory] = useState<string>("1º Curso FP");
+  const [newCursoTemplate, setNewCursoTemplate] = useState<"general" | "fp1" | "fp2_dual" | "evaluaciones" | "blank" | "duplicate">("general");
+
+  const [isRenameCursoModalOpen, setIsRenameCursoModalOpen] = useState<boolean>(false);
+  const [renameCursoName, setRenameCursoName] = useState<string>("");
+  const [renameCursoCategory, setRenameCursoCategory] = useState<string>("General Centro");
 
   // Keep activeUdId in sync if selectedUdId changes externally
   useEffect(() => {
@@ -197,11 +235,18 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
     }
   }, [currentModuleId, currentModule]);
 
+  // Currently active course cronograma item
+  const activeCursoItem = useMemo(() => {
+    const cronos = timelineData.cursoCronogramas || [];
+    return cronos.find((c) => c.id === activeCursoCronogramaId) || cronos[0];
+  }, [timelineData.cursoCronogramas, activeCursoCronogramaId]);
+
   // Current active events array according to the chosen level
   const currentEvents: TimelineEvent[] = useMemo(() => {
     switch (activeLevel) {
-      case "curso":
-        return timelineData.cursoEvents;
+      case "curso": {
+        return activeCursoItem ? activeCursoItem.events : timelineData.cursoEvents;
+      }
       case "profesor":
         return timelineData.profesorEvents;
       case "modulo":
@@ -211,7 +256,7 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
       default:
         return timelineData.moduloEvents;
     }
-  }, [activeLevel, activeUdId, timelineData]);
+  }, [activeLevel, activeUdId, activeCursoItem, timelineData]);
 
   // Updater for the current level's events
   const setCurrentEvents = (newEvents: TimelineEvent[]) => {
@@ -219,6 +264,11 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
       const updated = { ...prev };
       if (activeLevel === "curso") {
         updated.cursoEvents = newEvents;
+        const currentActiveId = activeCursoCronogramaId || prev.activeCursoCronogramaId || "curso_general_centro";
+        const cronos = prev.cursoCronogramas || getDefaultCursoCronogramas(2026);
+        updated.cursoCronogramas = cronos.map((c) =>
+          c.id === currentActiveId ? { ...c, events: newEvents } : c
+        );
       } else if (activeLevel === "profesor") {
         updated.profesorEvents = newEvents;
       } else if (activeLevel === "modulo") {
@@ -235,6 +285,131 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
       }
       return updated;
     });
+  };
+
+  // Course Timeline Management Handlers
+  const handleSelectCursoCronograma = (id: string) => {
+    setActiveCursoCronogramaId(id);
+    const found = (timelineData.cursoCronogramas || []).find((c) => c.id === id);
+    if (found) {
+      setTimelineData((prev) => ({
+        ...prev,
+        activeCursoCronogramaId: id,
+        cursoEvents: found.events,
+      }));
+    }
+  };
+
+  const handleCreateCursoCronograma = () => {
+    if (!newCursoName.trim()) return;
+    const newId = `curso_custom_${Date.now()}`;
+    const { startYear } = getSchoolYearRange(timelineData.schoolYear);
+
+    let templateEvents: TimelineEvent[] = [];
+    if (newCursoTemplate === "general") {
+      templateEvents = getDefaultCursoTimelineEvents(startYear);
+    } else if (newCursoTemplate === "fp1") {
+      templateEvents = getDefaultCursoCronogramas(startYear).find((c) => c.id === "curso_fp_1_anual")?.events || [];
+    } else if (newCursoTemplate === "fp2_dual") {
+      templateEvents = getDefaultCursoCronogramas(startYear).find((c) => c.id === "curso_fp_2_dual")?.events || [];
+    } else if (newCursoTemplate === "evaluaciones") {
+      templateEvents = getDefaultCursoCronogramas(startYear).find((c) => c.id === "curso_evaluaciones_examenes")?.events || [];
+    } else if (newCursoTemplate === "duplicate" && activeCursoItem) {
+      templateEvents = JSON.parse(JSON.stringify(activeCursoItem.events));
+    }
+
+    const newItem: SigreCourseTimelineItem = {
+      id: newId,
+      name: newCursoName.trim(),
+      category: newCursoCategory.trim() || "General Centro",
+      academicYear: timelineData.schoolYear,
+      events: templateEvents,
+    };
+
+    setTimelineData((prev) => {
+      const list = prev.cursoCronogramas || getDefaultCursoCronogramas(startYear);
+      return {
+        ...prev,
+        activeCursoCronogramaId: newId,
+        cursoEvents: templateEvents,
+        cursoCronogramas: [...list, newItem],
+      };
+    });
+
+    setActiveCursoCronogramaId(newId);
+    setIsNewCursoModalOpen(false);
+    setNewCursoName("");
+    setSaveBanner(`¡Creado nuevo cronograma de curso «${newItem.name}» (${templateEvents.length} hitos y periodos)!`);
+    setTimeout(() => setSaveBanner(null), 4000);
+  };
+
+  const handleDuplicateCursoCronograma = (crono: SigreCourseTimelineItem) => {
+    const newId = `curso_copy_${Date.now()}`;
+    const newCopy: SigreCourseTimelineItem = {
+      id: newId,
+      name: `${crono.name} (Copia)`,
+      category: crono.category || "General Centro",
+      academicYear: crono.academicYear || timelineData.schoolYear,
+      events: JSON.parse(JSON.stringify(crono.events)),
+    };
+
+    setTimelineData((prev) => {
+      const list = prev.cursoCronogramas || [];
+      return {
+        ...prev,
+        activeCursoCronogramaId: newId,
+        cursoEvents: newCopy.events,
+        cursoCronogramas: [...list, newCopy],
+      };
+    });
+
+    setActiveCursoCronogramaId(newId);
+    setSaveBanner(`¡Duplicado cronograma de curso «${newCopy.name}»!`);
+    setTimeout(() => setSaveBanner(null), 4000);
+  };
+
+  const handleOpenRenameModal = (crono: SigreCourseTimelineItem) => {
+    setRenameCursoName(crono.name);
+    setRenameCursoCategory(crono.category || "General Centro");
+    setIsRenameCursoModalOpen(true);
+  };
+
+  const handleSaveRenameCurso = () => {
+    if (!renameCursoName.trim()) return;
+    setTimelineData((prev) => {
+      const list = prev.cursoCronogramas || [];
+      return {
+        ...prev,
+        cursoCronogramas: list.map((c) =>
+          c.id === activeCursoCronogramaId
+            ? { ...c, name: renameCursoName.trim(), category: renameCursoCategory.trim() }
+            : c
+        ),
+      };
+    });
+    setIsRenameCursoModalOpen(false);
+    setSaveBanner(`¡Renombrado cronograma a «${renameCursoName.trim()}»!`);
+    setTimeout(() => setSaveBanner(null), 4000);
+  };
+
+  const handleDeleteCursoCronograma = (id: string, name: string) => {
+    const list = timelineData.cursoCronogramas || [];
+    if (list.length <= 1) {
+      setSaveBanner("No se puede eliminar el único cronograma de curso existente.");
+      setTimeout(() => setSaveBanner(null), 4000);
+      return;
+    }
+    const filtered = list.filter((c) => c.id !== id);
+    const nextActive = filtered[0];
+    setTimelineData((prev) => ({
+      ...prev,
+      activeCursoCronogramaId: nextActive.id,
+      cursoEvents: nextActive.events,
+      cursoCronogramas: filtered,
+    }));
+    setActiveCursoCronogramaId(nextActive.id);
+    setSaveBanner(`¡Eliminado cronograma de curso «${name}»!`);
+    setTimeout(() => setSaveBanner(null), 4000);
   };
 
   // Auto-save to localStorage
@@ -255,6 +430,7 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
   const [panOffset, setPanOffset] = useState<number>(50);
   const [pixelsPerDay, setPixelsPerDay] = useState<number>(4.5);
   const [showWeekends, setShowWeekends] = useState<boolean>(true);
+  const [hideLabels, setHideLabels] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedEventIds, setSelectedEventIds] = useState<Set<number>>(new Set());
   const [sortColumn, setSortColumn] = useState<"id" | "description" | "startDate" | "endDate">("startDate");
@@ -318,8 +494,9 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
     let dateColor = "#38bdf8"; // bright cyan date header
     let badgeLabel = "EVENTO";
     let badgeClass = "bg-blue-500/20 text-blue-300 border-blue-500/40";
-    let cardBg = "#1b2129";
-    let textColor = "#f8fafc";
+    // Strictly solid dark background for maximum distinction and WCAG contrast
+    const cardBg = "#090d16";
+    const textColor = "#f8fafc";
     let stemColor = "#0d6efd";
 
     if (isFestivo) {
@@ -391,11 +568,10 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
     if (event.borderColor && event.borderColor !== "#0891b2" && event.borderColor !== "#000000") {
       borderColor = event.borderColor;
       stemColor = event.borderColor;
-    }
-
-    // If card has an explicitly customized dark background, honor it
-    if (event.bgColor && (event.bgColor.startsWith("#1") || event.bgColor.startsWith("#2") || event.bgColor.startsWith("#0"))) {
-      cardBg = event.bgColor;
+    } else if (event.bgColor && !isFestivo && !isVacaciones && !isEvaluacion && !isInicioCurso) {
+      // If event has a custom category color, use it as border/accent color
+      borderColor = event.bgColor;
+      stemColor = event.bgColor;
     }
 
     if (isSelected) {
@@ -1234,6 +1410,24 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
           </div>
         )}
 
+        {/* Course Cronograma Selector when in Curso Level */}
+        {activeLevel === "curso" && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-text-muted font-bold">Cronograma de Curso:</span>
+            <select
+              value={activeCursoCronogramaId}
+              onChange={(e) => handleSelectCursoCronograma(e.target.value)}
+              className="px-3 py-1.5 bg-alt border border-cyan-500/40 rounded-xl text-xs font-bold text-cyan-400 focus:outline-none max-w-[280px] truncate"
+            >
+              {(timelineData.cursoCronogramas || []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  [{c.category || "CURSO"}] {c.name} ({c.events.length} ev.)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Module Selector when in Modulo Level */}
         {activeLevel === "modulo" && (
           <div className="flex items-center gap-2 flex-wrap">
@@ -1279,6 +1473,113 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
           )}
         </div>
       </div>
+
+      {/* Course Multi-Cronograma Strip when in Curso Level */}
+      {activeLevel === "curso" && (
+        <div className="p-3 bg-surface border border-cyan-500/30 rounded-2xl space-y-2.5 shadow-sm animate-fadeIn">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border-default pb-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-cyan-500 text-black font-mono shadow-xs flex items-center gap-1.5">
+                <GraduationCap className="w-3.5 h-3.5" />
+                <span>NIVEL CURSO</span>
+              </span>
+              <span className="font-bold text-text-primary text-xs">
+                {activeCursoItem?.name || "Cronograma Oficial de Curso"}
+              </span>
+              {activeCursoItem?.category && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                  {activeCursoItem.category}
+                </span>
+              )}
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-alt text-text-muted border border-border-default">
+                {activeCursoItem?.events?.length || 0} hitos y periodos
+              </span>
+            </div>
+
+            {/* Actions: + Nuevo Cronograma, Duplicar, Renombrar, Eliminar */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewCursoName("");
+                  setNewCursoCategory("1º Curso FP");
+                  setNewCursoTemplate("fp1");
+                  setIsNewCursoModalOpen(true);
+                }}
+                className="px-2.5 py-1 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-lg text-xs transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
+                title="Crear un nuevo cronograma a nivel de curso"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Nuevo Cronograma</span>
+              </button>
+
+              {activeCursoItem && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleDuplicateCursoCronograma(activeCursoItem)}
+                    className="px-2 py-1 bg-alt hover:bg-hover text-text-secondary hover:text-text-primary border border-border-default rounded-lg text-xs font-medium transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Duplicar este cronograma de curso"
+                  >
+                    <Copy className="w-3 h-3 text-cyan-400" />
+                    <span className="hidden md:inline">Duplicar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenRenameModal(activeCursoItem)}
+                    className="px-2 py-1 bg-alt hover:bg-hover text-text-secondary hover:text-text-primary border border-border-default rounded-lg text-xs font-medium transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Renombrar título y categoría"
+                  >
+                    <Edit3 className="w-3 h-3 text-amber-400" />
+                    <span className="hidden md:inline">Renombrar</span>
+                  </button>
+
+                  {(timelineData.cursoCronogramas || []).length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCursoCronograma(activeCursoItem.id, activeCursoItem.name)}
+                      className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Eliminar este cronograma de curso"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span className="hidden md:inline">Eliminar</span>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Course Cronogramas Selector Tabs/Chips */}
+          <div className="flex flex-wrap items-center gap-2 pt-1.5 border-t border-border-subtle/50">
+            <span className="text-[11px] font-bold text-text-muted shrink-0 mr-0.5 flex items-center gap-1">
+              Cronogramas Disponibles ({(timelineData.cursoCronogramas || []).length}):
+            </span>
+            {(timelineData.cursoCronogramas || []).map((crono) => {
+              const isSelected = crono.id === activeCursoCronogramaId;
+              return (
+                <button
+                  key={crono.id}
+                  type="button"
+                  onClick={() => handleSelectCursoCronograma(crono.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border ${
+                    isSelected
+                      ? "bg-cyan-500/20 text-cyan-300 border-cyan-500 ring-2 ring-cyan-500/20 shadow-xs"
+                      : "bg-alt text-text-secondary hover:text-text-primary border-border-default hover:border-border-strong"
+                  }`}
+                >
+                  <span className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold ${isSelected ? "bg-cyan-500 text-black" : "bg-surface text-text-muted"}`}>
+                    {crono.category || "CURSO"}
+                  </span>
+                  <span className="max-w-[200px] sm:max-w-[280px] truncate">{crono.name}</span>
+                  <span className="text-[10px] opacity-75 font-mono">({crono.events.length} ev.)</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Module Portfolio Strip when in Modulo Level */}
       {activeLevel === "modulo" && (
@@ -1344,6 +1645,13 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
                     setCurrentModuleId(m.id);
                     if (onSelectModule) onSelectModule(m.id);
                   }}
+                  onDoubleClick={(e) => {
+                    e.preventDefault();
+                    if (onOpenModuleCurriculum) {
+                      onOpenModuleCurriculum(m, "unidades");
+                    }
+                  }}
+                  title="Clic para seleccionar cronograma • Doble clic para abrir en Diseñador Curricular de UDs"
                   className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
                     isSelected
                       ? "bg-amber-500/20 text-amber-300 border-amber-500 ring-2 ring-amber-500/20 shadow-xs"
@@ -1464,6 +1772,22 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
           >
             <Calendar className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Guías y Fines de Semana</span>
+          </button>
+
+          {/* Toggle Labels (Ocultar / Mostrar etiquetas) */}
+          <button
+            type="button"
+            id="toggle-hide-labels"
+            onClick={() => setHideLabels(!hideLabels)}
+            className={`px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer flex items-center gap-1.5 font-bold text-xs ${
+              hideLabels
+                ? "bg-rose-500/20 text-rose-400 border-rose-500/50"
+                : "bg-alt text-text-muted border-border-default hover:text-text-primary"
+            }`}
+            title={hideLabels ? "Mostrar todas las etiquetas flotantes" : "Ocultar todas las etiquetas flotantes"}
+          >
+            {hideLabels ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{hideLabels ? "Mostrar Etiquetas" : "Ocultar Etiquetas"}</span>
           </button>
 
           {/* Manual Zoom In / Out / Fit */}
@@ -1691,7 +2015,7 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
 
           {/* SVG Axis Layer */}
           <svg ref={svgRef} className="absolute inset-0 w-full h-full pointer-events-none z-0">
-            {/* Weekend Bands (Rendered at background layer) */}
+            {/* Weekend & Weekday Bands (Rendered at background layer) */}
             {showWeekends && (() => {
               const elements: React.ReactNode[] = [];
               const iterDate = new Date(scale.minDate.getTime());
@@ -1701,19 +2025,34 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
                 const dayOfWeek = iterDate.getDay();
 
                 if (x > -120 && x < 2600) {
-                  // Weekend background tint (Sábado: 6, Domingo: 0)
+                  const nextDate = new Date(iterDate.getTime() + ONE_DAY_MS);
+                  const endX = dateToX(nextDate, scale, panOffset);
+                  const bandWidth = Math.max(0, endX - x);
+
+                  // Fin de semana (Sábado: 6, Domingo: 0) -> ZONA MÁS CLARA
+                  // Días laborables (L-V: 1-5) -> ZONA MÁS OSCURA
                   if (dayOfWeek === 0 || dayOfWeek === 6) {
-                    const nextDate = new Date(iterDate.getTime() + ONE_DAY_MS);
-                    const endX = dateToX(nextDate, scale, panOffset);
                     elements.push(
                       <rect
                         key={`wknd-bg-${iterDate.toISOString()}`}
                         x={x}
                         y={0}
-                        width={Math.max(0, endX - x)}
+                        width={bandWidth}
                         height={560}
-                        fill="rgba(0, 0, 0, 0.25)"
-                        className="dark:fill-black/35 fill-slate-900/5 pointer-events-none"
+                        fill="rgba(255, 255, 255, 0.08)"
+                        className="dark:fill-white/[0.08] fill-white/80 pointer-events-none"
+                      />
+                    );
+                  } else {
+                    elements.push(
+                      <rect
+                        key={`wkdy-bg-${iterDate.toISOString()}`}
+                        x={x}
+                        y={0}
+                        width={bandWidth}
+                        height={560}
+                        fill="rgba(0, 0, 0, 0.45)"
+                        className="dark:fill-black/55 fill-slate-950/10 pointer-events-none"
                       />
                     );
                   }
@@ -1915,129 +2254,132 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
             })}
 
             {/* Stem connectors from axis to floating cards */}
-            {layoutCalculations.cards.map(({ event, startX, isPeriod, isAbove, laneIndex }) => {
-              if (event.hidden) return null;
-              const axisY = 280;
-              const cardHeight = 78;
-              const verticalPadding = 14;
-              const stemLength = 22;
+            {!hideLabels &&
+              layoutCalculations.cards.map(({ event, startX, isPeriod, isAbove, laneIndex }) => {
+                if (event.hidden) return null;
+                const axisY = 280;
+                const cardHeight = 78;
+                const verticalPadding = 14;
+                const stemLength = 22;
 
-              let boxY: number;
-              if (isAbove) {
-                boxY = axisY - 18 - stemLength - cardHeight - laneIndex * (cardHeight + verticalPadding);
-              } else {
-                boxY = axisY + 18 + stemLength + laneIndex * (cardHeight + verticalPadding);
-              }
+                let boxY: number;
+                if (isAbove) {
+                  boxY = axisY - 18 - stemLength - cardHeight - laneIndex * (cardHeight + verticalPadding);
+                } else {
+                  boxY = axisY + 18 + stemLength + laneIndex * (cardHeight + verticalPadding);
+                }
 
-              const isSelected = selectedEventIds.has(event.id);
-              const visuals = getTimelineEventVisuals(event, isPeriod, isSelected);
-              const isMilestone = !event.endDate || event.startDate === event.endDate;
+                const isSelected = selectedEventIds.has(event.id);
+                const visuals = getTimelineEventVisuals(event, isPeriod, isSelected);
+                const isMilestone = !event.endDate || event.startDate === event.endDate;
 
-              return (
-                <g key={`stem-${event.id}`}>
-                  {/* Circle milestone indicator on axis */}
-                  {isMilestone && (
-                    <circle
-                      cx={startX}
-                      cy={isAbove ? axisY - 18 : axisY + 18}
-                      r={4.5}
-                      fill={visuals.borderColor}
-                      stroke="#ffffff"
+                return (
+                  <g key={`stem-${event.id}`}>
+                    {/* Circle milestone indicator on axis */}
+                    {isMilestone && (
+                      <circle
+                        cx={startX}
+                        cy={isAbove ? axisY - 18 : axisY + 18}
+                        r={4.5}
+                        fill={visuals.borderColor}
+                        stroke="#ffffff"
+                        strokeWidth="1.5"
+                      />
+                    )}
+                    {/* Line */}
+                    <line
+                      x1={startX}
+                      x2={startX}
+                      y1={isAbove ? axisY - 18 : axisY + 18}
+                      y2={isAbove ? boxY + cardHeight : boxY}
+                      stroke={visuals.stemColor}
                       strokeWidth="1.5"
+                      className="opacity-85"
                     />
-                  )}
-                  {/* Line */}
-                  <line
-                    x1={startX}
-                    x2={startX}
-                    y1={isAbove ? axisY - 18 : axisY + 18}
-                    y2={isAbove ? boxY + cardHeight : boxY}
-                    stroke={visuals.stemColor}
-                    strokeWidth="1.5"
-                    className="opacity-85"
-                  />
-                </g>
-              );
-            })}
+                  </g>
+                );
+              })}
           </svg>
 
           {/* HTML Floating Cards Layer */}
-          <div ref={eventsLayerRef} className="absolute inset-0 pointer-events-none z-10">
-            {layoutCalculations.cards.map(({ event, isPeriod, startX, boxStartX, isAbove, laneIndex, boxWidth }) => {
-              if (event.hidden) return null;
-              const axisY = 280;
-              const cardHeight = 78;
-              const verticalPadding = 14;
-              const stemLength = 22;
+          {!hideLabels && (
+            <div ref={eventsLayerRef} className="absolute inset-0 pointer-events-none z-10">
+              {layoutCalculations.cards.map(({ event, isPeriod, startX, boxStartX, isAbove, laneIndex, boxWidth }) => {
+                if (event.hidden) return null;
+                const axisY = 280;
+                const cardHeight = 78;
+                const verticalPadding = 14;
+                const stemLength = 22;
 
-              let boxY: number;
-              if (isAbove) {
-                boxY = axisY - 18 - stemLength - cardHeight - laneIndex * (cardHeight + verticalPadding);
-              } else {
-                boxY = axisY + 18 + stemLength + laneIndex * (cardHeight + verticalPadding);
-              }
+                let boxY: number;
+                if (isAbove) {
+                  boxY = axisY - 18 - stemLength - cardHeight - laneIndex * (cardHeight + verticalPadding);
+                } else {
+                  boxY = axisY + 18 + stemLength + laneIndex * (cardHeight + verticalPadding);
+                }
 
-              const isSelected = selectedEventIds.has(event.id);
-              const visuals = getTimelineEventVisuals(event, isPeriod, isSelected);
+                const isSelected = selectedEventIds.has(event.id);
+                const visuals = getTimelineEventVisuals(event, isPeriod, isSelected);
 
-              const hasEndDate = event.endDate && event.startDate !== event.endDate;
-              const startFormatted = formatSpanishUpperDate(event.startDate);
-              const endFormatted = hasEndDate ? formatSpanishUpperDate(event.endDate!) : null;
+                const hasEndDate = event.endDate && event.startDate !== event.endDate;
+                const startFormatted = formatSpanishUpperDate(event.startDate);
+                const endFormatted = hasEndDate ? formatSpanishUpperDate(event.endDate!) : null;
 
-              return (
-                <div
-                  key={`card-${event.id}`}
-                  data-event-id={event.id}
-                  style={{
-                    left: `${boxStartX}px`,
-                    top: `${boxY}px`,
-                    width: `${boxWidth}px`,
-                    backgroundColor: visuals.cardBg,
-                    color: visuals.textColor,
-                    borderColor: visuals.borderColor,
-                  }}
-                  onMouseDown={(e) => handleCardDragStart(e, event)}
-                  onDoubleClick={() => openEditModal(event)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedEventIds(new Set([event.id]));
-                  }}
-                  className={`absolute pointer-events-auto rounded-lg px-3 py-2 text-xs border-[1.5px] shadow-md transition-all cursor-move flex flex-col justify-between select-none group ${
-                    isSelected
-                      ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-black/50 z-20 shadow-xl scale-[1.02]"
-                      : "hover:shadow-lg hover:z-10 hover:brightness-110"
-                  }`}
-                >
-                  <div className="flex flex-col gap-0.5">
-                    <div className="flex items-start justify-between gap-1">
-                      <div
-                        className="flex flex-col text-[10.5px] font-bold tracking-tight leading-[1.25] select-none"
-                        style={{ color: visuals.dateColor }}
-                      >
-                        <span>{startFormatted}</span>
-                        {endFormatted && <span>{endFormatted}</span>}
-                      </div>
-
-                      {/* Category Badge Pill */}
-                      <span
-                        className={`text-[8.5px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider border shrink-0 ${visuals.badgeClass}`}
-                      >
-                        {visuals.badgeLabel}
-                      </span>
-                    </div>
-                  </div>
-
-                  <p
-                    style={{ color: visuals.textColor }}
-                    className="text-[12px] font-medium leading-snug line-clamp-2 mt-1 tracking-tight"
-                    title={event.description}
+                return (
+                  <div
+                    key={`card-${event.id}`}
+                    data-event-id={event.id}
+                    style={{
+                      left: `${boxStartX}px`,
+                      top: `${boxY}px`,
+                      width: `${boxWidth}px`,
+                      backgroundColor: visuals.cardBg,
+                      color: visuals.textColor,
+                      borderColor: visuals.borderColor,
+                    }}
+                    onMouseDown={(e) => handleCardDragStart(e, event)}
+                    onDoubleClick={() => openEditModal(event)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedEventIds(new Set([event.id]));
+                    }}
+                    className={`absolute pointer-events-auto rounded-lg px-3 py-2 text-xs border-[1.5px] shadow-md transition-all cursor-move flex flex-col justify-between select-none group ${
+                      isSelected
+                        ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-black/50 z-20 shadow-xl scale-[1.02]"
+                        : "hover:shadow-lg hover:z-10 hover:brightness-110"
+                    }`}
                   >
-                    {event.description}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex items-start justify-between gap-1">
+                        <div
+                          className="flex flex-col text-[10.5px] font-bold tracking-tight leading-[1.25] select-none"
+                          style={{ color: visuals.dateColor }}
+                        >
+                          <span>{startFormatted}</span>
+                          {endFormatted && <span>{endFormatted}</span>}
+                        </div>
+
+                        {/* Category Badge Pill */}
+                        <span
+                          className={`text-[8.5px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider border shrink-0 ${visuals.badgeClass}`}
+                        >
+                          {visuals.badgeLabel}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p
+                      style={{ color: visuals.textColor }}
+                      className="text-[12px] font-medium leading-snug line-clamp-2 mt-1 tracking-tight"
+                      title={event.description}
+                    >
+                      {event.description}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Date tooltip under cursor */}
           {hoverDateText && !isPanning && !dragState.active && (
@@ -2599,6 +2941,163 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
             >
               Cancelar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* New Course Cronograma Modal */}
+      {isNewCursoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-surface border border-border-default rounded-2xl w-full max-w-lg p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border-default pb-3">
+              <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
+                <GraduationCap className="w-5 h-5 text-cyan-400" />
+                <span>Crear Nuevo Cronograma de Curso</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsNewCursoModalOpen(false)}
+                className="p-1 rounded-lg text-text-muted hover:text-text-primary hover:bg-alt cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div>
+                <label className="font-bold text-text-muted block mb-1">Nombre / Título del Cronograma:</label>
+                <input
+                  type="text"
+                  value={newCursoName}
+                  onChange={(e) => setNewCursoName(e.target.value)}
+                  placeholder="Ej: Plan 1º FP Mañana, Calendario Depto Informática, Plan Dual..."
+                  className="w-full px-3 py-2 bg-alt border border-border-default rounded-xl text-text-primary font-medium focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-text-muted block mb-1">Categoría / Etiqueta:</label>
+                  <input
+                    type="text"
+                    value={newCursoCategory}
+                    onChange={(e) => setNewCursoCategory(e.target.value)}
+                    placeholder="Ej: 1º FP, 2º Dual, General, Departamento..."
+                    className="w-full px-3 py-2 bg-alt border border-border-default rounded-xl text-text-primary font-medium focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-text-muted block mb-1">Plantilla de Eventos Inicial:</label>
+                  <select
+                    value={newCursoTemplate}
+                    onChange={(e) => setNewCursoTemplate(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-alt border border-border-default rounded-xl text-text-primary font-medium focus:outline-none focus:border-cyan-500"
+                  >
+                    <option value="fp1">📘 Plan FP 1º Curso (32 sem + Junio)</option>
+                    <option value="fp2_dual">💼 Plan FP 2º Curso Dual (FCE + Empresa)</option>
+                    <option value="general">🏛️ Calendario General de Centro</option>
+                    <option value="evaluaciones">📊 Evaluaciones y Convocatorias</option>
+                    <option value="duplicate">📋 Duplicar cronograma actual</option>
+                    <option value="blank">📄 En blanco (sin eventos)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="p-3 bg-alt rounded-xl border border-border-subtle text-text-muted space-y-1">
+                <p className="font-bold text-text-primary flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  Múltiples Cronogramas a Nivel de Curso
+                </p>
+                <p className="text-[11px] leading-relaxed">
+                  Podrás cambiar entre cronogramas de curso en cualquier momento, personalizarlos individualmente y exportarlos sin alterar el resto de planificaciones de centro o módulo.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border-default">
+              <button
+                type="button"
+                onClick={() => setIsNewCursoModalOpen(false)}
+                className="px-4 py-2 bg-alt hover:bg-hover text-text-muted font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateCursoCronograma}
+                disabled={!newCursoName.trim()}
+                className={`px-5 py-2 font-black text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-md ${
+                  newCursoName.trim()
+                    ? "bg-cyan-500 hover:bg-cyan-400 text-black"
+                    : "bg-alt text-text-muted border border-border-default cursor-not-allowed opacity-60"
+                }`}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Crear Cronograma</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Course Cronograma Modal */}
+      {isRenameCursoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-surface border border-border-default rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border-default pb-3">
+              <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
+                <Edit3 className="w-4 h-4 text-amber-400" />
+                <span>Renombrar Cronograma de Curso</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsRenameCursoModalOpen(false)}
+                className="p-1 rounded-lg text-text-muted hover:text-text-primary hover:bg-alt cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div>
+                <label className="font-bold text-text-muted block mb-1">Nombre del Cronograma:</label>
+                <input
+                  type="text"
+                  value={renameCursoName}
+                  onChange={(e) => setRenameCursoName(e.target.value)}
+                  className="w-full px-3 py-2 bg-alt border border-border-default rounded-xl text-text-primary font-medium focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-text-muted block mb-1">Categoría / Etiqueta:</label>
+                <input
+                  type="text"
+                  value={renameCursoCategory}
+                  onChange={(e) => setRenameCursoCategory(e.target.value)}
+                  className="w-full px-3 py-2 bg-alt border border-border-default rounded-xl text-text-primary font-medium focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border-default">
+              <button
+                type="button"
+                onClick={() => setIsRenameCursoModalOpen(false)}
+                className="px-4 py-2 bg-alt hover:bg-hover text-text-muted font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveRenameCurso}
+                disabled={!renameCursoName.trim()}
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs rounded-xl shadow-md cursor-pointer"
+              >
+                Guardar Cambios
+              </button>
+            </div>
           </div>
         </div>
       )}

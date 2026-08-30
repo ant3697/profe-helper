@@ -45,11 +45,21 @@ export interface TimelineColorPreset {
   isDefault?: boolean;
 }
 
+export interface SigreCourseTimelineItem {
+  id: string;
+  name: string;
+  category?: string; // e.g. "General", "1º Curso FP", "2º Curso FP Dual", "Departamento"
+  academicYear?: string;
+  events: TimelineEvent[];
+}
+
 export interface MultiLevelTimelineData {
   schoolYear: string; // e.g. "2025-2026" or "2026-2027"
   activeLevel: TimelineLevel;
   activeModuleId?: string;
+  activeCursoCronogramaId?: string;
   cursoEvents: TimelineEvent[];
+  cursoCronogramas?: SigreCourseTimelineItem[]; // Multiple course-level timelines
   profesorEvents: TimelineEvent[];
   moduloEvents: TimelineEvent[];
   moduloEventsByModule?: Record<string, TimelineEvent[]>; // keyed by moduleId e.g. "cal_2026_2027_dig_1664"

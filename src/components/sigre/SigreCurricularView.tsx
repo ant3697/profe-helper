@@ -43,6 +43,7 @@ import {
   HardDrive,
   Gauge,
   Users,
+  X,
 } from "lucide-react";
 import {
   SigreCurricularConfig,
@@ -51,12 +52,16 @@ import {
   SigreUDCurricularData,
   SigreUserLevel,
   SigreRagDocument,
+  SigreAcademicCalendar,
 } from "../../types/sigre";
 import { AIProviderConfig } from "../../types/aiProviders";
 import {
   buildSigreCurriculumExtractionPrompt,
   buildSigrePlanPrompt,
   buildSigreUDModule1Prompt,
+  buildSigreUDEditorialPrompt,
+  buildSigreUDAutoevaluacionPrompt,
+  buildSigreUDDiagramaOpmlPrompt,
   buildSigreUDModuleDocentePrompt,
   buildSigreUDModuleEvalPrompt,
   buildSigreHDIPrompt,
@@ -88,6 +93,7 @@ import { SigreTechnicalAuditModal } from "./SigreTechnicalAuditModal";
 import { getSampleFPModuleUds } from "../../data/sigreSampleModule";
 import { INITIAL_SIGRE_SCHEDULE_CONFIG } from "../../data/sigreSchedulePresets";
 import { extractTextFromFile } from "../../utils/pdfExtractor";
+import { getModuleCurriculum, saveModuleCurriculum } from "../../utils/sigreModuleCurriculumStore";
 import { exportHtmlToDocx } from "../../utils/docxExport";
 import { preparePrintableHtmlDocument } from "../../utils/topicPromptGenerator";
 import { robustJsonParse } from "../../utils/jsonRepair";
@@ -318,6 +324,61 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   const [configTab, setConfigTab] = useState<"curricular" | "horarios" | "cronogramas">("curricular");
   const [diagramSubTab, setDiagramSubTab] = useState<"mermaid" | "opml">("opml");
   const [docZoom, setDocZoom] = useState(1);
+  const [moduleActivatedToast, setModuleActivatedToast] = useState<{
+    code: string;
+    name: string;
+    udsCount: number;
+    academicYear: string;
+  } | null>(null);
+
+  // Auto-dismiss module activation toast
+  useEffect(() => {
+    if (moduleActivatedToast) {
+      const timer = setTimeout(() => setModuleActivatedToast(null), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [moduleActivatedToast]);
+
+  // Handler for loading a module's curriculum from Cartera de Módulos (double-click / context menu)
+  const handleOpenModuleCurriculum = (
+    cal: SigreAcademicCalendar,
+    targetView: "unidades" | "parametros" | "cronogramas" = "unidades"
+  ) => {
+    // 1. Save current active module curriculum first to preserve modifications
+    const currentKey = config.codigo || config.moduloFormativo;
+    if (currentKey) {
+      saveModuleCurriculum(currentKey, {
+        config,
+        uds,
+        ragDocuments,
+      });
+    }
+
+    // 2. Retrieve targeted module's curriculum package
+    const pkg = getModuleCurriculum(cal);
+
+    // 3. Apply state
+    setConfig(pkg.config);
+    setUds(pkg.uds);
+    setRagDocuments(pkg.ragDocuments || []);
+
+    if (pkg.uds && pkg.uds.length > 0) {
+      setSelectedUdId(pkg.uds[0].id);
+    } else {
+      setSelectedUdId(null);
+    }
+
+    // 4. Switch global view
+    setGlobalViewMode(targetView);
+
+    // 5. Toast notification
+    setModuleActivatedToast({
+      code: cal.codigoModulo || pkg.config.codigo || "MÓDULO",
+      name: cal.moduloFormativo || pkg.config.moduloFormativo,
+      udsCount: pkg.uds.length,
+      academicYear: cal.academicYear || pkg.config.curso || "2026-2027",
+    });
+  };
 
   // Sync with LocalStorage
   useEffect(() => {
@@ -1078,15 +1139,14 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
       const promises: Promise<any>[] = [];
 
       // 1. Módulo 1 Editorial (1a. UD Editorial)
-      const needM1 = sections.includes("ud_editorial") || sections.includes("cuestionario_autoeval") || sections.includes("diagrama_opml");
-      if (needM1) {
+      if (sections.includes("ud_editorial")) {
         promises.push(
           fetch("/api/generate-content", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             signal: abortController.signal,
             body: JSON.stringify({
-              prompt: buildSigreUDModule1Prompt(targetUd, config, ragContext),
+              prompt: buildSigreUDEditorialPrompt(targetUd, config, ragContext),
               providerId: activeProviderConfig.id,
               apiKey: activeProviderConfig.apiKey,
               endpoint: activeProviderConfig.endpoint,
@@ -1095,14 +1155,62 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
               jsonMode: true,
             }),
           }).then(async (res) => {
-            if (!res.ok) throw new Error("Error en Módulo 1 Editorial");
+            if (!res.ok) throw new Error("Error en 1a. UD Editorial");
             const data = await res.json();
-            return { type: "m1", data: robustJsonParse<any>(data.text, {}) };
+            return { type: "ud_editorial", data: robustJsonParse<any>(data.text, {}) };
           })
         );
       }
 
-      // 2. Módulo Docente / GIFT 60 (3. Banco Moodle GIFT)
+      // 2. Cuestionario de Autoevaluación (2. Autoevaluación) - On Demand
+      if (sections.includes("cuestionario_autoeval")) {
+        promises.push(
+          fetch("/api/generate-content", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: abortController.signal,
+            body: JSON.stringify({
+              prompt: buildSigreUDAutoevaluacionPrompt(targetUd, config, currentData?.modulo1),
+              providerId: activeProviderConfig.id,
+              apiKey: activeProviderConfig.apiKey,
+              endpoint: activeProviderConfig.endpoint,
+              model: activeProviderConfig.selectedModel,
+              temperature: 0.2,
+              jsonMode: true,
+            }),
+          }).then(async (res) => {
+            if (!res.ok) throw new Error("Error en Cuestionario de Autoevaluación");
+            const data = await res.json();
+            return { type: "cuestionario_autoeval", data: robustJsonParse<any>(data.text, {}) };
+          })
+        );
+      }
+
+      // 3. Diagrama Mermaid & Mapa Mental OPML (4. Diagrama & OPML) - On Demand
+      if (sections.includes("diagrama_opml")) {
+        promises.push(
+          fetch("/api/generate-content", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: abortController.signal,
+            body: JSON.stringify({
+              prompt: buildSigreUDDiagramaOpmlPrompt(targetUd, config, currentData?.modulo1),
+              providerId: activeProviderConfig.id,
+              apiKey: activeProviderConfig.apiKey,
+              endpoint: activeProviderConfig.endpoint,
+              model: activeProviderConfig.selectedModel,
+              temperature: 0.2,
+              jsonMode: true,
+            }),
+          }).then(async (res) => {
+            if (!res.ok) throw new Error("Error en Diagrama & OPML");
+            const data = await res.json();
+            return { type: "diagrama_opml", data: robustJsonParse<any>(data.text, {}) };
+          })
+        );
+      }
+
+      // 4. Módulo Docente / GIFT 60 (3. Banco Moodle GIFT)
       if (sections.includes("banco_gift_60")) {
         promises.push(
           fetch("/api/generate-content", {
@@ -1126,7 +1234,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
         );
       }
 
-      // 3. Módulo 3 / Programación & Evaluación (5. Programación & Rúbricas XML)
+      // 5. Módulo 3 / Programación & Evaluación (5. Programación & Rúbricas XML)
       if (sections.includes("programacion_rubricas")) {
         promises.push(
           fetch("/api/generate-content", {
@@ -1150,7 +1258,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
         );
       }
 
-      // 4. UD Curricular (1b. UD Curricular 19 Puntos)
+      // 6. UD Curricular (1b. UD Curricular 19 Puntos)
       if (sections.includes("ud_curricular")) {
         promises.push(
           fetch("/api/generate-content", {
@@ -1174,7 +1282,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
         );
       }
 
-      // 5. Simulador HDI (Módulo 2: Simulador HDI)
+      // 7. Simulador HDI (Módulo 2: Simulador HDI)
       if (sections.includes("simulador_hdi")) {
         promises.push(
           fetch("/api/generate-content", {
@@ -1243,6 +1351,33 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
       results.forEach((res) => {
         if (res.status === "fulfilled" && res.value) {
           const { type, data } = res.value;
+          if (type === "ud_editorial" && data) {
+            baseData.modulo1.titulo = data.titulo || baseData.modulo1.titulo;
+            baseData.modulo1.introduccion = data.introduccion || baseData.modulo1.introduccion;
+            baseData.modulo1.contenidos = data.contenidos || baseData.modulo1.contenidos;
+            baseData.modulo1.objetivosSmart = data.objetivosSmart || baseData.modulo1.objetivosSmart;
+            baseData.modulo1.indiceDesarrollo = data.indiceDesarrollo || baseData.modulo1.indiceDesarrollo;
+            baseData.modulo1.desarrolloEpigrafesHtml = data.desarrolloEpigrafesHtml || baseData.modulo1.desarrolloEpigrafesHtml;
+            baseData.modulo1.referenciasNormativasHtml = data.referenciasNormativasHtml || baseData.modulo1.referenciasNormativasHtml;
+            baseData.modulo1.bibliografiaWebgrafiaHtml = data.bibliografiaWebgrafiaHtml || baseData.modulo1.bibliografiaWebgrafiaHtml;
+            baseData.modulo1.glosarioHtml = data.glosarioHtml || baseData.modulo1.glosarioHtml;
+            baseData.modulo1.conclusiones = data.conclusiones || baseData.modulo1.conclusiones;
+            baseData.modulo1.relacionIntradisciplinar = data.relacionIntradisciplinar || baseData.modulo1.relacionIntradisciplinar;
+          }
+          if (type === "cuestionario_autoeval" && data) {
+            baseData.modulo1.autoevaluacionHtml = data.autoevaluacionHtml || baseData.modulo1.autoevaluacionHtml;
+            if (data.bancoGiftParte1 && !baseData.recursosDocente.bancoGiftParte1) {
+              baseData.recursosDocente.bancoGiftParte1 = data.bancoGiftParte1;
+            }
+          }
+          if (type === "diagrama_opml" && data) {
+            baseData.modulo1.diagramaMermaid = data.diagramaMermaid || baseData.modulo1.diagramaMermaid;
+            if (data.mapaMentalOpml) {
+              baseData.modulo1.mapaMentalOpml = data.mapaMentalOpml;
+            } else {
+              baseData.modulo1.mapaMentalOpml = generateSigreOpml(targetUd, data, baseData);
+            }
+          }
           if (type === "m1" && data) {
             if (sections.includes("ud_editorial")) {
               baseData.modulo1.titulo = data.titulo || baseData.modulo1.titulo;
@@ -2109,6 +2244,44 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
         </div>
       )}
 
+      {/* Module Activated Toast Notification */}
+      {moduleActivatedToast && (
+        <div className="p-3.5 bg-gradient-to-r from-emerald-500/20 via-cyan-500/20 to-amber-500/20 border border-emerald-500/40 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-lg animate-fadeIn">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-xl bg-emerald-500 text-black font-black font-mono text-xs shrink-0 shadow-xs">
+              {moduleActivatedToast.code}
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-text-primary flex items-center gap-2 truncate">
+                <span>Currículo activado: {moduleActivatedToast.name}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 font-mono shrink-0">
+                  🎓 {moduleActivatedToast.academicYear}
+                </span>
+              </p>
+              <p className="text-[11px] text-emerald-400 dark:text-emerald-300 font-medium truncate">
+                ✓ Se han cargado {moduleActivatedToast.udsCount} Unidades Didácticas en el Diseñador Curricular e Interactivo.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setGlobalViewMode("unidades")}
+              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-black rounded-xl transition-all text-xs cursor-pointer shadow-xs"
+            >
+              Ver UDs
+            </button>
+            <button
+              type="button"
+              onClick={() => setModuleActivatedToast(null)}
+              className="p-1.5 text-text-muted hover:text-text-primary rounded-lg hover:bg-hover transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Global View: Calendario Escolar Oficial */}
       {globalViewMode === "calendario" && (
         <div className="space-y-4">
@@ -2118,6 +2291,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
             moduloNombre={config.moduloFormativo}
             cicloFormativo={config.cicloFormativo}
             docenteNombre={config.docenteNombre}
+            onOpenModuleCurriculum={handleOpenModuleCurriculum}
             theme={theme}
           />
         </div>
@@ -2131,6 +2305,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
             config={config}
             selectedUdId={selectedUdId}
             onSelectUd={(udId) => setSelectedUdId(udId)}
+            onOpenModuleCurriculum={handleOpenModuleCurriculum}
             theme={theme}
           />
         </div>
@@ -2955,22 +3130,38 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div className="p-12 text-center bg-background rounded-xl border border-dashed border-border-default space-y-3">
-                    <BookOpen className="w-12 h-12 text-amber-500/40 mx-auto" />
-                    <h4 className="text-base font-black text-text-primary">
-                      Unidad Pendiente de Desarrollo
-                    </h4>
-                    <p className="text-xs text-text-muted max-w-sm mx-auto">
-                      Pulsa el botón de desarrollo para generar la Unidad Didáctica completa, el banco GIFT de 60 preguntas, las rúbricas XML y el simulador HDI.
-                    </p>
-                    <button
-                      type="button"
-                      disabled={isGeneratingUd}
-                      onClick={() => handleGenerateChosenUD(selectedUd)}
-                      className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-black font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 inline-flex items-center gap-2 hover:scale-105 transition-all cursor-pointer"
-                    >
-                      <Sparkles className="w-4 h-4" /> Desarrollar {selectedUd.id}
-                    </button>
+                  <div className="p-8 sm:p-12 text-center bg-background rounded-2xl border border-dashed border-border-default space-y-4 max-w-2xl mx-auto">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto border border-amber-500/30 shadow-md shadow-amber-500/10">
+                      <BookOpen className="w-7 h-7" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h4 className="text-base font-black text-text-primary">
+                        Unidad Pendiente de Desarrollo: {selectedUd.fullCode || selectedUd.id}
+                      </h4>
+                      <p className="text-xs text-text-muted max-w-md mx-auto leading-relaxed">
+                        Para optimizar el consumo de tokens, puedes generar ahora la <strong>1a. UD Editorial</strong> y desarrollar los demás apartados (Autoevaluación, GIFT, OPML, Rúbricas, Simulador) bajo demanda cuando los necesites.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        disabled={isGeneratingUd}
+                        onClick={() => handleGenerateModularSections(selectedUd, ["ud_editorial"])}
+                        className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs rounded-xl shadow-md shadow-amber-500/20 inline-flex items-center gap-2 hover:scale-105 transition-all cursor-pointer disabled:opacity-50"
+                        title="Genera solo la 1a. UD Editorial (ahorro máximo de tokens)"
+                      >
+                        <Sparkles className="w-4 h-4 text-black" /> 1a. Desarrollar UD Editorial (Rápido)
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isGeneratingUd}
+                        onClick={() => handleOpenRegenerateModal(selectedUd)}
+                        className="px-4 py-2.5 bg-surface hover:bg-alt text-text-primary border border-border-default hover:border-amber-500/40 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                        title="Elegir apartados específicos para generar"
+                      >
+                        <Sliders className="w-4 h-4 text-amber-500" /> Desarrollo Modular / Personalizado
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

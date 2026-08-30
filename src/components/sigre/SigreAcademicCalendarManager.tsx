@@ -49,6 +49,8 @@ import {
   Landmark,
   Eye,
   Filter,
+  Sliders,
+  MoreVertical,
 } from "lucide-react";
 import {
   SigreAcademicCalendar,
@@ -101,6 +103,10 @@ interface SigreAcademicCalendarManagerProps {
   cicloFormativo?: string;
   docenteNombre?: string;
   onCalendarChange?: (cal: SigreAcademicCalendar) => void;
+  onOpenModuleCurriculum?: (
+    cal: SigreAcademicCalendar,
+    targetView?: "unidades" | "parametros" | "cronogramas"
+  ) => void;
   theme?: "dark" | "light";
 }
 
@@ -133,6 +139,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
   cicloFormativo = "1º CFGM Instalaciones Frigoríficas y de Climatización",
   docenteNombre = "Profesorado FP",
   onCalendarChange,
+  onOpenModuleCurriculum,
   theme = "dark",
 }) => {
   // Store all available calendars (allows adding / deleting courses & modules)
@@ -333,9 +340,33 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     keepUds: boolean;
   } | null>(null);
 
-  // Context Menu State
+  // Context Menu State for Calendar Grid Cells
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [contextMenuTab, setContextMenuTab] = useState<"uds" | "evals" | "festivos" | "especiales">("uds");
+
+  // Context Menu State for Module Cards in Cartera de Módulos
+  const [moduleContextMenu, setModuleContextMenu] = useState<{
+    isOpen: boolean;
+    x: number;
+    y: number;
+    calendar: SigreAcademicCalendar;
+  } | null>(null);
+
+  // Close module context menu on window click or Escape
+  useEffect(() => {
+    const handleModuleContextMenuOutside = () => {
+      if (moduleContextMenu) setModuleContextMenu(null);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModuleContextMenu(null);
+    };
+    window.addEventListener("click", handleModuleContextMenuOutside);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("click", handleModuleContextMenuOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [moduleContextMenu]);
 
   // Academic Trimesters and June Recuperation panel toggle
   const [isTrimestersExpanded, setIsTrimestersExpanded] = useState<boolean>(false);
@@ -378,6 +409,19 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
   const showToast = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 4000);
+  };
+
+  // Open module curriculum in Curricular Designer (Double Click / Context Menu)
+  const handleOpenCurricularDesigner = (
+    calItem: SigreAcademicCalendar,
+    targetView: "unidades" | "parametros" | "cronogramas" = "unidades"
+  ) => {
+    setActiveCalendarId(calItem.id);
+    if (onOpenModuleCurriculum) {
+      onOpenModuleCurriculum(calItem, targetView);
+    } else {
+      showToast(`📖 Módulo [${calItem.codigoModulo || "MOD"}] cargado en el Diseñador Curricular.`);
+    }
   };
 
   // Toggle single legend item collapse / expand
@@ -1167,6 +1211,24 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     setActiveCalendarId(nextCal.id);
     if (onCalendarChange) onCalendarChange(nextCal);
     showToast(`Módulo "${calendar.codigoModulo || calendar.moduloFormativo}" eliminado`);
+  };
+
+  const handleDeleteSpecificCalendar = (calId: string) => {
+    if (calendarsList.length <= 1) {
+      alert("No se puede eliminar el único módulo disponible.");
+      return;
+    }
+    const calToDelete = calendarsList.find((c) => c.id === calId);
+    const updatedList = calendarsList.filter((c) => c.id !== calId);
+    setCalendarsList(updatedList);
+    if (activeCalendarId === calId) {
+      const nextCal = updatedList[0];
+      setActiveCalendarId(nextCal.id);
+      if (onCalendarChange) onCalendarChange(nextCal);
+    }
+    if (calToDelete) {
+      showToast(`Módulo "${calToDelete.codigoModulo || calToDelete.moduloFormativo}" eliminado`);
+    }
   };
 
   // Save Resolution Reference & Link
@@ -2865,6 +2927,17 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             );
           })()}
 
+          {/* Guidance Banner for Double Click & Context Menu */}
+          <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-alt/80 border border-border-subtle rounded-lg text-[10.5px] text-text-secondary">
+            <span className="flex items-center gap-1.5">
+              <span className="text-amber-500 font-bold">💡 Consejo:</span>
+              <span>Doble clic en un módulo o clic derecho (menú contextual) para abrir su Currículo y UDs en el Diseñador Curricular.</span>
+            </span>
+            <span className="hidden sm:inline text-[9.5px] text-text-muted font-mono">
+              [Doble Clic = Abrir UDs] • [Clic Derecho = Opciones]
+            </span>
+          </div>
+
           {/* Scrollable list of Subject Module Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pt-1">
             {calendarsList
@@ -2876,36 +2949,70 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                   <div
                     key={calItem.id}
                     onClick={() => setActiveCalendarId(calItem.id)}
-                    className={`p-2.5 rounded-xl border transition-all cursor-pointer relative group flex flex-col justify-between ${
+                    onDoubleClick={(e) => {
+                      e.preventDefault();
+                      handleOpenCurricularDesigner(calItem, "unidades");
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setModuleContextMenu({
+                        isOpen: true,
+                        x: Math.min(e.clientX, window.innerWidth - 300),
+                        y: Math.min(e.clientY, window.innerHeight - 390),
+                        calendar: calItem,
+                      });
+                    }}
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer relative group flex flex-col justify-between select-none ${
                       isActive
                         ? "bg-surface border-emerald-500 ring-2 ring-emerald-500/30 shadow-md"
-                        : "bg-surface/80 border-border-default hover:border-border-strong hover:bg-hover"
+                        : "bg-surface/80 border-border-default hover:border-emerald-500/60 hover:bg-hover hover:shadow-xs"
                     }`}
+                    title="Doble clic para abrir en el Diseñador Curricular de UDs | Clic derecho para menú contextual"
                   >
                     <div>
                       <div className="flex items-center justify-between gap-1 mb-1">
                         <span
-                          className={`font-black text-[11px] px-2 py-0.5 rounded-md font-mono ${
+                          className={`font-black text-[11px] px-2 py-0.5 rounded-md font-mono transition-colors ${
                             isActive
-                              ? "bg-emerald-500 text-slate-950 font-bold"
-                              : "bg-alt text-text-secondary group-hover:bg-hover"
+                              ? "bg-emerald-500 text-slate-950 font-bold shadow-xs"
+                              : "bg-alt text-text-secondary group-hover:bg-emerald-500/20 group-hover:text-emerald-300"
                           }`}
                         >
                           {calItem.codigoModulo || "MÓDULO"}
                         </span>
-                        <span
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveCalendarId(calItem.id);
-                            setTargetAcademicYear(calItem.academicYear || "2026-2027");
-                            setCustomAcademicYearInput(calItem.academicYear || "2026-2027");
-                            setIsChangeYearModalOpen(true);
-                          }}
-                          className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-alt text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:border-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
-                          title="Haz clic para cambiar el curso escolar de este módulo"
-                        >
-                          🎓 {calItem.academicYear}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveCalendarId(calItem.id);
+                              setTargetAcademicYear(calItem.academicYear || "2026-2027");
+                              setCustomAcademicYearInput(calItem.academicYear || "2026-2027");
+                              setIsChangeYearModalOpen(true);
+                            }}
+                            className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-alt text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:border-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
+                            title="Haz clic para cambiar el curso escolar de este módulo"
+                          >
+                            🎓 {calItem.academicYear}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                              setModuleContextMenu({
+                                isOpen: true,
+                                x: Math.min(rect.left, window.innerWidth - 300),
+                                y: Math.min(rect.bottom + 5, window.innerHeight - 390),
+                                calendar: calItem,
+                              });
+                            }}
+                            className="p-1 text-text-muted hover:text-text-primary rounded-md hover:bg-hover transition-colors"
+                            title="Menú de opciones del módulo"
+                          >
+                            <MoreVertical className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       <h4 className="font-bold text-text-primary text-[11px] line-clamp-1 leading-snug">
@@ -2916,24 +3023,38 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-between gap-1 mt-2 pt-1.5 border-t border-border-subtle text-[10px]">
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                    <div className="flex items-center justify-between gap-1.5 mt-2.5 pt-1.5 border-t border-border-subtle text-[10px]">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 shrink-0">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                         {udsCount} UDs
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveCalendarId(calItem.id);
-                          setCalendarViewMode("cronograma_modulo");
-                        }}
-                        className="px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500 text-amber-800 dark:text-amber-300 hover:text-black font-bold border border-amber-500/30 transition-all flex items-center gap-1 cursor-pointer"
-                        title={`Ver cronograma del módulo ${calItem.codigoModulo}`}
-                      >
-                        <Clock className="w-2.5 h-2.5" />
-                        <span>Cronograma</span>
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenCurricularDesigner(calItem, "unidades");
+                          }}
+                          className="px-2 py-0.5 rounded-md bg-emerald-600/20 hover:bg-emerald-600 text-emerald-800 dark:text-emerald-300 hover:text-white font-bold border border-emerald-500/30 transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                          title={`Abrir currículo y UDs de ${calItem.codigoModulo || "este módulo"} en el Diseñador Curricular`}
+                        >
+                          <BookOpen className="w-2.5 h-2.5" />
+                          <span>Currículo</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveCalendarId(calItem.id);
+                            setCalendarViewMode("cronograma_modulo");
+                          }}
+                          className="px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500 text-amber-800 dark:text-amber-300 hover:text-black font-bold border border-amber-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                          title={`Ver cronograma del módulo ${calItem.codigoModulo}`}
+                        >
+                          <Clock className="w-2.5 h-2.5" />
+                          <span>Cronograma</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -4440,6 +4561,181 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
         </div>
       )}
       </>
+      )}
+
+      {/* FLOATING CONTEXT MENU FOR CARTERA DE MÓDULOS */}
+      {moduleContextMenu && moduleContextMenu.isOpen && (
+        <div
+          className="fixed z-50 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-2 w-76 text-xs space-y-1.5 backdrop-blur-md animate-fade-in select-none"
+          style={{
+            left: `${moduleContextMenu.x}px`,
+            top: `${moduleContextMenu.y}px`,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header with module code, year, title */}
+          <div className="px-2.5 py-1.5 border-b border-slate-800 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono font-black text-emerald-400 text-xs px-1.5 py-0.5 bg-emerald-500/20 rounded border border-emerald-500/30">
+                  {moduleContextMenu.calendar.codigoModulo || "MÓDULO"}
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {moduleContextMenu.calendar.academicYear || "2026-2027"}
+                </span>
+              </div>
+              <p className="text-[11px] font-bold text-slate-200 truncate mt-0.5" title={moduleContextMenu.calendar.moduloFormativo}>
+                {moduleContextMenu.calendar.moduloFormativo || "Módulo Formativo"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setModuleContextMenu(null)}
+              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Primary Action: Open in Curricular Designer */}
+          <button
+            type="button"
+            onClick={() => {
+              handleOpenCurricularDesigner(moduleContextMenu.calendar, "unidades");
+              setModuleContextMenu(null);
+            }}
+            className="w-full text-left px-2.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-200 border border-amber-500/40 flex items-center gap-2.5 font-bold transition-all cursor-pointer shadow-xs group"
+          >
+            <BookOpen className="w-4 h-4 text-amber-400 shrink-0 group-hover:scale-110 transition-transform" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-black text-amber-300">Abrir en Diseñador Curricular (UDs)</div>
+              <div className="text-[9.5px] text-amber-400/80 font-normal">Cargar UDs, Exámenes GIFT y micro-apps HDI</div>
+            </div>
+          </button>
+
+          {/* Secondary Action: Curricular Parameters & RAG */}
+          <button
+            type="button"
+            onClick={() => {
+              handleOpenCurricularDesigner(moduleContextMenu.calendar, "parametros");
+              setModuleContextMenu(null);
+            }}
+            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
+          >
+            <Sliders className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <div className="min-w-0">
+              <span className="font-semibold text-[11px]">Parámetros Curriculares & RAG</span>
+            </div>
+          </button>
+
+          {/* Third Action: Timeline */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveCalendarId(moduleContextMenu.calendar.id);
+              setCalendarViewMode("cronograma_modulo");
+              setModuleContextMenu(null);
+            }}
+            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
+          >
+            <Clock className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+            <div className="min-w-0">
+              <span className="font-semibold text-[11px]">Cronograma y Temporalización Anual</span>
+            </div>
+          </button>
+
+          {/* Fourth Action: Official Calendar Matrix */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveCalendarId(moduleContextMenu.calendar.id);
+              setCalendarViewMode("calendario");
+              setModuleContextMenu(null);
+            }}
+            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
+          >
+            <CalendarIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <div className="min-w-0">
+              <span className="font-semibold text-[11px]">Ver en Calendario Escolar Oficial</span>
+            </div>
+          </button>
+
+          <div className="border-t border-slate-800 my-1"></div>
+
+          {/* Action: Change Academic Year */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveCalendarId(moduleContextMenu.calendar.id);
+              setTargetAcademicYear(moduleContextMenu.calendar.academicYear || "2026-2027");
+              setCustomAcademicYearInput(moduleContextMenu.calendar.academicYear || "2026-2027");
+              setIsChangeYearModalOpen(true);
+              setModuleContextMenu(null);
+            }}
+            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
+          >
+            <GraduationCap className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <span className="text-[11px]">Cambiar Curso Escolar ({moduleContextMenu.calendar.academicYear})</span>
+          </button>
+
+          {/* Action: Edit Module details */}
+          <button
+            type="button"
+            onClick={() => {
+              setEditingModuleModal({
+                moduloFormativo: moduleContextMenu.calendar.moduloFormativo || "",
+                codigoModulo: moduleContextMenu.calendar.codigoModulo || "",
+                cicloFormativo: moduleContextMenu.calendar.cicloFormativo || "",
+                docente: moduleContextMenu.calendar.docente || "",
+                academicYear: moduleContextMenu.calendar.academicYear || "2026-2027",
+                province: moduleContextMenu.calendar.province || "Málaga",
+                educationalStage: moduleContextMenu.calendar.educationalStage || "FP Grado Medio",
+                notes: moduleContextMenu.calendar.notes || "",
+              });
+              setModuleContextMenu(null);
+            }}
+            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
+          >
+            <Edit2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="text-[11px]">Editar Datos del Módulo</span>
+          </button>
+
+          {/* Action: Duplicate Module */}
+          <button
+            type="button"
+            onClick={() => {
+              setDuplicateModuleModal({
+                moduloFormativo: `${moduleContextMenu.calendar.moduloFormativo} (Copia)`,
+                codigoModulo: `${moduleContextMenu.calendar.codigoModulo || "MOD"}_COPIA`,
+                cicloFormativo: moduleContextMenu.calendar.cicloFormativo || "",
+                keepUds: true,
+              });
+              setModuleContextMenu(null);
+            }}
+            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
+          >
+            <Copy className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="text-[11px]">Duplicar Módulo y Currículo</span>
+          </button>
+
+          {/* Action: Delete Module */}
+          {calendarsList.length > 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                const calToDelete = moduleContextMenu.calendar;
+                setModuleContextMenu(null);
+                if (window.confirm(`¿Estás seguro de que deseas eliminar el módulo "${calToDelete.moduloFormativo}" (${calToDelete.codigoModulo}) de tu cartera?`)) {
+                  handleDeleteSpecificCalendar(calToDelete.id);
+                }
+              }}
+              className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-red-950/50 text-red-400 hover:text-red-300 flex items-center gap-2 transition-colors cursor-pointer border border-transparent hover:border-red-500/30"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
+              <span className="text-[11px]">Eliminar Módulo de la Cartera</span>
+            </button>
+          )}
+        </div>
       )}
 
       {/* MODAL 1: ADD NEW ACADEMIC COURSE / MODULE */}

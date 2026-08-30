@@ -184,7 +184,9 @@ CONFIGURACIÓN DE LA MATERIA:
 REGLAS OBLIGATORIAS:
 ${sizingRule}
 2. REGLA DE PRIORIDAD PRL: Revisa todos los Bloques de Contenido. Si existe algún bloque que trate sobre "Prevención de Riesgos Laborales", "Seguridad", "Protección Ambiental" o similar, asígnale OBLIGATORIAMENTE el identificador "UD01". El resto de UDs se numerarán correlativamente a continuación (UD02, UD03, etc.).
-3. El título de cada UD debe seguir el formato exacto: "UDxx. BCx. [Título del Bloque de Contenido o Unidad]".
+3. FORMATO LIMPIO DE TÍTULO DE UD:
+   - El título debe ser profesional, conciso y legible (ej. "Prevención de riesgos laborales y protección ambiental" o "Entornos cloud, gemelos digitales e IoT en instalaciones").
+   - PROHIBIDO incluir corchetes, ratios de horas confusos o redundancias como "[UD01] [RA1] [20/160h] [10 sesiones]". El código 'fullCode' debe ser simplemente "UD01. Prevención de riesgos laborales y protección ambiental".
 4. Asocia a cada UD los Resultados de Aprendizaje (RA) y Criterios de Evaluación (CrEv) vinculados, así como las "horasEstimadas" y "sesionesEstimadas".
 5. Devuelve ÚNICAMENTE un JSON válido con la siguiente estructura:
 
@@ -201,7 +203,7 @@ ${sizingRule}
       "number": 1,
       "bcCode": "BC7",
       "title": "Prevención de riesgos laborales y protección ambiental",
-      "fullCode": "UD01. BC7. Prevención de riesgos laborales y protección ambiental",
+      "fullCode": "UD01. Prevención de riesgos laborales y protección ambiental",
       "horasEstimadas": ${Math.round(horasTotales / (targetUdsCount || 8))},
       "sesionesEstimadas": ${Math.round(Math.round(horasTotales / (targetUdsCount || 8)) / horasPorSesion)},
       "isPrl": true,
@@ -213,7 +215,7 @@ ${sizingRule}
       "number": 2,
       "bcCode": "BC1",
       "title": "Fundamentos y principios del sistema",
-      "fullCode": "UD02. BC1. Fundamentos y principios del sistema",
+      "fullCode": "UD02. Fundamentos y principios del sistema",
       "horasEstimadas": ${Math.round(horasTotales / (targetUdsCount || 8))},
       "sesionesEstimadas": ${Math.round(Math.round(horasTotales / (targetUdsCount || 8)) / horasPorSesion)},
       "isPrl": false,
@@ -228,6 +230,153 @@ CURRÍCULO BASE Y DOCUMENTACIÓN:
 <<INICIO DOCUMENTACIÓN CURRICULAR>>
 ${fullContext.substring(0, 100000)}
 <<FIN DOCUMENTACIÓN CURRICULAR>>`;
+}
+
+/**
+ * Builds prompt for SECTION 1a: Editorial Master Unit (8 Core Epigraphs, Rigorous Formulas, Tables, Expert Notes, Normatives, Bibliography)
+ * Optimized for low token overhead by excluding heavy evaluation banks and OPML diagrams, which are generated on demand.
+ */
+export function buildSigreUDEditorialPrompt(
+  ud: SigreUDItem,
+  config: SigreCurricularConfig,
+  ragContext = ""
+): string {
+  const fullContext = (config.desgloseCurricular + (ragContext ? "\n" + ragContext : "")).trim();
+  const horasUd = ud.horasEstimadas || Math.round((config.horasTotales || 160) / 8);
+  const sesionesUd = ud.sesionesEstimadas || Math.round(horasUd / 2);
+
+  return `Rol: Experto en diseño curricular, tecnología educativa y edición de contenido para Formación Profesional (Sistema SIGRE - Sección 1a: UD Editorial).
+Tu misión es desarrollar la Unidad Didáctica elegida ("${ud.fullCode || ud.title}") con la máxima profundidad técnica y pedagógica.
+
+INFORMACIÓN DE ENTRADA Y CONTEXTO:
+- Módulo Formativo: ${config.moduloFormativo || "Módulo Formativo"} (${config.codigo || ""})
+- Ciclo Formativo: ${config.cicloFormativo || "Ciclo Formativo"} - Familia: ${config.familiaProfesional || "Técnica"} (${config.curso || "1º"})
+- Carga horaria total: ${config.horasTotales || 160} horas (${config.horasSemanales || 5} h/semana)
+- Dimensionamiento de esta UD: ${horasUd} horas lectivas (${sesionesUd} sesiones estimadas)
+- Currículo de Referencia: ${config.curriculoReferencia || "Real Decreto oficial y normativa vigente"}
+- Contexto de Aplicación: ${config.contextoAplicacion || "Material a utilizar como referencia en el IES Al-Baytar de Benalmádena (Málaga)."}
+- Nivel de Adhesión Curricular: ${config.adhesion}/5
+- Nivel de Destinatario: ${config.userLevel === 1 ? "Secundaria (ESO)" : config.userLevel === 2 ? "Bachillerato / FP" : config.userLevel === 3 ? "Grado Universitario" : "Oposiciones / Especialización"}
+
+ESTRUCTURA DE GENERACIÓN EDITORIAL (8 APARTADOS OBLIGATORIOS):
+
+1. ÍNDICE GENERAL DEL TEMA: Guion completo reflejando los apartados 1 a 8 y el desglose de los epígrafes 5.1, 5.2, 5.3, 5.4...
+2. INTRODUCCIÓN Y CONTEXTUALIZACIÓN: (250-350 palabras). Justificación didáctica, aplicabilidad en el sector productivo y conexión con el perfil profesional.
+3. CONTENIDOS ESPECÍFICOS:
+   * Conceptuales (Saber): Principios, magnitudes físicas, unidades y clasificaciones.
+   * Procedimentales (Saber hacer): Métodos de cálculo, montaje, ajuste, calibración y mantenimiento.
+   * Actitudinales (Saber ser): Seguridad, prevención ambiental, rigor técnico y orden.
+4. OBJETIVOS ESPECÍFICOS DE APRENDIZAJE (SMART): 5-8 objetivos redactados con verbos de acción medibles (Taxonomía de Bloom).
+5. DESARROLLO TÉCNICO (4 a 6 sub-epígrafes 5.1 a 5.x):
+   Desarrolla cada sub-epígrafe con rigor exhaustivo:
+   a) Fundamentos técnicos y formulación aplicada en texto plano.
+   b) Matriz Técnica de Parámetros/Tolerancias con tabla HTML estilizada <table class="sigre-table"> (Parámetro, Criterio Operativo, Normativa/Tolerancia, Verificación).
+   c) Procedimiento práctico paso a paso de taller/campo (Preparación, Ejecución, Seguridad).
+   d) Cajas pedagógicas:
+      - <div class="apuntes-box"><strong>💡 Apuntes del Experto:</strong> [Consejos profesionales, errores típicos de taller y buenas prácticas]</div>
+      - <div class="recall-box"><strong>🧠 Autoevaluación Rápida (Active Recall):</strong> [2-3 preguntas clave de comprobación rápida]</div>
+      - <div class="mnemo-box"><strong>⚡ Regla Mnemotécnica:</strong> [Regla o acrónimo para retención a largo plazo]</div>
+6. REFERENCIAS NORMATIVAS:
+   Tabla técnica con clase "sigre-table" analizando normativas aplicables (RITE, CTE, REBT, Ley PRL, UNE-EN).
+7. BIBLIOGRAFÍA Y WEBGRAFÍA:
+   Bibliografía técnica comentada, Guías Oficiales (IDAE, INSST) y Webgrafía oficial comentada.
+8. CONCLUSIONES Y SÍNTESIS DEL TEMA:
+   Síntesis ejecutiva de competencias profesionales adquiridas y relación intradisciplinar con otras unidades del módulo.
+9. GLOSARIO DE TÉRMINOS Y FÓRMULAS:
+   Definiciones y variables técnicas clave en formato HTML.
+
+REGLA ESTRICTA DE NOTACIÓN MATEMÁTICA EN TEXTO PLANO:
+- PROHIBIDO USAR DELIMITADORES LATEX ($...$, $$...$$, \\text{}, \\times, \\Omega, etc.).
+- Usa texto plano limpio con operadores estándar: +, -, *, /, ^, °C, Ω (o Ohm), kW, bar, %, etc.
+
+NORMAS DE FORMATO JSON:
+- Devuelve ÚNICAMENTE un objeto JSON estrictamente válido.
+
+\`\`\`json
+{
+  "titulo": "${(ud.fullCode || ud.title).replace(/"/g, '\\"')}",
+  "cotRazonamiento": "Análisis curricular, delimitación técnica y prevención de colisiones temáticas...",
+  "indiceDesarrollo": "1. ÍNDICE GENERAL DEL TEMA\\n2. INTRODUCCIÓN Y CONTEXTUALIZACIÓN\\n3. CONTENIDOS ESPECÍFICOS\\n4. OBJETIVOS ESPECÍFICOS DE APRENDIZAJE (SMART)\\n5. DESARROLLO\\n  5.1. [Epígrafe 1]\\n  5.2. [Epígrafe 2]\\n  5.3. [Epígrafe 3]\\n  5.4. [Epígrafe 4]\\n6. REFERENCIAS NORMATIVAS\\n7. BIBLIOGRAFÍA Y WEBGRAFÍA\\n8. CONCLUSIONES Y SÍNTESIS DEL TEMA",
+  "introduccion": "Texto detallado de la introducción y contextualización profesional...",
+  "contenidos": {
+    "conceptuales": ["Concepto 1...", "Concepto 2...", "Concepto 3..."],
+    "procedimentales": ["Procedimiento 1...", "Procedimiento 2...", "Procedimiento 3..."],
+    "actitudinales": ["Actitud 1...", "Actitud 2...", "Actitud 3..."]
+  },
+  "objetivosSmart": [
+    "1. Objetivo SMART 1...",
+    "2. Objetivo SMART 2...",
+    "3. Objetivo SMART 3...",
+    "4. Objetivo SMART 4...",
+    "5. Objetivo SMART 5..."
+  ],
+  "desarrolloEpigrafesHtml": "<div class=\\"ud-content\\"><div class=\\"epigrafe-block\\"><h3>5.1. [Título Sub-epígrafe 1]</h3><p>...</p><table class=\\"sigre-table\\"><thead><tr><th>Parámetro/Componente</th><th>Criterio Operativo</th><th>Normativa / Tolerancia</th><th>Verificación</th></tr></thead><tbody><tr><td>...</td><td>...</td><td>...</td><td>...</td></tr></tbody></table><div class=\\"apuntes-box\\"><strong>💡 Apuntes del Experto:</strong> ...</div><div class=\\"recall-box\\"><strong>🧠 Autoevaluación Rápida:</strong> ...</div><div class=\\"mnemo-box\\"><strong>⚡ Regla Mnemotécnica:</strong> ...</div></div></div>",
+  "referenciasNormativasHtml": "<div class=\\"normativa-block\\"><table class=\\"sigre-table\\"><thead><tr><th>Código / Norma</th><th>Ámbito / Organismo</th><th>Prescripciones Clave</th><th>Aplicación Práctica</th></tr></thead><tbody><tr><td>...</td><td>...</td><td>...</td><td>...</td></tr></tbody></table></div>",
+  "bibliografiaWebgrafiaHtml": "<div class=\\"biblio-block\\"><h4>Bibliografía Técnica de Referencia</h4><ul><li>...</li></ul><h4>Guías Técnicas y Documentos Oficiales</h4><ul><li>...</li></ul><h4>Webgrafía y Recursos en Línea</h4><ul><li>...</li></ul></div>",
+  "conclusiones": "Texto de conclusiones y síntesis ejecutiva...",
+  "relacionIntradisciplinar": "Texto de relación con otras unidades del módulo...",
+  "glosarioHtml": "<div class=\\"glosario-box\\"><h4>Glosario de Términos y Fórmulas Relevantes</h4><ul><li><strong>Término:</strong> Definición...</li></ul></div>"
+}
+\`\`\`
+
+BASE DOCUMENTAL:
+<<INICIO DOCUMENTACIÓN>>
+${fullContext.substring(0, 80000)}
+<<FIN DOCUMENTACIÓN>>`;
+}
+
+/**
+ * Builds prompt for SECTION 2: Cuestionario de Autoevaluación (20 Preguntas con Solucionario y Feedback)
+ */
+export function buildSigreUDAutoevaluacionPrompt(
+  ud: SigreUDItem,
+  config: SigreCurricularConfig,
+  editorialData?: any
+): string {
+  return `Rol: Experto en evaluación psicométrica y diseño tecnopedagógico (Sistema SIGRE - Sección 2: Cuestionario de Autoevaluación).
+Objetivo: Generar un Cuestionario de Autoevaluación interactivo y formativo de EXACTAMENTE 20 preguntas con opciones múltiples, justificaciones técnicas y retroalimentación formativa para la Unidad: "${ud.fullCode || ud.title}".
+
+ESTRUCTURA OBLIGATORIA:
+1. 20 Preguntas de Opción Múltiple (4 opciones por pregunta: 1 correcta y 3 distractores técnicos verosímiles).
+2. Justificación técnica rigurosa para cada pregunta que explique por qué la opción correcta es la adecuada y por qué los distractores no lo son.
+3. Formato HTML para visualización interactiva y exportación rápida.
+4. Notación matemática en texto plano (sin LaTeX).
+
+\`\`\`json
+{
+  "cotRazonamiento": "Calibración psicométrica: 20 ítems balanceados que cubren fundamentos, procedimientos, seguridad y diagnóstico...",
+  "autoevaluacionHtml": "<div class=\\"autoeval-box\\"><h4>Cuestionario de Autoevaluación - ${ud.fullCode || ud.title} (20 Preguntas)</h4><ol><li><strong>1. ¿Enunciado de la pregunta...?</strong><br>A) Opción A<br>B) Opción B<br>C) Opción C<br>D) Opción D</li></ol><h5>Soluciones y Justificaciones Técnicas</h5><ol><li><strong>1. Respuesta Correcta: A</strong><br><em>Justificación:</em> Explicación técnica detallada de por qué esta es la respuesta adecuada con base en la normativa y los principios técnicos...</li></ol></div>",
+  "bancoGiftParte1": "// Banco Autoevaluación 20 Preguntas - ${ud.fullCode || ud.title}\\n\\n::1:: ¿Enunciado 1...? {\\n    =Opción correcta#¡Correcto! Justificación...\\n    ~Distractor 1#Incorrecto. Explicación...\\n    ~Distractor 2#Incorrecto. Explicación...\\n    ~Distractor 3#Incorrecto. Explicación...\\n}\\n\\n::2:: ..."
+}
+\`\`\``;
+}
+
+/**
+ * Builds prompt for SECTION 4: Diagrama de Flujo (Mermaid) & Mapa Mental (OPML XML 2.0 según Tony Buzan)
+ */
+export function buildSigreUDDiagramaOpmlPrompt(
+  ud: SigreUDItem,
+  config: SigreCurricularConfig,
+  editorialData?: any
+): string {
+  return `Rol: Experto en visualización de procesos, mapas conceptuales y diagramas de flujo técnicos (Sistema SIGRE - Sección 4: Diagrama & OPML).
+Objetivo: Generar el Diagrama de Flujo interactivo en sintaxis Mermaid y el Mapa Mental estructurado en formato XML OPML 2.0 (conforme a los principios de Tony Buzan en 6 niveles jerárquicos) para la Unidad: "${ud.fullCode || ud.title}".
+
+ESTRUCTURA EXIGIDA:
+1. Diagrama de Flujo Mermaid ("flowchart TD"):
+   - Incluir bloques de inicio, preparación técnica, subgraphs para fases operativas, decisiones de control y cierre.
+2. Mapa Mental OPML 2.0:
+   - Nivel 1: Título oficial de la Unidad.
+   - Nivel 2: Ramas radiales (1. Introducción, 2. Justificación, 3. Importancia, 4. Desarrollo de Epígrafes, 5. Puntos Críticos y Seguridad, 6. Checklist Calidad, 7. Conclusiones).
+   - Niveles 3 a 6: Desglose granular con fórmulas en texto plano, normativas y tolerancias.
+
+\`\`\`json
+{
+  "cotRazonamiento": "Estructuración radial: 7 ramas maestras, ramificación en abanico sin nodos unifilares y flujo operativo Mermaid...",
+  "diagramaMermaid": "flowchart TD\\n    A[\\"Inicio: Protocolo y EPIs\\"] --> B(Preparación de Equipos)\\n    subgraph F1[Fase Operativa]\\n    B --> C[\\"Montaje y Conexionado\\"]\\n    C --> D{¿Pruebas OK?}\\n    D -- Sí --> E[Puesta en Marcha]\\n    D -- No --> F[Ajuste de Parámetros]\\n    F --> C\\n    end\\n    E --> G[\\"Fin: Registro y Entrega\\"]",
+  "mapaMentalOpml": "<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n<opml version=\\"2.0\\">\\n  <head>\\n    <title>${(ud.title || ud.fullCode).replace(/"/g, '\\"')}</title>\\n    <ownerName>IES Al-Baytar - Sistema SIGRE</ownerName>\\n  </head>\\n  <body>\\n    <outline text=\\"${(ud.title || ud.fullCode).replace(/"/g, '\\"')}\\">\\n      <outline text=\\"1. Introducción y Contextualización\\">\\n        <outline text=\\"Alcance formativo y sector productivo\\"/>\\n        <outline text=\\"Objetivos SMART fundamentales\\"/>\\n      </outline>\\n      <outline text=\\"2. Justificación y Competencias\\">\\n        <outline text=\\"Cualificación profesional requerida\\"/>\\n        <outline text=\\"Resolución de averías y eficiencia\\"/>\\n      </outline>\\n      <outline text=\\"3. Importancia en Instalaciones\\">\\n        <outline text=\\"Seguridad operativa y cumplimiento reglamentario\\"/>\\n        <outline text=\\"Transición energética y sostenibilidad\\"/>\\n      </outline>\\n      <outline text=\\"4. Desarrollo de Contenidos Técnicos\\">\\n        <outline text=\\"Epígrafes operativos principales\\"/>\\n      </outline>\\n      <outline text=\\"5. Seguridad, PRL y Tolerancias\\">\\n        <outline text=\\"EPIs normativos UNE-EN\\"/>\\n        <outline text=\\"Límites y rangos de tolerancia\\"/>\\n      </outline>\\n      <outline text=\\"6. Control de Calidad y Pruebas\\">\\n        <outline text=\\"Checklist de verificación de taller\\"/>\\n      </outline>\\n      <outline text=\\"7. Conclusiones y Síntesis\\">\\n        <outline text=\\"Buenas prácticas del instalador técnico\\"/>\\n      </outline>\\n    </outline>\\n  </body>\\n</opml>"
+}
+\`\`\``;
 }
 
 /**

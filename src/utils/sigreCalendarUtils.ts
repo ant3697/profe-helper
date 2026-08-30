@@ -1463,10 +1463,53 @@ export interface FormatUdLegendOptions {
 }
 
 /**
- * Standard UD Legend Title Formatter conforming strictly to the official SIGRE standard:
- * Format: [UDxx] [BCXX] [horas asignadas del total de horas] [Número de sesiones] [Titulo]
- * e.g. "[UD01] [BC7] [14/160h] [7 sesiones] Prevención de riesgos laborales y protección ambiental"
- * Code e.g.: "UD01. BC7 (14h/7s)" or "UD01. BC7 (12h/6s)"
+ * Strips bracketed tags like [UD01], [RA1], [20/160h], [10 sesiones], duplicate UD prefixes,
+ * and formats a clean, human-readable UD title.
+ * e.g. "UD01. Entornos cloud, gemelos digitales e IoT en instalaciones"
+ */
+export function cleanSigreUdTitle(rawTitle: string, fallbackNum?: number): string {
+  if (!rawTitle) {
+    return fallbackNum ? `UD${String(fallbackNum).padStart(2, "0")}. Unidad Didáctica` : "Unidad Didáctica";
+  }
+
+  let cleaned = rawTitle.trim();
+
+  // Extract explicit UD number if present (e.g. UD01, UD 1, [UD01], UD.01)
+  let udPrefix = "";
+  const udMatch = cleaned.match(/^(?:UD|UT)\s*0*(\d+)[:.\s-]*/i) || cleaned.match(/\[(?:UD|UT)\s*0*(\d+)\]/i);
+  if (udMatch) {
+    udPrefix = `UD${String(udMatch[1]).padStart(2, "0")}`;
+  } else if (fallbackNum) {
+    udPrefix = `UD${String(fallbackNum).padStart(2, "0")}`;
+  }
+
+  // Remove bracketed chunks like [UD01], [RA1], [BC7], [20/160h], [10 sesiones], [14h/7s]
+  cleaned = cleaned
+    .replace(/\[\s*(?:UD|UT|RA|BC)\s*\d+\s*\]/gi, "")
+    .replace(/\[\s*\d+\s*\/\s*\d+\s*h?\s*\]/gi, "")
+    .replace(/\[\s*\d+\s*h(?:\/\d+s)?\s*\]/gi, "")
+    .replace(/\[\s*\d+\s*sesion(?:es)?\s*\]/gi, "")
+    .replace(/\[\s*\]/g, "")
+    .replace(/^\d{3,4}\.[\s._-]*(?:BC|RA|UT)?\d*[\s.:_-]*/gi, "")
+    .replace(/^[A-Z0-9_-]+\.[\s._-]*(?:BC|RA|UT)\d*[\s.:_-]*/gi, "")
+    .replace(/^(?:UD|RA|UT|BC)[\s._-]*\d+[\s.:_-]*/gi, "")
+    .replace(/^(?:BC|RA|UT)[\s._-]*\d+[\s.:_-]*/gi, "")
+    .replace(/^[:.\s-]+/, "")
+    .trim();
+
+  // If there's still a redundant UD prefix at start
+  cleaned = cleaned.replace(/^UD\s*0*\d+[:.\s-]+/i, "").trim();
+
+  if (udPrefix && cleaned) {
+    return `${udPrefix}. ${cleaned}`;
+  }
+  return cleaned || (udPrefix ? `${udPrefix}. Unidad Didáctica` : "Unidad Didáctica");
+}
+
+/**
+ * Standard UD Legend Title Formatter conforming strictly to clean, human-readable SIGRE standard:
+ * Title: UD01. Prevención de riesgos laborales y protección ambiental
+ * Code: UD01. BC7 (14h • 7 ses.)
  */
 export function buildUdLegendTitleAndCode(opts: FormatUdLegendOptions): {
   code: string;
@@ -1495,7 +1538,6 @@ export function buildUdLegendTitleAndCode(opts: FormatUdLegendOptions): {
     opts.sesiones && opts.sesiones > 0
       ? opts.sesiones
       : Math.max(1, Math.round(horasAsignadas / 2));
-  const sesionesStr = sesiones === 1 ? "1 sesión" : `${sesiones} sesiones`;
 
   // Clean raw title to remove any already nested or duplicate prefix tags
   let cleanTitle = (opts.title || `Unidad Didáctica ${udNum}`).trim();
@@ -1510,15 +1552,16 @@ export function buildUdLegendTitleAndCode(opts: FormatUdLegendOptions): {
     .replace(/^(?:BC|RA|UT)[\s._-]*\d+[\s.:_-]*/gi, "")
     .replace(/^\((.*)\)$/, "$1")
     .replace(/^\[\s*\]/g, "")
+    .replace(/^UD\s*0*\d+[:.\s-]+/i, "")
     .trim();
 
   if (!cleanTitle) {
     cleanTitle = `Unidad Didáctica ${udNum}`;
   }
 
-  // Format requested: [UDxx] [BCXX] [horas asignadas del total de horas] [Número de sesiones] [Titulo]
-  const formattedTitle = `[${udFormatted}] [${cleanBc}] [${horasAsignadas}/${totalHoras}h] [${sesionesStr}] ${cleanTitle}`;
-  const formattedCode = `${udFormatted}. ${cleanBc} (${horasAsignadas}h/${sesiones}s)`;
+  // Clean format: UDxx. [Título del Bloque o Unidad]
+  const formattedTitle = `${udFormatted}. ${cleanTitle}`;
+  const formattedCode = `${udFormatted}. ${cleanBc} (${horasAsignadas}h • ${sesiones} ses.)`;
 
   return {
     code: formattedCode,
