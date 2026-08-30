@@ -20,7 +20,7 @@ interface SigreMermaidViewerProps {
 
 export const SigreMermaidViewer: React.FC<SigreMermaidViewerProps> = ({
   mermaidCode,
-  title = "5. Diagrama de Flujo (Mermaid)",
+  title = "4. Diagrama de Flujo (Mermaid)",
 }) => {
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<"diagram" | "code">("diagram");

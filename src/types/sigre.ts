@@ -55,6 +55,20 @@ export interface SigreCurricularConfig {
   horasTotales?: number; // Horas totales del módulo (ej. 160h, 200h)
   horasSemanales?: number; // Horas lectivas semanales (ej. 4h, 5h, 6h)
   numUnidadesDidacticas?: number; // Número de UDs objetivo (0 o undefined = automático por bloques)
+  semanasCurso?: number; // Total de semanas lectivas del curso (defecto 32 semanas: incluye FFEOE práctica y FCE práctica UDs)
+  duracionSesionMinutos?: number; // Duración media de la sesión lectiva en minutos (ej. 50, 55, 60, 120 min para taller)
+  horasPorSesion?: number; // Horas por sesión lectiva (defecto 1h, o 2h para bloques taller)
+  totalSesionesPrevistas?: number; // Número total de sesiones lectivas previstas para el módulo
+  incluyePeriodoRecuperacionJunio?: boolean; // Periodo de recuperación de aprendizajes no adquiridos tras la última sesión de evaluación ordinaria en junio
+  incluyePlanificacionSiguienteCursoJunio?: boolean; // Periodo de planificación del siguiente curso lectivo en junio
+  // Formación Profesional Dual (LO 3/2022 y RD 659/2023)
+  etapaCiclo?: "basico" | "medio" | "superior" | "especializacion"; // Grado D Básico, Medio, Superior o Grado E Especialización
+  regimenDual?: "general" | "intensivo"; // Régimen General (20-35% empresa) vs Intensivo (>35-50% empresa)
+  porcentajeDual?: number; // % del ciclo formativo en empresa (ej. 20%, 25%, 35%, 50%)
+  horasFceModulo?: number; // Horas en Centro Educativo (FCE) para el módulo (ej. 130h)
+  horasFfeoeModulo?: number; // Horas en Empresa / Organismo Equiparado (FFEOE) para el módulo (ej. 30h)
+  // Configuración de Evaluaciones y Parciales
+  numParciales?: number; // Número de evaluaciones parciales / trimestres por curso (por defecto 3)
   // Gestor de Horarios y Guardias
   scheduleConfig?: SigreScheduleConfig;
 }
@@ -254,6 +268,9 @@ export interface SigreUDItem {
   isPrl: boolean;
   horasEstimadas?: number; // Horas lectivas estimadas para esta UD (ej. 16)
   sesionesEstimadas?: number; // Sesiones estimadas de clase (ej. 8)
+  trimestre?: number; // 1: 1º Trimestre (P1), 2: 2º Trimestre (P2), 3: 3º Trimestre (P3), 4: 4º Parcial
+  horasFce?: number; // Horas lectivas en Centro Educativo
+  horasFfeoe?: number; // Horas estimadas en Empresa / Organismo Equiparado
   status: "pending" | "generating" | "completed" | "error";
   error?: string;
   // Entregables generados

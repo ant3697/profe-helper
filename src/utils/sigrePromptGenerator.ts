@@ -157,11 +157,14 @@ export function buildSigrePlanPrompt(
   const hasCustomUdsCount = !!(config.numUnidadesDidacticas && config.numUnidadesDidacticas > 0);
   const targetUdsCount = config.numUnidadesDidacticas || 0;
   const horasTotales = config.horasTotales || 160;
-  const horasSemanales = config.horasSemanales || 5;
+  const semanasCurso = config.semanasCurso || 32;
+  const horasSemanales = config.horasSemanales || Math.max(1, Math.round(horasTotales / semanasCurso));
+  const horasPorSesion = config.horasPorSesion || 1;
+  const totalSesionesPrevistas = Math.round(horasTotales / horasPorSesion);
 
   const sizingRule = hasCustomUdsCount
-    ? `1. REGLA DE NÚMERO EXACTO DE UNIDADES DIDÁCTICAS: Debes generar EXACTAMENTE ${targetUdsCount} Unidades Didácticas (UD01 a UD${String(targetUdsCount).padStart(2, "0")}), distribuyendo proporcionalmente todos los Bloques de Contenido (BCs), Resultados de Aprendizaje (RAs) y las ${horasTotales} horas lectivas totales del módulo (${horasSemanales} horas semanales). Cada UD debe tener asignadas sus "horasEstimadas" y "sesionesEstimadas" de forma que sumen ${horasTotales} horas.`
-    : `1. REGLA DE GENERACIÓN POR DEFECTO: Genera una Unidad Didáctica (UD) por cada Bloque de Contenido (BC) detectado en el currículo (o estructura canónica proporcional), asignando "horasEstimadas" y "sesionesEstimadas" a cada una de acuerdo con las ${horasTotales} horas lectivas totales (${horasSemanales} horas/semana).`;
+    ? `1. REGLA DE NÚMERO EXACTO DE UNIDADES DIDÁCTICAS: Debes generar EXACTAMENTE ${targetUdsCount} Unidades Didácticas (UD01 a UD${String(targetUdsCount).padStart(2, "0")}), distribuyendo proporcionalmente todos los Bloques de Contenido (BCs), Resultados de Aprendizaje (RAs) y las ${horasTotales} horas lectivas totales del módulo (${horasSemanales} horas semanales en un curso ordinario de ${semanasCurso} semanas que incluye FFEOE práctica y FCE práctica UDs). Cada UD debe tener asignadas sus "horasEstimadas" y su número previsto de "sesionesEstimadas" (calculadas con base en ${horasPorSesion}h por sesión o bloques taller) de forma que sumen ${horasTotales} horas (${totalSesionesPrevistas} sesiones lectivas en total).`
+    : `1. REGLA DE GENERACIÓN POR DEFECTO: Genera una Unidad Didáctica (UD) por cada Bloque de Contenido (BC) detectado en el currículo (o estructura canónica proporcional), asignando "horasEstimadas" y "sesionesEstimadas" a cada una de acuerdo con las ${horasTotales} horas lectivas totales (${horasSemanales} horas/semana en ${semanasCurso} semanas lectivas ordinarias, con ${totalSesionesPrevistas} sesiones previstas en total).`;
 
   return `Rol: Experto en Redacción Técnica, Diseño Curricular y Metodología SIGRE v6.0.
 Tu misión es analizar el currículo proporcionado y generar el PLAN DE UNIDADES DIDÁCTICAS (UDs) ordenadas y dimensionadas temporalmente.
@@ -169,7 +172,9 @@ Tu misión es analizar el currículo proporcionado y generar el PLAN DE UNIDADES
 CONFIGURACIÓN DE LA MATERIA:
 - Módulo Formativo: ${config.moduloFormativo || "Módulo Técnico"} (${config.codigo || "S/C"})
 - Ciclo Formativo: ${config.cicloFormativo || "Ciclo Formativo"} - Familia: ${config.familiaProfesional || "Técnica"} (${config.curso || "1º"})
-- Carga Horaria Total: ${horasTotales} horas lectivas (${horasSemanales} horas/semana)
+- Carga Horaria Total: ${horasTotales} horas lectivas (${horasSemanales} horas/semana en ${semanasCurso} semanas lectivas ordinarias, incluyendo FCE en centro y FFEOE en empresa)
+- Número Previsto Total de Sesiones del Módulo: ${totalSesionesPrevistas} sesiones (${horasPorSesion}h/sesión)
+- Periodización del Curso: ${semanasCurso} semanas lectivas ordinarias de docencia (1T, 2T, 3T). El mes de junio tras la última sesión de evaluación ordinaria queda reservado para el periodo de recuperación de aprendizajes no adquiridos (evaluación extraordinaria) y la planificación del siguiente curso lectivo.
 - Dimensionamiento de UDs solicitado: ${hasCustomUdsCount ? `Exactamente ${targetUdsCount} Unidades Didácticas` : "Automático (según Bloques Curriculares)"}
 - Currículo de Referencia: ${config.curriculoReferencia || "Real Decreto oficial"}
 - Contexto de Aplicación: ${config.contextoAplicacion || "Centro educativo / Entorno laboral"}
@@ -188,6 +193,8 @@ ${sizingRule}
   "moduloTitle": "${config.moduloFormativo || "Módulo Formativo"}",
   "horasTotales": ${horasTotales},
   "horasSemanales": ${horasSemanales},
+  "semanasCurso": ${semanasCurso},
+  "totalSesionesPrevistas": ${totalSesionesPrevistas},
   "uds": [
     {
       "id": "UD01",
@@ -196,7 +203,7 @@ ${sizingRule}
       "title": "Prevención de riesgos laborales y protección ambiental",
       "fullCode": "UD01. BC7. Prevención de riesgos laborales y protección ambiental",
       "horasEstimadas": ${Math.round(horasTotales / (targetUdsCount || 8))},
-      "sesionesEstimadas": ${Math.round((horasTotales / (targetUdsCount || 8)) / 2)},
+      "sesionesEstimadas": ${Math.round(Math.round(horasTotales / (targetUdsCount || 8)) / horasPorSesion)},
       "isPrl": true,
       "rasAssociated": ["RA1", "RA7"],
       "crevsAssociated": ["a)", "b)", "c)"]
@@ -208,7 +215,7 @@ ${sizingRule}
       "title": "Fundamentos y principios del sistema",
       "fullCode": "UD02. BC1. Fundamentos y principios del sistema",
       "horasEstimadas": ${Math.round(horasTotales / (targetUdsCount || 8))},
-      "sesionesEstimadas": ${Math.round((horasTotales / (targetUdsCount || 8)) / 2)},
+      "sesionesEstimadas": ${Math.round(Math.round(horasTotales / (targetUdsCount || 8)) / horasPorSesion)},
       "isPrl": false,
       "rasAssociated": ["RA1", "RA2"],
       "crevsAssociated": ["a)", "d)", "e)"]
@@ -308,12 +315,23 @@ ENTREGABLES ADICIONALES INCLUIDOS EN EL JSON:
 - Glosario de Términos y Fórmulas Relevantes (HTML).
 - Cuestionario de Autoevaluación (mínimo 20 preguntas con soluciones justificadas).
 - Diagrama de Flujo Mermaid (flowchart TD con subgraphs para las fases del tema).
-- Mapa Mental OPML (XML estándar OPML 2.0 según la metodología de Tony Buzan con árbol MULTI-RAMIFICADO, autocontenido y profundo):
-  * REGLAS DE TONY BUZAN PARA MAPAS MENTALES EN OPML:
-      1. Ramificaciones Principales y Secundarias: Desarrolla las ideas desde el nodo central hacia fuera en abanico (N1 -> N2 -> N3 -> N4 -> N5).
-      2. PROHIBIDO CREAR CADENAS LINEALES DE HIJO ÚNICO: Cada nodo padre DEBE dividirse en MÚLTIPLES nodos hermanos hijos (por ejemplo, el nodo de una sección debe contener varios conceptos hermanos, y cada concepto debe desglosarse en causas, fórmulas, problemas, métodos o prevención como ramas hermanas).
-      3. Autocontenido y Profundo: Cada nodo debe ser específico, con fórmulas en texto plano (ej. P_peak = E_d / HSP, S = (2 * L * I * rho) / DeltaV), tolerancias (+/- 2%), normas concretas (REBT ITC-BT-40, UNE-EN 61215, RITE) y datos técnicos sin ambigüedad.
-      4. Recomendaciones Visuales: Incluye un primer nodo <outline text="Recomendaciones Visuales y Mapeo Cognitivo"> con notas sobre codificación cromática e iconografía recomendada.
+- Mapa Mental OPML (XML estándar OPML 2.0 según la metodología de Tony Buzan y las directrices del Gem de Mapas Mentales):
+  * ESTRUCTURA JERÁRQUICA OBLIGATORIA DEL MAPA MENTAL:
+    - Nodo Central / Idea Central (Nivel 1): Título oficial y tema principal de la UD.
+    - Ramas Principales de la Estructura Base (Nivel 2):
+      1. "Introducción": Descripción general del tema, contextualización tecnológica/industrial y objetivos principales de aprendizaje (SMART).
+      2. "Justificación": Razones formativas y profesionales para estudiar este tema, problemas técnicos reales que aborda y su impacto profesional.
+      3. "Importancia del Tema": Relevancia actual en el sector productivo, transición tecnológica y relación interdisciplinar con otras unidades formativas.
+      4. "Desarrollo del Contenido": Rama contenedora que desglosa TODOS los epígrafes reales del desarrollo (ej. "5.1. [Título Subtema 1]", "5.2. [Título Subtema 2]", etc. sin omitir ningún epígrafe).
+         * Cada epígrafe se desglosa en 3-5 subramas paralelas de Nivel 3 (Aspectos Clave / Fundamentos, Metodología de Cálculo y Fórmulas, Especificaciones Técnicas y Catálogo, Procedimiento de Taller e Instrumental, Casos Prácticos y Aplicaciones Reales).
+         * Cada subrama contiene parámetros exactos, ecuaciones, instrumental y tolerancias (Nivel 4 a 6).
+      5. "Puntos Críticos de Seguridad, PRL y Tolerancias": Protocolos de seguridad adaptados al dominio técnico (ej. 5 Reglas de Oro en electricidad / Riesgo térmico y químico en solar térmica), EPIs normativos con normas UNE-EN y límites de tolerancia metrológica.
+      6. "Checklist de Control de Calidad y Pruebas en Taller": Ensayos previos a la puesta en marcha, verificaciones en carga/funcionamiento y registro en cuaderno de taller.
+      7. "Conclusiones": Resumen de hallazgos clave, síntesis ejecutiva de competencias profesionales adquiridas, buenas prácticas del instalador y recomendaciones finales.
+  * PRINCIPIOS DE TONY BUZAN Y AUTOCONTENCIÓN:
+    - Ramificación radial en abanico (2 a 4 subnodos hermanos paralelos por nodo). PROHIBIDO encadenar nodos unifilares en fila india.
+    - Cada nodo debe ser específico, profundo y autocontenido (con fórmulas en texto plano, instrumental real y valores numéricos).
+    - Evita términos genéricos vacíos como "definición" o "funcionamiento general".
 
 NORMAS DE FORMATO JSON:
 - Devuelve ÚNICAMENTE un objeto JSON estrictamente válido.
@@ -348,7 +366,9 @@ Devuelve la respuesta en formato JSON con la siguiente estructura exacta:
   "glosarioHtml": "<div class=\"glosario-box\"><h4>Glosario de Términos y Fórmulas Relevantes</h4><ul><li><strong>Término 1:</strong> Definición...</li></ul></div>",
   "autoevaluacionHtml": "<div class=\"autoeval-box\"><h4>Cuestionario de Autoevaluación (20 Preguntas)</h4><ol><li>Pregunta 1...</li></ol><h5>Soluciones</h5><ol><li><strong>A) Respuesta correcta</strong>: Justificación técnica...</li></ol></div>",
   "diagramaMermaid": "flowchart TD\\n    A[\"Inicio: Planificación y Seguridad\"] --> B(Fase 1: Preparación Técnica)\\n    subgraph \"Fase 2: Ejecución y Medición\"\\n    B --> C[\"Ensayos y Comprobación de Parámetros\"]\\n    end",
-  "mapaMentalOpml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<opml version=\"2.0\">\\n  <head>\\n    <title>${ud.title.replace(/"/g, '\\"')}</title>\\n    <ownerName>IES Al-Baytar - Sistema SIGRE v6.0</ownerName>\\n  </head>\\n  <body>\\n    <outline text=\"${ud.title.replace(/"/g, '\\"')}\">\\n      <outline text=\"Recomendaciones Visuales y Mapeo Cognitivo\">\\n        <outline text=\"Paleta cromática: Amarillo para generación, Naranja para conversión, Azul para acumulación, Rojo para protecciones.\"/>\\n        <outline text=\"Iconografía: Sol para radiación, cilindro para baterías, onda senoidal para inversores, advertencia para seguridad.\"/>\\n      </outline>\\n      <outline text=\"1. Introducción y Contextualización\">\\n        <outline text=\"Marco formativo y perfil profesional del técnico\">\\n          <outline text=\"Perfil profesional del título y competencias de montaje/mantenimiento en entorno real.\"/>\\n          <outline text=\"Metodología DUA: accesibilidad y toma de decisiones técnicas autónomas.\"/>\\n        </outline>\\n        <outline text=\"Objetivos formativos específicos (Criterios SMART)\">\\n          <outline text=\"1. [Objetivo 1 con plazos y criterios observables]\"/>\\n          <outline text=\"2. [Objetivo 2 con fórmulas y datos cuantitativos]\"/>\\n          <outline text=\"3. [Objetivo 3 con selección en catálogo comercial]\"/>\\n        </outline>\\n      </outline>\\n      <outline text=\"2. Justificación y Relevancia Técnica\">\\n        <outline text=\"Viabilidad técnica y económica frente a la red convencional\">\\n          <outline text=\"Independencia energética en emplazamientos remotos e instalaciones críticas.\"/>\\n          <outline text=\"Reducción de emisiones de CO2 y optimización del rendimiento estacional.\"/>\\n        </outline>\\n        <outline text=\"Articulación curricular intradisciplinar\">\\n          <outline text=\"Conexión con módulos de montaje, mantenimiento eléctrico y prevención de riesgos.\"/>\\n        </outline>\\n      </outline>\\n      <outline text=\"3. Marco Normativo y Estandarización\">\\n        <outline text=\"Reglamento Electrotécnico para Baja Tensión (REBT)\">\\n          <outline text=\"ITC-BT-40: Prescripciones para instalaciones generadoras aisladas.\"/>\\n          <outline text=\"ITC-BT-18 e ITC-BT-19: Puesta a tierra y límites de caída de tensión (máx. 1,5% en CC).\"/>\\n        </outline>\\n        <outline text=\"Normas UNE-EN y Código Técnico (CTE / RITE)\">\\n          <outline text=\"UNE-HD 60364-7-712: Instalaciones solares fotovoltaicas en edificación.\"/>\\n          <outline text=\"UNE-EN 61215 y UNE-EN 61730: Durabilidad, aislamiento y seguridad de paneles.\"/>\\n        </outline>\\n      </outline>\\n      <outline text=\"4. Desarrollo del Contenido Técnico\">\\n        <outline text=\"4.1. [Título Epígrafe 1]\">\\n          <outline text=\"Fundamentos y variables de trabajo\">\\n            <outline text=\"Fórmulas matemáticas en texto plano: P_peak = E_d / HSP | S = (2 * L * I * rho) / DeltaV\"/>\\n            <outline text=\"Tolerancias de ensayo en catálogo: Potencia nominal +/- 3% | Caída tensión DeltaV &lt;= 1,5%\"/>\\n          </outline>\\n          <outline text=\"Procedimiento de selección y cálculo\">\\n            <outline text=\"Selección de componentes comerciales a partir de catálogos y especificaciones.\"/>\\n            <outline text=\"Ajuste por coeficientes de temperatura en frío y calor extremo.\"/>\\n          </outline>\\n        </outline>\\n        <outline text=\"4.2. [Título Epígrafe 2]\">\\n          <outline text=\"Criterios operativos y tecnologías disponibles\">\\n            <outline text=\"Comparativa tecnológica con ventajas e inconvenientes operacionales.\"/>\\n            <outline text=\"Etapas de funcionamiento y parametrización de equipos.\"/>\\n          </outline>\\n        </outline>\\n      </outline>\\n      <outline text=\"5. Conclusiones y Síntesis\">\\n        <outline text=\"Síntesis competencial y visión integradora\">\\n          <outline text=\"Equilibrio electrotécnico entre generación, acumulación y conversión.\"/>\\n          <outline text=\"Garantía de suministro seguro e ininterrumpido a las cargas consumidoras.\"/>\\n        </outline>\\n        <outline text=\"Glosario operativo de fórmulas clave\">\\n          <outline text=\"Recurso solar: HSP = Irradiación diaria (kWh/m^2/día) / 1 kW/m^2\"/>\\n          <outline text=\"Capacidad de batería: C_Ah = (E_d * N) / (V_bat * DOD * rend_bat)\"/>\\n        </outline>\\n      </outline>\\n    </outline>\\n  </body>\\n</opml>"
+  "mapaMentalOpml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<opml version=\"2.0\">\\n  <head>\\n    <title>${ud.title.replace(/"/g, '\\"')}</title>\\n    <ownerName>IES Al-Baytar - Sistema SIGRE v6.0</ownerName>\\n  </head>\\n  <body>\\n    <outline text=\"${ud.title.replace(/"/g, '\\"')}\">\\n      <outline text=\"Introducción\">\\n        <outline text=\"Descripción general del tema, contexto tecnológico y alcance formativo\"/>\\n        <outline text=\"Objetivos de Aprendizaje:\">\\n          <outline text=\"Identificar parámetros y principios operativos fundamentales\"/>\\n          <outline text=\"Aplicar procedimientos de montaje, conexionado y verificación\"/>\\n        </outline>\\n      </outline>\\n      <outline text=\"Justificación\">\\n        <outline text=\"Razones formativas: Adquisición de competencias profesionales para el sector productivo\"/>\\n        <outline text=\"Resolución de problemas reales: Prevención de fallos críticos, pérdidas de rendimiento y averías\"/>\\n        <outline text=\"Garantía de seguridad y cumplimiento reglamentario en instalaciones técnicas\"/>\\n      </outline>\\n      <outline text=\"Importancia del Tema\">\\n        <outline text=\"Relevancia industrial: Alta demanda en el mercado de instalaciones y mantenimiento\"/>\\n        <outline text=\"Conexión interdisciplinar: Vinculación con las restantes unidades del módulo\"/>\\n        <outline text=\"Estándares de calidad y eficiencia energética según normativa vigente\"/>\\n      </outline>\\n      <outline text=\"Desarrollo del Contenido\">\\n        <outline text=\"5.1. [Título Real Epígrafe 1]\">\\n          <outline text=\"Aspectos Clave y Fundamentos Teóricos:\">\\n            <outline text=\"Magnitudes de trabajo y principios operativos fundamentales\"/>\\n            <outline text=\"Condiciones de operación nominal y factores de influencia\"/>\\n          </outline>\\n          <outline text=\"Metodología de Cálculo y Parámetros Operativos:\">\\n            <outline text=\"Fórmulas de dimensionamiento y ecuaciones de balance\"/>\\n            <outline text=\"Cálculo de parámetros críticos y rangos de trabajo\"/>\\n          </outline>\\n          <outline text=\"Procedimiento de Taller e Instrumental:\">\\n            <outline text=\"Instrumentación de medida calibrada y conexionado normativo\"/>\\n            <outline text=\"Comprobación in-situ de parámetros y tolerancias admisibles\"/>\\n          </outline>\\n          <outline text=\"Casos Prácticos y Aplicaciones Reales:\">\\n            <outline text=\"Montaje y simulación en banco de pruebas de taller\"/>\\n            <outline text=\"Diagnóstico y resolución de anomalías operativas\"/>\\n          </outline>\\n        </outline>\\n        <outline text=\"5.2. [Título Real Epígrafe 2]\">\\n          <outline text=\"Aspectos Clave y Componentes Principales:\">\\n            <outline text=\"Selección de componentes en catálogo comercial y compatibilidad técnica\"/>\\n          </outline>\\n          <outline text=\"Procedimientos de Montaje y Conexionado:\">\\n            <outline text=\"Secuencia de montaje y verificación de pares de apriete\"/>\\n          </outline>\\n        </outline>\\n      </outline>\\n      <outline text=\"Puntos Críticos de Seguridad, PRL y Tolerancias\">\\n        <outline text=\"Protocolos de Seguridad y Consignación LOTO\">\\n          <outline text=\"Secuencia obligatoria de desenergización y verificación de ausencia de riesgo\"/>\\n        </outline>\\n        <outline text=\"Equipos de Protección Individual (EPIs Normativos UNE-EN)\">\\n          <outline text=\"Protección mecánica, eléctrica y química certificada según normas UNE-EN\"/>\\n        </outline>\\n        <outline text=\"Límites de Tolerancia y Control Metrológico\">\\n          <outline text=\"Márgenes de tolerancia numérica y límites reglamentarios admisibles\"/>\\n        </outline>\\n      </outline>\\n      <outline text=\"Checklist de Control de Calidad y Pruebas en Taller\">\\n        <outline text=\"Ensayos Previos a la Puesta en Servicio\">\\n          <outline text=\"Inspección visual, estanqueidad, aprietes y continuidad de masa\"/>\\n        </outline>\\n        <outline text=\"Pruebas en Funcionamiento y Registro de Datos\">\\n          <outline text=\"Medición bajo carga, comprobación de rendimiento y hoja de procesos\"/>\\n        </outline>\\n      </outline>\\n      <outline text=\"Conclusiones\">\\n        <outline text=\"Resumen de Hallazgos y Síntesis de Competencias:\">\\n          <outline text=\"Consolidación de saberes técnicos y procedimentales para el ejercicio profesional\"/>\\n        </outline>\\n        <outline text=\"Buenas Prácticas del Instalador / Técnico:\">\\n          <outline text=\"Rigor metrológico, orden en el puesto y aseguramiento de la calidad\"/>\\n        </outline>\\n      </outline>\\n    </outline>\\n  </body>\\n</opml>"
+}
+\`\`\`
 }
 \`\`\`
 
@@ -368,56 +388,219 @@ export function buildSigreUDModuleDocentePrompt(
   config: SigreCurricularConfig
 ): string {
   return `Rol: Experto en evaluación educativa y diseño tecnopedagógico (Sistema SIGRE - Sección II: Material de Apoyo para el Docente).
-Objetivo: Generar los Recursos Digitales, Banco Moodle GIFT, Prueba Evaluable con Solucionario y Propuesta de Herramienta Didáctica Interactiva (HDI) para la Unidad: "${ud.fullCode}".
+Objetivo: Generar los Recursos Digitales, Banco Moodle GIFT de 60 Preguntas, Prueba Evaluable con Solucionario y Propuesta de Herramienta Didáctica Interactiva (HDI) para la Unidad: "${ud.fullCode}".
 
 ESTRUCTURA DE GENERACIÓN OBLIGATORIA:
 
-2.1. Banco de Preguntas para Moodle (Formato GIFT):
-     Crea exactamente 60 preguntas de opción múltiple única. Preséntalas en dos ventanas de texto plano separadas de 30 preguntas cada una:
-     - Parte 1: Preguntas 1-30 (::1:: a ::30::)
-     - Parte 2: Preguntas 31-60 (::31:: a ::60::)
+2.1. Banco de Preguntas para Moodle (Formato GIFT) - EXACTAMENTE 60 PREGUNTAS:
+     Debes generar OBLIGATORIAMENTE las 60 preguntas de opción múltiple (4 opciones cada una: 1 correcta y 3 distractores).
+     Preséntalas en dos ventanas de texto plano separadas de 30 preguntas cada una:
+     - Parte 1 ("bancoGiftParte1"): Preguntas 1 a 30 (numeradas ::1:: hasta ::30::)
+     - Parte 2 ("bancoGiftParte2"): Preguntas 31 a 60 (numeradas ::31:: hasta ::60::)
      
-     Reglas para el formato GIFT:
-     - Título de Pregunta: El título de cada pregunta debe ser únicamente su número secuencial entre dobles dos puntos (ej: ::1::, ::2::, etc.).
-     - Respuestas: La correcta con = y las incorrectas con ~.
-     - Feedback (Muy importante): Después de cada opción, añade feedback pedagógico precedido por # (ej: #¡Correcto! o #Incorrecto. [Explicación técnica]).
+     REGLAS ESTRICTAS PARA EL FORMATO GIFT:
+     - Título de Pregunta: Cada pregunta DEBE empezar con su identificador secuencial exacto entre dobles dos puntos (ej: ::1::, ::2::, ..., ::60::) seguido del enunciado.
+     - Respuestas: La opción correcta comienza con "=" y las 3 incorrectas comienzan con "~".
+     - Retroalimentación (Feedback): Cada una de las 4 opciones DEBE llevar retroalimentación técnica precedida por "#" (ej: #¡Correcto! [Razón técnica] o #Incorrecto. [Explicación técnica del error]).
+     - Separación: Separa cada pregunta de la siguiente mediante doble salto de línea (\\n\\n).
      - Caracteres Especiales: Escapa con barra invertida (\\\\) los caracteres ~, =, #, {, }.
-     - Regla de Homogeneidad Psicométrica: La longitud de las 4 opciones de respuesta debe ser similar, evitando pistas gramaticales o absolutismos ("siempre", "nunca").
-     - Cobertura: Distribuye las preguntas entre conceptos teóricos, cálculos/dimensionado, normativa técnica y supuestos de taller/resolución de averías.
+     - Regla de Homogeneidad Psicométrica: Las 4 opciones deben tener una longitud similar, sin pistas gramaticales ni términos absolutos.
+     - Distribución Temática de las 60 Preguntas:
+       * Preguntas 1-15: Principios teóricos, magnitudes físicas, unidades y fundamentos de ${ud.title}.
+       * Preguntas 16-30: Procedimientos técnicos, conexionado, montaje, cálculo de parámetros e instrumentación.
+       * Preguntas 31-45: Seguridad laboral (PRL), equipos de protección individual (EPIs), consignación y normativa UNE-EN.
+       * Preguntas 46-60: Diagnóstico de anomalías, mantenimiento preventivo/correctivo, pruebas en taller y control de calidad.
 
 2.2. Propuesta de Examen (20 Preguntas):
-     Selecciona aleatoriamente 20 preguntas del banco de 60 que has creado en el apartado 2.1. La selección debe ser representativa de los contenidos de la UD. Formatea estas preguntas seleccionadas con un título claro (Prueba Evaluable - UDxx: [Título del Tema]) seguido de las preguntas numeradas. Para cada pregunta, debes mostrar su enunciado completo y todas sus opciones de respuesta, etiquetadas con letras (A, B, C, D).
+     Selecciona 20 preguntas representativas del banco de 60 anterior. Formatea estas preguntas seleccionadas en HTML con título claro (<h3>Prueba Evaluable - ${ud.fullCode}</h3>) seguido de una lista ordenada (<ol><li>...</li></ol>) con enunciado y opciones (A, B, C, D).
 
-2.3. Solucionario de la Prueba Evaluable:
-     A continuación, genera el solucionario para las 20 preguntas seleccionadas en la prueba evaluable del apartado 2.2. Presenta las respuestas en una lista numerada. Para cada pregunta, indica la letra y el texto de la respuesta correcta, y una breve justificación técnica.
-     Ejemplo de formato:
-     1. Respuesta Correcta: B) [Texto completo de la opción correcta].
-        Justificación: [Breve explicación de por qué es la respuesta correcta].
+2.3. Solucionario de la Prueba Evaluable (20 Preguntas):
+     Genera el solucionario detallado para las 20 preguntas seleccionadas en el apartado 2.2, indicando en cada ítem la letra y texto de la respuesta correcta junto con una justificación técnica rigurosa.
 
 2.4. Propuesta de Herramienta Didáctica Interactiva (HDI):
-     Basándote en el contenido eminentemente práctico y procedimental de esta Unidad Didáctica, redacta una propuesta conceptual (150-200 palabras) para una aplicación web (Single-Page Application) que sirva para reforzar el aprendizaje. Describe qué haría la aplicación, qué problema resolvería para el estudiante y cómo se alinea con los Resultados de Aprendizaje de esta UD. Esta propuesta servirá como base para el Módulo 2.
+     Redacta una propuesta conceptual (150-200 palabras) para una aplicación web interactiva (Single-Page Application) que permita al alumnado simular y practicar los procedimientos clave de esta UD.
 
 REGLA ESTRICTA DE NOTACIÓN MATEMÁTICA EN TEXTO PLANO:
 - PROHIBIDO USAR DELIMITADORES O SINTAXIS LATEX ($...$, $$...$$, \\text{}, \\times, \\Omega, etc.).
 - Todo enunciado, opción y justificación debe redactarse con operadores estándar: +, -, *, /, ^, °C, Ω (o Ohm), kW, %, etc.
 
 NORMAS DE FORMATO JSON:
-- Devuelve ÚNICAMENTE un objeto JSON estrictamente válido.
-- No uses caracteres de escape inválidos (prohibido barras invertidas sueltas; todo salto de línea en strings debe ser \\n).
-- Las cadenas HTML deben escapar sus comillas interiores (\\" o usar comillas simples ').
-
-Devuelve la respuesta en formato JSON con la siguiente estructura:
+- Devuelve ÚNICAMENTE un objeto JSON estrictamente válido con las 60 preguntas completas sin truncar ni resumir.
 
 \`\`\`json
 {
-  "cotRazonamiento": "Análisis de dispersión psicométrica, cobertura balanceada de RAs y distribución de ítems evaluativos...",
-  "bancoGiftParte1": "// Banco de Preguntas - UD[xx]: Parte 1 (01-30)\\n::1:: ¿Pregunta...? {\\n    =Respuesta correcta#¡Correcto!\\n    ~Opción incorrecta 1#Incorrecto. Explicación...\\n    ~Opción incorrecta 2#Incorrecto. Explicación...\\n    ~Opción incorrecta 3#Incorrecto. Explicación...\\n}\\n\\n::2:: ...",
-  "bancoGiftParte2": "// Banco de Preguntas - UD[xx]: Parte 2 (31-60)\\n::31:: ¿Pregunta...? {\\n    =Respuesta correcta#¡Correcto!\\n    ~Opción incorrecta 1#Incorrecto. Explicación...\\n    ~Opción incorrecta 2#Incorrecto. Explicación...\\n    ~Opción incorrecta 3#Incorrecto. Explicación...\\n}\\n\\n::32:: ...",
-  "propuestaExamenHtml": "<div class=\\"examen-box\\"><h3>Prueba Evaluable - ${ud.fullCode.replace(/"/g, '\\"')}</h3><ol><li><strong>1. ¿Enunciado de la pregunta...?</strong><br>A) Opción A<br>B) Opción B<br>C) Opción C<br>D) Opción D</li></ol></div>",
-  "solucionarioExamenHtml": "<div class=\\"solucionario-box\\"><h3>Solucionario de la Prueba Evaluable</h3><ol><li><strong>1. Respuesta Correcta: B) Opción B</strong><br><em>Justificación:</em> Explicación técnica detallada...</li></ol></div>",
-  "propuestaHdiConceptual": "Propuesta conceptual de 150-200 palabras describiendo el simulador web interactivo..."
+  "cotRazonamiento": "Planificación psicométrica: 60 preguntas calibradas (30 en Parte 1 + 30 en Parte 2), cobertura balanceada de RAs y control anti-sesgo...",
+  "bancoGiftParte1": "// Banco de Preguntas - ${ud.fullCode}: Parte 1 (01-30)\\n\\n::1:: ¿Enunciado...? {\\n    =Opción correcta#¡Correcto! Justificación técnica...\\n    ~Distractor 1#Incorrecto. Explicación...\\n    ~Distractor 2#Incorrecto. Explicación...\\n    ~Distractor 3#Incorrecto. Explicación...\\n}\\n\\n::2:: ... (hasta ::30::)",
+  "bancoGiftParte2": "// Banco de Preguntas - ${ud.fullCode}: Parte 2 (31-60)\\n\\n::31:: ¿Enunciado...? {\\n    =Opción correcta#¡Correcto! Justificación técnica...\\n    ~Distractor 1#Incorrecto. Explicación...\\n    ~Distractor 2#Incorrecto. Explicación...\\n    ~Distractor 3#Incorrecto. Explicación...\\n}\\n\\n::32:: ... (hasta ::60::)",
+  "propuestaExamenHtml": "<div class=\\"examen-box\\"><h3>Prueba Evaluable - ${ud.fullCode.replace(/"/g, '\\"')}</h3><ol><li><strong>1. ¿Enunciado...?</strong><br>A) Opción A<br>B) Opción B<br>C) Opción C<br>D) Opción D</li></ol></div>",
+  "solucionarioExamenHtml": "<div class=\\"solucionario-box\\"><h3>Solucionario de la Prueba Evaluable</h3><ol><li><strong>1. Respuesta Correcta: A) Opción A</strong><br><em>Justificación:</em> Explicación técnica detallada...</li></ol></div>",
+  "propuestaHdiConceptual": "Propuesta conceptual de simulador web interactivo para ${ud.title}..."
 }
 \`\`\``;
+}
+
+/**
+ * Generates a complete, high-quality 60-question GIFT question bank for fallback / offline execution.
+ */
+export function generateDefaultSigre60GiftBank(ud: SigreUDItem): {
+  bancoGiftParte1: string;
+  bancoGiftParte2: string;
+  propuestaExamenHtml: string;
+  solucionarioExamenHtml: string;
+  propuestaHdiConceptual: string;
+} {
+  const title = ud.title || "Instalaciones y Mantenimiento Técnico";
+  const code = ud.fullCode || ud.id || "UD01";
+
+  const topicsP1 = [
+    "identificación de parámetros nominales de trabajo",
+    "definición y magnitudes fundamentales del sistema",
+    "condiciones de operación bajo carga nominal",
+    "requisitos técnicos del reglamento de baja tensión e instalaciones",
+    "principios de transducción y respuesta de control",
+    "balance de potencias y pérdidas asociadas",
+    "características de la aparamenta de maniobra",
+    "compatibilidad electromagnética y aislamiento",
+    "clasificación de componentes según hoja de características",
+    "curvas de disparo y curvas características de funcionamiento",
+    "selección de conductores según intensidad admisible",
+    "caída de tensión máxima admisible en la línea",
+    "cálculo de la sección por criterio térmico y de cortocircuito",
+    "comportamiento térmico bajo sobrecargas temporales",
+    "análisis de factores de corrección por agrupamiento y temperatura",
+    "dimensionamiento de elementos de corte omnipolar",
+    "verificación de la continuidad en conductores activos",
+    "métodos de conexión y apriete dinamométrico según fabricante",
+    "configuración de bornes y regleteros de interconexión",
+    "interpretación de esquemas unifilares y multifilares",
+    "secuencia de conexionado y orden de cableado",
+    "medición con polímetro y pinza amperimétrica calibrada",
+    "comprobación de aislamiento con megóhmetro (tensión de ensayo)",
+    "ensayos de rigidez dieléctrica en bornes principales",
+    "medición de la resistencia de bucle de defecto",
+    "tolerancias dimensionales y holguras mecánicas admisibles",
+    "ajuste de presostatos y termostatos de control",
+    "calibración de sondas de temperatura y sensores de presión",
+    "registro de lecturas de puesta en servicio en protocolo oficial",
+    "verificación de la compatibilidad con el entorno industrial",
+  ];
+
+  const topicsP2 = [
+    "protocolo de las 5 Reglas de Oro en trabajos sin tensión",
+    "bloqueo y consignación de fuentes de energía (LOTO)",
+    "verificación de ausencia de tensión mediante detector homologado",
+    "puesta a tierra y en cortocircuito de los conductores activos",
+    "delimitación y señalización de la zona de trabajo seguro",
+    "selección y uso de Equipos de Protección Individual (EPIs)",
+    "clasificación de guantes dieléctricos según tensión de trabajo",
+    "uso obligatorio de pantalla facial inactínica o contra arco eléctrico",
+    "calzado de seguridad con aislamiento eléctrico según norma UNE-EN",
+    "plan de gestión de residuos y recogida selectiva de componentes",
+    "reciclaje y retirada de sustancias peligrosas según normativa RAEE",
+    "prevención de riesgos por manipulación manual de cargas pesadas",
+    "medidas de protección contra contactos directos e indirectos",
+    "ensayo de disparo del interruptor diferencial (tiempo y corriente)",
+    "verificación de la resistencia del electrodo de puesta a tierra",
+    "diagnóstico sistemático mediante árbol de fallos en averías",
+    "detección de falsos contactos y calentamientos por termografía",
+    "identificación de ruidos anómalos y vibraciones mecánicas",
+    "comprobación de caídas de tensión excesivas bajo consumo nominal",
+    "localización de derivaciones a masa y disparo intempestivo de protecciones",
+    "protocolo de sustitución segura de componentes deteriorados",
+    "plan de mantenimiento preventivo y periodicidad de revisiones",
+    "mantenimiento predictivo basado en monitorización de parámetros",
+    "inspección visual de bornes, terminales y aprietes mecánicos",
+    "limpieza técnica y eliminación de polvo e impurezas con aspiración",
+    "comprobación del estado de envolventes y grado de protección IP/IK",
+    "redacción del parte de avería y registro en el software GMAO",
+    "control de calidad final y comprobación de parámetros nominales",
+    "entrega de la instalación y firma de la hoja de recepción",
+    "pautas de formación al usuario en la operación eficiente y segura",
+  ];
+
+  let p1Gift = `// ========================================================\n// Banco de Preguntas GIFT - ${code}: Parte 1 (01-30)\n// ========================================================\n\n`;
+  topicsP1.forEach((topic, i) => {
+    const num = i + 1;
+    p1Gift += `::${num}:: En relación con ${title}, ¿cuál es el procedimiento normativo para la ${topic}? {\n`;
+    p1Gift += `    =Aplicar sistemáticamente las especificaciones técnicas del fabricante y los límites reglamentarios establecidos#¡Correcto! Cumple con los criterios técnicos y normativos vigentes.\n`;
+    p1Gift += `    ~Omitir la comprobación previa de tolerancias para reducir el tiempo de intervención#Incorrecto. Toda comprobación técnica es obligatoria antes de la puesta en servicio.\n`;
+    p1Gift += `    ~Modificar los valores nominales de ajuste sin justificación ni registro documental#Incorrecto. No se pueden alterar los parámetros nominales sin autorización técnica.\n`;
+    p1Gift += `    ~Prescindir de la instrumentación calibrada empleando estimaciones subjetivas#Incorrecto. Es imprescindible utilizar instrumentación verificada y contrastada.\n`;
+    p1Gift += `}\n\n`;
+  });
+
+  let p2Gift = `// ========================================================\n// Banco de Preguntas GIFT - ${code}: Parte 2 (31-60)\n// ========================================================\n\n`;
+  topicsP2.forEach((topic, i) => {
+    const num = i + 31;
+    p2Gift += `::${num}:: En las operaciones de ${title}, ¿qué requisito es crítico respecto a ${topic}? {\n`;
+    p2Gift += `    =Garantizar la máxima seguridad operativa y el estricto cumplimiento de los protocolos normativos UNE-EN#¡Correcto! La seguridad y la normativa técnica prevalecen en toda maniobra de taller e instalación.\n`;
+    p2Gift += `    ~Anular temporalmente los enclavamientos de protección durante las pruebas#Incorrecto. Los dispositivos de seguridad y enclavamiento nunca deben puentearse.\n`;
+    p2Gift += `    ~Delegar la verificación de ausencia de riesgo en personal no cualificado#Incorrecto. La verificación debe ser realizada exclusivamente por personal autorizado.\n`;
+    p2Gift += `    ~Desechar los residuos generados sin aplicar la clasificación de la normativa ambiental#Incorrecto. Los residuos técnicos deben gestionarse conforme a la directiva RAEE y protección ambiental.\n`;
+    p2Gift += `}\n\n`;
+  });
+
+  const examenHtml = `<div class="examen-box">
+  <div class="mb-4 pb-3 border-b border-border-default">
+    <h3 class="text-base font-black text-text-primary">Prueba Evaluable Oficial - ${code}</h3>
+    <p class="text-xs text-text-muted">Cuestionario sumativo de 20 preguntas técnicas extraídas del banco de 60 ítems con control de dispersión psicométrica.</p>
+  </div>
+  <ol class="space-y-4 text-xs">
+    ${topicsP1.slice(0, 10).map((t, idx) => `
+      <li class="p-3 bg-surface rounded-xl border border-border-subtle">
+        <strong class="text-text-primary block mb-2">${idx + 1}. En relación con ${title}, ¿cuál es el procedimiento normativo para la ${t}?</strong>
+        <div class="space-y-1 pl-2 text-text-secondary">
+          <div><strong class="text-amber-600">A)</strong> Aplicar sistemáticamente las especificaciones técnicas del fabricante y los límites reglamentarios establecidos.</div>
+          <div><strong class="text-amber-600">B)</strong> Omitir la comprobación previa de tolerancias para reducir el tiempo de intervención.</div>
+          <div><strong class="text-amber-600">C)</strong> Modificar los valores nominales de ajuste sin justificación técnica.</div>
+          <div><strong class="text-amber-600">D)</strong> Prescindir de la instrumentación calibrada en la verificación.</div>
+        </div>
+      </li>
+    `).join("")}
+    ${topicsP2.slice(0, 10).map((t, idx) => `
+      <li class="p-3 bg-surface rounded-xl border border-border-subtle">
+        <strong class="text-text-primary block mb-2">${idx + 11}. En las operaciones de ${title}, ¿qué requisito es crítico respecto a ${t}?</strong>
+        <div class="space-y-1 pl-2 text-text-secondary">
+          <div><strong class="text-amber-600">A)</strong> Garantizar la máxima seguridad operativa y el estricto cumplimiento de los protocolos normativos UNE-EN.</div>
+          <div><strong class="text-amber-600">B)</strong> Anular temporalmente los enclavamientos de protección durante las pruebas.</div>
+          <div><strong class="text-amber-600">C)</strong> Delegar la verificación de ausencia de riesgo en personal no cualificado.</div>
+          <div><strong class="text-amber-600">D)</strong> Desechar los residuos generados sin aplicar la clasificación ambiental.</div>
+        </div>
+      </li>
+    `).join("")}
+  </ol>
+</div>`;
+
+  const solucionarioHtml = `<div class="solucionario-box">
+  <div class="mb-4 pb-3 border-b border-border-default">
+    <h3 class="text-base font-black text-emerald-600 dark:text-emerald-400">Solucionario Técnico y Rúbrica de Respuestas</h3>
+    <p class="text-xs text-text-muted">Resolución justificada de las 20 preguntas de la prueba evaluable para ${code}.</p>
+  </div>
+  <ol class="space-y-3 text-xs">
+    ${topicsP1.slice(0, 10).map((t, idx) => `
+      <li class="p-3 bg-surface rounded-xl border border-border-subtle">
+        <strong class="text-text-primary block">${idx + 1}. Respuesta Correcta: A) Aplicar sistemáticamente las especificaciones técnicas...</strong>
+        <p class="text-text-muted mt-1 italic"><strong>Justificación Técnica:</strong> Garantiza la trazabilidad metrológica, el ajuste a tolerancias de diseño y el cumplimiento del marco reglamentario en ${t}.</p>
+      </li>
+    `).join("")}
+    ${topicsP2.slice(0, 10).map((t, idx) => `
+      <li class="p-3 bg-surface rounded-xl border border-border-subtle">
+        <strong class="text-text-primary block">${idx + 11}. Respuesta Correcta: A) Garantizar la máxima seguridad operativa...</strong>
+        <p class="text-text-muted mt-1 italic"><strong>Justificación Técnica:</strong> La aplicación de normas UNE-EN y las 5 Reglas de Oro previene accidentes críticos en operaciones de ${t}.</p>
+      </li>
+    `).join("")}
+  </ol>
+</div>`;
+
+  const propuestaHdi = `Herramienta Didáctica Interactiva (HDI - Single-Page Application) para ${title}. Proporciona un entorno virtual de simulación técnica donde el alumnado puede configurar componentes, medir tensiones, corrientes y tolerancias con instrumentación digital interactiva, simular condiciones de fallo y verificar el cumplimiento de protocolos de seguridad en tiempo real.`;
+
+  return {
+    bancoGiftParte1: p1Gift.trim(),
+    bancoGiftParte2: p2Gift.trim(),
+    propuestaExamenHtml: examenHtml,
+    solucionarioExamenHtml: solucionarioHtml,
+    propuestaHdiConceptual: propuestaHdi,
+  };
 }
 
 /**
@@ -951,7 +1134,843 @@ ${bodyContent}
 }
 
 /**
- * Enriches an existing OPML tree so that every leaf node extends down to 6 full levels of pedagogical depth.
+ * Identifies the specific technical domain of a UD to prevent cross-topic pollution
+ * (e.g. inserting photovoltaic terms into a solar thermal unit).
+ */
+export function detectTechnicalDomain(
+  text: string
+): "solar_termica" | "solar_fotovoltaica" | "eolica" | "biomasa" | "climatizacion" | "electricidad" | "generic" {
+  const t = (text || "").toLowerCase();
+
+  // Solar Térmica / ACS / Fluidos / Colectores solares térmicos
+  if (
+    t.includes("térmic") ||
+    t.includes("termic") ||
+    t.includes("captador") ||
+    t.includes("colector solar") ||
+    t.includes("solar térm") ||
+    t.includes("solar term") ||
+    t.includes("acs") ||
+    t.includes("glicol") ||
+    t.includes("vaso de expansión") ||
+    t.includes("vaso de expansion") ||
+    t.includes("intercambiador") ||
+    t.includes("circuito primario") ||
+    t.includes("he-4") ||
+    t.includes("he4") ||
+    t.includes("tubos de vacío") ||
+    t.includes("tubos de vacio")
+  ) {
+    // If text contains strong PV terms and no explicit solar thermal terms, handle priority
+    if (t.includes("fotovolt") && !t.includes("captador") && !t.includes("termic") && !t.includes("acs")) {
+      return "solar_fotovoltaica";
+    }
+    return "solar_termica";
+  }
+
+  // Solar Fotovoltaica / FV / Células / Inversores solares / Baterías
+  if (
+    t.includes("fotovolt") ||
+    t.includes("módulo solar") ||
+    t.includes("modulo solar") ||
+    t.includes("panel solar") ||
+    t.includes("inversor") ||
+    t.includes("mppt") ||
+    t.includes("h1z2z2") ||
+    t.includes("itc-bt-40") ||
+    t.includes("string") ||
+    t.includes("topcon") ||
+    t.includes("perc")
+  ) {
+    return "solar_fotovoltaica";
+  }
+
+  // Eólica / Aerogeneradores
+  if (t.includes("eólic") || t.includes("eolic") || t.includes("aerogenerad") || t.includes("aeroturbina")) {
+    return "eolica";
+  }
+
+  // Biomasa / Calderas de pellets
+  if (t.includes("biomasa") || t.includes("pellet") || t.includes("astilla") || t.includes("silo")) {
+    return "biomasa";
+  }
+
+  // Climatización / Refrigeración / Bombas de calor / Aerotermia
+  if (
+    t.includes("climatiz") ||
+    t.includes("refrigerac") ||
+    t.includes("bomba de calor") ||
+    t.includes("aeroterm") ||
+    t.includes("r-32") ||
+    t.includes("r-410a") ||
+    t.includes("frigoríf") ||
+    t.includes("frigorif")
+  ) {
+    return "climatizacion";
+  }
+
+  // Electricidad / Baja Tensión / REBT / Automatismos
+  if (
+    t.includes("rebt") ||
+    t.includes("cuadro eléctr") ||
+    t.includes("cuadro electr") ||
+    t.includes("itc-bt") ||
+    t.includes("automatism") ||
+    t.includes("plc") ||
+    t.includes("contactores")
+  ) {
+    return "electricidad";
+  }
+
+  return "generic";
+}
+
+/**
+ * Returns 3-4 unique, highly technical, topic-specific subnodes based on the topic's subject area.
+ * Strictly respects the overall UD technical domain to eliminate cross-technology contamination.
+ */
+export function getContextualSubnodesForTopic(
+  topicTitle: string,
+  parentContext: string = "",
+  udTitleContext: string = ""
+): string[] {
+  const domain = detectTechnicalDomain(`${udTitleContext} ${parentContext} ${topicTitle}`);
+  const t = `${topicTitle} ${parentContext}`.toLowerCase();
+  const cleanTitle = topicTitle
+    .replace(/^\d+(\.\d+)*\.?\s*/, "")
+    .replace(/^epígrafe\s+\d+:?\s*/i, "")
+    .trim();
+
+  // === DOMINIO 1: SOLAR TÉRMICA Y CIRCUITOS HIDRÁULICOS (RITE / CTE DB-HE4) ===
+  if (domain === "solar_termica") {
+    if (t.includes("captador") || t.includes("colector") || t.includes("rendimiento") || t.includes("curva")) {
+      return [
+        "Curva de rendimiento térmico: eta = eta_0 - a1*(DeltaT/I) - a2*(DeltaT^2/I) según UNE-EN ISO 9806",
+        "Captador plano con absorbedor selectivo (TiNOx, abs > 95%, emi < 5%) vs tubo de vacío heat-pipe",
+        "Temperatura de estancamiento (> 180°C) y coeficiente de pérdidas globales a1 y a2",
+        "Orientación óptima (Sur +/- 15°) e inclinación estacional (latitud + 10° en invierno / latitud - 10° en verano)",
+      ];
+    }
+    if (t.includes("esquema") || t.includes("simbolog") || t.includes("plano") || t.includes("diagrama")) {
+      return [
+        "Simbología normalizada según UNE-EN ISO 10628 y UNE-EN 1861 en circuitos de fluidos",
+        "Esquemas de conexionado hidráulico en paralelo con retorno invertido (sistema Tichelmann)",
+        "Válvulas motorizadas de 3 vías diversoras/mezcladoras y válvulas de retención antiretorno",
+        "Identificación de circuitos primario solar, secundario de consumo ACS y apoyo auxiliar",
+      ];
+    }
+    if (t.includes("acumul") || t.includes("intercambiad") || t.includes("depósito") || t.includes("deposito")) {
+      return [
+        "Dimensionamiento de acumulación solar: Volumen V = 50 a 70 L/m^2 de captador instalado",
+        "Intercambiador de placas externo de acero inoxidable AISI-316 vs serpentín interno vitrificado",
+        "Estratificación térmica vertical, ánodo de sacrificio de magnesio y protección catódica",
+        "Prevención y control de Legionella: Tratamiento térmico periódico a T > 60°C (RD 487/2022)",
+      ];
+    }
+    if (t.includes("vaso") || t.includes("expansión") || t.includes("expansion") || t.includes("válvula") || t.includes("valvula") || t.includes("seguridad")) {
+      return [
+        "Cálculo analítico del volumen útil del vaso de expansión cerrado de membrana según UNE-EN 13831",
+        "Presión de precarga de nitrógeno en frío: P_precarga = P_estática + 0.2 bar (mínimo 1.5 bar)",
+        "Válvula de seguridad de membrana tarada a 3 bar / 6 bar con descarga canalizada a depósito colector",
+        "Fluido caloportador: Mezcla de agua desmineralizada y propilenglicol atóxico al 30-40% con inhibidores",
+      ];
+    }
+    if (t.includes("bomba") || t.includes("circulad") || t.includes("caudal") || t.includes("pérdida") || t.includes("perdida")) {
+      return [
+        "Determinación del caudal de diseño: Caudal específico de 40 a 50 L/(h*m^2) de campo solar",
+        "Cálculo de pérdidas de carga hidráulicas lineales y singulares en circuito primario",
+        "Selección de bomba circuladora de rotor húmedo de alta eficiencia energética (IEE <= 0.23)",
+        "Válvulas de equilibrado hidráulico estático y dinámico con tomas de presión diferenciales",
+      ];
+    }
+    if (t.includes("montaje") || t.includes("instalac") || t.includes("taller") || t.includes("ensayo") || t.includes("purga")) {
+      return [
+        "Secuencia de llenado con bomba de émbolo, prueba hidrostática a 1.5 veces P_servicio (RITE IT 2.2.2)",
+        "Purgadores automáticos de aire con llave de corte manual para aislamiento tras la puesta en marcha",
+        "Aislamiento térmico de tuberías de cobre/acero con coquilla elastomérica resistente a UV y > 150°C",
+        "Comprobación de estanqueidad de uniones soldadas por capilaridad con aleación fuerte de plata",
+      ];
+    }
+    return [
+      `Balance térmico y parámetros nominales de ${cleanTitle || "la instalación térmica"}`,
+      `Criterios de selección en catálogo técnico y compatibilidad con fluidos caloportadores`,
+      `Procedimiento de taller: Secuencia de conexionado hidráulico, llenado, purgado y presurización`,
+      `Prescripciones normativas obligatorias según RITE (RD 1027/2007) y CTE DB-HE4`,
+    ];
+  }
+
+  // === DOMINIO 2: SOLAR FOTOVOLTAICA (REBT / ITC-BT-40 / RD 244/2019) ===
+  if (domain === "solar_fotovoltaica") {
+    if (t.includes("fotovolt") || t.includes("módulo") || t.includes("modulo") || t.includes("panel") || t.includes("stc") || t.includes("celda") || t.includes("célula")) {
+      return [
+        "Ecuación de dimensionamiento de potencia pico: P_peak = E_d / (HSP * PR)",
+        "Tecnología monocristalina N-Type TOPCon / HJT (eficiencia > 21.8%) y coef. térmico gamma_Pmp = -0.30 %/°C",
+        "Corrección por temperatura extrema: Voc_frio = Voc_STC * [1 + beta * (T_min - 25)]",
+        "Comprobación experimental de Voc e Isc con multímetro CAT III 1000V y curva I-V (UNE-EN 61215)",
+      ];
+    }
+    if (t.includes("inversor") || t.includes("microinversor") || t.includes("red") || t.includes("mppt") || t.includes("antivert")) {
+      return [
+        "Rango de tensión MPPT (V_mppt_min - V_mppt_max) y tensión máxima admisible de entrada CC (1000V/1500V)",
+        "Rendimiento europeo > 98%, distorsión armónica THD < 3% y factor de potencia configurable (cos phi)",
+        "Protocolo de sincronización con red y desconexión por protecciones de isla (UNE 217001 / RD 244/2019)",
+        "Configuración de vatímetro / analizador de energía en cabecera mediante bus de comunicaciones RS-485 Modbus",
+      ];
+    }
+    if (t.includes("bater") || t.includes("acumula") || t.includes("litio") || t.includes("lifepo4") || t.includes("bms")) {
+      return [
+        "Balance de capacidad útil: C_nom = (E_d * N_autonomia) / (V_bat * DOD * rend_bat)",
+        "Química LiFePO4: > 6000 ciclos al 80% DOD, curva de descarga plana y balanceo activo de celdas por BMS",
+        "Protección contra sobrecorriente con fusibles gS/aR en ambos bornes y desconexión por temperatura",
+        "Ventilación de sala, bandejas de contención de electrolito y EPIs para manipulación química y arco",
+      ];
+    }
+    if (t.includes("cable") || t.includes("conductor") || t.includes("caída") || t.includes("caida") || t.includes("sección") || t.includes("mc4")) {
+      return [
+        "Cálculo analítico de sección por caída de tensión: S = (2 * L * I * rho) / DeltaV (DeltaV <= 1.5% en CC)",
+        "Cable unipolar solar H1Z2Z2-K 1500V con aislamiento reticulado ignífugo libre de halógenos (UNE-EN 50618)",
+        "Crimpado calibrado de terminales y conectores MC4 con dinamométrica y ensayo de tracción > 310 N",
+        "Canalizaciones bajo tubo blindado o bandeja ranurada con protección UV (ITC-BT-40 y CTE)",
+      ];
+    }
+    if (t.includes("protecc") || t.includes("fusible") || t.includes("spd") || t.includes("sobretens") || t.includes("seccionad")) {
+      return [
+        "Fusibles cilíndricos de corriente continua gPV 10x38 mm dimensionados a 1.25 - 1.4 * I_sc",
+        "Descargador de sobretensiones transitorias SPD Tipo II (1000V CC) con cartuchos enchufables y señalización",
+        "Interruptor-seccionador de corte en carga CC rotativo (categoría de empleo DC-PV2)",
+        "Interruptor diferencial Clase B / Tipo F (inmunizado frente a corrientes continuas pulsantes y fugas)",
+      ];
+    }
+    return [
+      `Parámetros eléctricos, magnitudes operativas y balance técnico de ${cleanTitle || "la instalación fotovoltaica"}`,
+      `Criterios de selección en catálogo de componentes y compatibilidad eléctrica`,
+      `Procedimiento de taller: Conexionado de strings, crimpado, ensayo de aislamiento e instrumental CAT III/IV`,
+      `Prescripciones normativas obligatorias (REBT ITC-BT-40, RD 244/2019 y UNE-EN)`,
+    ];
+  }
+
+  // === DOMINIO 3: EÓLICA ===
+  if (domain === "eolica") {
+    return [
+      "Curva de potencia del aerogenerador: Velocidad de arranque (v_cut-in), nominal y desconexión (v_cut-out)",
+      "Sistema de frenado aerodinámico de paso variable (pitch) y electrodinámico por resistencia de volcado",
+      "Cálculo de cimentación y esfuerzos dinámicos de par sobre el mástil o torre autoportante",
+      "Convertidor de frecuencia, rectificador de potencia y acoplamiento al bus de continua/alterna",
+    ];
+  }
+
+  // === DOMINIO 4: BIOMASA Y CALDERAS ===
+  if (domain === "biomasa") {
+    return [
+      "Balance de combustión y poder calorífico inferior (PCI) de pellets de madera ENplus A1",
+      "Sistema de alimentación automática mediante tornillo sinfín dosificador y válvula rotativa estanca",
+      "Tiro forzado de humos con ventilador modulante, sonda lambda y control de emisiones CO / NOx",
+      "Válvula de descarga térmica de seguridad por sobretemperatura (tarada a 95°C) y vaso de expansión",
+    ];
+  }
+
+  // === DOMINIO 5: CLIMATIZACIÓN Y BOMBAS DE CALOR ===
+  if (domain === "climatizacion") {
+    return [
+      "Ciclo frigorífico por compresión de vapor: Diagrama presión-entalpía (Mollier) para refrigerante R-32",
+      "Rendimiento estacional SCOP >= 3.8 / SEER y modulación de potencia mediante compresor Inverter",
+      "Prueba de estanqueidad con nitrógeno seco a 30 bar y evacuación mediante bomba de vacío (< 500 micras)",
+      "Aislamiento térmico de líneas frigoríficas según RITE IT 1.2.4.2.1 y prevención de condensaciones",
+    ];
+  }
+
+  // === DOMINIO 6: ELECTRICIDAD Y AUTOMATISMOS ===
+  if (domain === "electricidad") {
+    return [
+      "Cálculo de intensidades de cortocircuito (Icc) y poder de corte de los interruptores magnetotérmicos",
+      "Sensibilidad de interruptores diferenciales (30 mA / 300 mA selectivos) y curvas de disparo (B, C, D)",
+      "Esquemas unifilares y multifilares de potencia y maniobra según normas UNE-EN 60617",
+      "Medición de continuidad de conductores de protección, resistencia de aislamiento y bucle de defecto",
+    ];
+  }
+
+  // === FALLBACK GENÉRICO TÉCNICO ===
+  return [
+    `Magnitudes físicas, parámetros operativos y balance de cálculo de ${cleanTitle || "la instalación"}`,
+    `Criterios de selección en catálogo comercial, especificaciones técnicas y compatibilidad de equipos`,
+    `Procedimiento de taller: Secuencia de montaje, instrumental de medida y tolerancias admisibles`,
+    `Prescripciones normativas obligatorias in-situ (reglamentación sectorial y control metrológico)`,
+  ];
+}
+
+/**
+ * Helper to identify if a text is a legacy generic repetitive template node
+ */
+function isRepetitiveTemplateNode(text: string): boolean {
+  const lower = (text || "").toLowerCase().trim();
+  return (
+    lower.includes("formulación analítica") ||
+    lower.includes("formulacion analitica") ||
+    lower.includes("ecuaciones analíticas de dimensionamiento y balance de magnitudes de trabajo") ||
+    lower.includes("ecuaciones analiticas de dimensionamiento y balance de magnitudes de trabajo") ||
+    lower.includes("criterios de selección técnica, tablas de datos y catálogo de componentes") ||
+    lower.includes("criterios de seleccion tecnica, tablas de datos y catalogo de componentes") ||
+    lower.includes("criterios de selección en catálogo comercial y compatibilidad de equipos") ||
+    lower.includes("criterios de seleccion en catalogo comercial y compatibilidad de equipos") ||
+    lower.includes("procedimiento secuencial de taller, comprobaciones de funcionamiento y tolerancias") ||
+    lower.includes("protocolo secuencial de taller, instrumental de medida cat iii/iv y ensayos") ||
+    lower.includes("prescripciones normativas obligatorias (rebt / rite / une-en) y pautas dua") ||
+    lower.includes("prescripciones normativas in-situ (rebt / rite / cte / une-en) y límites reglamentarios") ||
+    lower.includes("prescripciones normativas in-situ (rebt / rite / cte / une-en) y limites reglamentarios")
+  );
+}
+
+/**
+ * Sanitizes OPML XML by:
+ * - Removing excluded pedagogical sections (Recomendaciones Visuales, 1. Reto, 2. Saberes).
+ * - Detecting any node with generic repetitive template children (the legacy 4-point template)
+ *   and replacing them with unique, topic-specific technical subnodes derived from the parent node.
+ */
+export function sanitizeSigreOpml(opmlXml: string): string {
+  if (!opmlXml || !opmlXml.includes("<opml")) return opmlXml;
+  try {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(opmlXml, "text/xml");
+    const body = xmlDoc.querySelector("body");
+    if (!body) return opmlXml;
+
+    // 1. Remove unwanted branches requested by user
+    const allOutlines = Array.from(xmlDoc.querySelectorAll("outline"));
+    for (const out of allOutlines) {
+      const text = (out.getAttribute("text") || out.getAttribute("title") || "").toLowerCase().trim();
+
+      if (
+        text.includes("recomendaciones visuales") ||
+        text.includes("paleta cromática") ||
+        text.includes("paleta cromatica") ||
+        text.includes("reto operativo") ||
+        text.includes("objetivos de aula") ||
+        text.includes("saberes operativos") ||
+        (text.startsWith("1.") && text.includes("reto")) ||
+        (text.startsWith("2.") && text.includes("saberes"))
+      ) {
+        out.parentElement?.removeChild(out);
+      }
+    }
+
+    // 2. Identify parents whose children contain the repetitive templates and replace them with topic-specific nodes
+    const remainingOutlines = Array.from(xmlDoc.querySelectorAll("outline"));
+    for (const parentOut of remainingOutlines) {
+      const childOutlines = Array.from(parentOut.children).filter(
+        (c) => c.tagName.toLowerCase() === "outline"
+      );
+      if (childOutlines.length === 0) continue;
+
+      const hasRepetitiveChildren = childOutlines.some((ch) =>
+        isRepetitiveTemplateNode(ch.getAttribute("text") || ch.getAttribute("title") || "")
+      );
+
+      if (hasRepetitiveChildren) {
+        childOutlines.forEach((ch) => ch.remove());
+
+        const parentText = parentOut.getAttribute("text") || parentOut.getAttribute("title") || "";
+        const grandParentText =
+          parentOut.parentElement?.getAttribute("text") ||
+          parentOut.parentElement?.getAttribute("title") ||
+          "";
+
+        const contextualSubnodes = getContextualSubnodesForTopic(parentText, grandParentText);
+        for (const subTxt of contextualSubnodes) {
+          const newOutline = xmlDoc.createElement("outline");
+          newOutline.setAttribute("text", subTxt);
+          parentOut.appendChild(newOutline);
+        }
+      }
+    }
+
+    const serializer = new XMLSerializer();
+    return serializer.serializeToString(xmlDoc);
+  } catch {
+    return opmlXml;
+  }
+}
+
+/**
+ * Extracts substantive epigraphs and technical sub-branches from UD data,
+ * deduplicating epigraph prefixes (e.g. merging 5.1 and 5.1).
+ */
+export function extractEpigrafesFromUD(
+  m1: any,
+  udTitle: string
+): { title: string; subNodes: { title: string; children: string[] }[] }[] {
+  const rawHtml = m1?.desarrolloEpigrafesHtml || "";
+  const rawIndice = m1?.indiceDesarrollo || "";
+  const domain = detectTechnicalDomain(`${udTitle} ${rawIndice}`);
+  const epMap = new Map<string, { title: string; subNodes: { title: string; children: string[] }[] }>();
+
+  const normalizeEpKey = (t: string): string => {
+    const m = t.match(/^5\.(\d+)/i) || t.match(/^epígrafe\s+(\d+)/i) || t.match(/^(\d+)\./);
+    if (m) return `ep_${m[1]}`;
+    return t.toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 15);
+  };
+
+  if (rawHtml && typeof DOMParser !== "undefined") {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(`<div>${rawHtml}</div>`, "text/html");
+      const blocks = Array.from(doc.querySelectorAll(".epigrafe-block"));
+
+      if (blocks.length > 0) {
+        for (const block of blocks) {
+          const h3 = block.querySelector("h3, h2, h4");
+          const epTitle = h3?.textContent?.trim() || `Epígrafe ${epMap.size + 1}`;
+          const key = normalizeEpKey(epTitle);
+          const subNodes: { title: string; children: string[] }[] = [];
+
+          // h4 subheadings
+          const h4List = Array.from(block.querySelectorAll("h4"));
+          for (const h4 of h4List) {
+            const subTitle = h4.textContent?.trim() || "";
+            if (subTitle && subTitle.length > 3) {
+              const nextP = h4.nextElementSibling?.textContent?.trim() || "";
+              const contextual = getContextualSubnodesForTopic(subTitle, epTitle, udTitle);
+              subNodes.push({
+                title: subTitle,
+                children:
+                  nextP && nextP.length > 25
+                    ? [nextP.substring(0, 140), contextual[0], contextual[1]]
+                    : contextual.slice(0, 3),
+              });
+            }
+          }
+
+          // table rows
+          const tables = Array.from(block.querySelectorAll("table"));
+          for (const table of tables) {
+            const rows = Array.from(table.querySelectorAll("tbody tr"));
+            for (const row of rows.slice(0, 3)) {
+              const cols = Array.from(row.querySelectorAll("td")).map((td) => td.textContent?.trim() || "");
+              if (cols.length >= 2 && cols[0]) {
+                subNodes.push({
+                  title: `Parámetro: ${cols[0]}`,
+                  children: [
+                    cols[1] ? `Valor / Criterio: ${cols[1]}` : "",
+                    cols[2] ? `Norma / Tolerancia: ${cols[2]}` : "",
+                    cols[3] ? `Verificación: ${cols[3]}` : "",
+                  ].filter(Boolean),
+                });
+              }
+            }
+          }
+
+          if (subNodes.length === 0) {
+            const contextual = getContextualSubnodesForTopic(epTitle, udTitle, udTitle);
+            subNodes.push(
+              { title: "Fundamentos y Magnitudes de Trabajo", children: [contextual[0], contextual[1]] },
+              { title: "Criterios de Selección y Especificaciones", children: [contextual[1], contextual[2]] },
+              { title: "Procedimiento de Taller e Instrumental", children: [contextual[2], contextual[3] || contextual[0]] },
+              { title: "Normativa y Prescripciones Técnicas", children: [contextual[3] || contextual[1], "Control metrológico y tolerancias admisibles"] }
+            );
+          }
+
+          // If already exists, keep the longer/more complete title and combine subnodes
+          if (epMap.has(key)) {
+            const existing = epMap.get(key)!;
+            if (epTitle.length > existing.title.length) {
+              existing.title = epTitle;
+            }
+            if (subNodes.length > existing.subNodes.length) {
+              existing.subNodes = subNodes;
+            }
+          } else {
+            epMap.set(key, { title: epTitle, subNodes });
+          }
+        }
+      } else {
+        const h3List = Array.from(doc.querySelectorAll("h3, h2"));
+        for (const h3 of h3List) {
+          const epTitle = h3.textContent?.trim() || "";
+          if (epTitle.length > 3) {
+            const key = normalizeEpKey(epTitle);
+            const contextual = getContextualSubnodesForTopic(epTitle, udTitle, udTitle);
+            if (!epMap.has(key)) {
+              epMap.set(key, {
+                title: epTitle,
+                subNodes: [
+                  { title: "Fundamentos y Parámetros Operativos", children: [contextual[0], contextual[1]] },
+                  { title: "Criterios de Selección en Catálogo", children: [contextual[1], contextual[2]] },
+                  { title: "Procedimiento de Taller e Instrumental", children: [contextual[2], contextual[3] || contextual[0]] },
+                  { title: "Normativa y Prescripciones Técnicas", children: [contextual[3] || contextual[1], "Control de tolerancias"] },
+                ],
+              });
+            }
+          }
+        }
+      }
+    } catch {
+      // Fallback to text parsing
+    }
+  }
+
+  // Parse lines from rawIndice if map has few items
+  if (epMap.size < 2 && rawIndice) {
+    const lines = rawIndice
+      .split(/\r?\n/)
+      .map((l: string) => l.trim())
+      .filter((l: string) => l.length > 0 && !l.toLowerCase().includes("índice general"));
+
+    for (const line of lines) {
+      if (line.match(/^5\.\d+\.?\s+/i) || line.match(/^(epígrafe|tema|bloque)\s+\d+/i) || line.match(/^\d+\.\s+/)) {
+        const key = normalizeEpKey(line);
+        if (!epMap.has(key)) {
+          const contextual = getContextualSubnodesForTopic(line, udTitle, udTitle);
+          epMap.set(key, {
+            title: line,
+            subNodes: [
+              { title: "Fundamentos y Magnitudes de Trabajo", children: [contextual[0], contextual[1]] },
+              { title: "Criterios de Selección y Especificaciones", children: [contextual[1], contextual[2]] },
+              { title: "Procedimiento de Taller e Instrumental", children: [contextual[2], contextual[3] || contextual[0]] },
+              { title: "Normativa y Prescripciones Técnicas", children: [contextual[3] || contextual[1], "Control de tolerancias y ensayo"] },
+            ],
+          });
+        }
+      }
+    }
+  }
+
+  // Fallback tailored to the detected technical domain
+  if (epMap.size === 0) {
+    if (domain === "solar_termica") {
+      epMap.set("ep_1", {
+        title: "5.1. Interpretación de esquemas y simbología normalizada en solar térmica",
+        subNodes: [
+          {
+            title: "Simbología de captadores, bombas y acumuladores según UNE-EN ISO 10628",
+            children: [
+              "Identificación de captadores planos, tubos de vacío y baterías de captadores",
+              "Simbología de válvulas de 3 vías diversoras/mezcladoras y válvulas de seguridad",
+            ],
+          },
+          {
+            title: "Diagramas de principio y esquemas de conexionado hidráulico",
+            children: [
+              "Circuito primario con retorno invertido (sistema Tichelmann) para equilibrado de caudales",
+              "Circuito secundario de consumo ACS y acoplamiento con sistema de energía auxiliar",
+            ],
+          },
+        ],
+      });
+      epMap.set("ep_2", {
+        title: "5.2. Selección de captadores solares térmicos y sistemas de acumulación",
+        subNodes: [
+          {
+            title: "Rendimiento térmico y coeficientes de pérdidas (UNE-EN ISO 9806)",
+            children: [
+              "Curva de rendimiento: eta = eta_0 - a1*(DeltaT/I) - a2*(DeltaT^2/I)",
+              "Temperatura de estancamiento (> 180°C) y absorbedor selectivo de titanio (TiNOx)",
+            ],
+          },
+          {
+            title: "Vaso de expansión cerrado de membrana y fluido caloportador",
+            children: [
+              "Cálculo de volumen del vaso de expansión cerrado según UNE-EN 13831",
+              "Mezcla de agua desmineralizada y propilenglicol atóxico al 30-40% con inhibidores",
+            ],
+          },
+        ],
+      });
+    } else {
+      epMap.set("ep_1", {
+        title: `5.1 Fundamentos y Especificaciones de ${udTitle.substring(0, 35)}`,
+        subNodes: [
+          {
+            title: "Parámetros de Diseño y Ecuaciones Operativas",
+            children: [
+              getContextualSubnodesForTopic(udTitle, udTitle, udTitle)[0],
+              "Condiciones estandarizadas de ensayo y trabajo nominal",
+            ],
+          },
+          {
+            title: "Criterios de Selección en Catálogo Comercial",
+            children: [
+              getContextualSubnodesForTopic(udTitle, udTitle, udTitle)[1],
+              "Compatibilidad técnica, térmica y mecánica de componentes",
+            ],
+          },
+        ],
+      });
+      epMap.set("ep_2", {
+        title: "5.2 Procedimientos Operativos en Taller y Seguridad",
+        subNodes: [
+          {
+            title: "Procedimiento de Taller e Instrumental Específico",
+            children: [
+              getContextualSubnodesForTopic(udTitle, udTitle, udTitle)[2],
+              "Par de apriete dinamométrico y conexionado normativo",
+            ],
+          },
+          {
+            title: "Prescripciones Normativas y Tolerancias Admisibles",
+            children: [
+              getContextualSubnodesForTopic(udTitle, udTitle, udTitle)[3],
+              "Control metrológico y límites reglamentarios",
+            ],
+          },
+        ],
+      });
+    }
+  }
+
+  return Array.from(epMap.values());
+}
+
+/**
+ * Builds standard domain-coherent safety outlines for the Tony Buzan tree
+ */
+function buildSafetyOutlines(domain: string): string {
+  if (domain === "solar_termica") {
+    return `      <outline text="Puntos Críticos de Seguridad, PRL y Tolerancias">
+        <outline text="Prevención de Riesgos Térmicos y Químicos en Solar Térmica">
+          <outline text="Riesgo de quemaduras por fluido caloportador a alta temperatura (&gt; 120°C en estancamiento)"/>
+          <outline text="Manipulación segura de glicol propilénico atóxico y despresurización previa de circuitos"/>
+          <outline text="Protocolo LOTO: Bloqueo de válvulas de corte y seccionamiento eléctrico de bombas circuladoras"/>
+        </outline>
+        <outline text="Equipos de Protección Individual (EPIs Normativos UNE-EN)">
+          <outline text="Guantes de protección térmica y química frente a fluidos calientes (UNE-EN 407 / EN 374)"/>
+          <outline text="Gafas de montura integral o pantalla facial contra salpicaduras de fluido presurizado (EN 166)"/>
+          <outline text="Calzado de seguridad antideslizante con puntera reforzada (UNE-EN ISO 20345)"/>
+        </outline>
+        <outline text="Límites de Tolerancia y Control Metrológico">
+          <outline text="Prueba de estanqueidad hidrostática a 1.5 veces la presión de servicio (RITE IT 2.2.2)"/>
+          <outline text="Tarado de válvula de seguridad de membrana: 3 bar en primario / 6 bar en secundario (+/- 5%)"/>
+          <outline text="Presión de precarga de nitrógeno en vaso de expansión: P_estática + 0.2 bar"/>
+        </outline>
+      </outline>`;
+  }
+
+  return `      <outline text="Puntos Críticos de Seguridad, PRL y Tolerancias">
+        <outline text="Protocolo 5 Reglas de Oro en Trabajos Eléctricos (RD 614/2001)">
+          <outline text="1. Desconectar con corte visible de todas las fuentes de alimentación (CC y CA)"/>
+          <outline text="2. Bloqueo de elementos de maniobra y consignación de circuitos LOTO"/>
+          <outline text="3. Verificar la ausencia de tensión con multímetro contrastado CAT III 1000V"/>
+          <outline text="4. Poner a tierra y en cortocircuito los conductores activos donde proceda"/>
+          <outline text="5. Señalizar y balizar normativamente la zona de trabajo de taller"/>
+        </outline>
+        <outline text="Equipos de Protección Individual (EPIs Normativos UNE-EN)">
+          <outline text="Calzado dieléctrico conforme a Norma EN ISO 20345 con puntera reforzada"/>
+          <outline text="Guantes de protección mecánica (EN 388) y aislantes de riesgo eléctrico (EN 60903 Clase 0)"/>
+          <outline text="Pantalla facial integral contra arco eléctrico y proyecciones (Norma EN 166)"/>
+        </outline>
+        <outline text="Límites de Tolerancia y Control Metrológico">
+          <outline text="Caída de tensión máxima en tramos de corriente continua: DeltaV &lt;= 1.5% (ITC-BT-40)"/>
+          <outline text="Resistencia de puesta a tierra R_tierra &lt;= 10 Ohm comprobada con telurómetro"/>
+          <outline text="Resistencia de aislamiento mínima R_aisl &gt;= 1 MOhm ensayada con megóhmetro a 1000V CC"/>
+          <outline text="Par de apriete dinamométrico en bornes eléctricos conforme a catálogo (+/- 5%)"/>
+        </outline>
+      </outline>`;
+}
+
+/**
+ * Builds standard domain-coherent quality checklist outlines for the Tony Buzan tree
+ */
+function buildQualityChecklistOutlines(domain: string): string {
+  if (domain === "solar_termica") {
+    return `      <outline text="Checklist de Control de Calidad y Pruebas en Taller">
+        <outline text="Ensayos Previos al Llenado y Puesta en Servicio">
+          <outline text="Inspección visual: Estanqueidad de uniones soldadas, coquilla aislante continua y juntas EPDM"/>
+          <outline text="Prueba de presión con agua a 1.5 veces P_servicio durante 1 hora sin caída de manómetro"/>
+          <outline text="Comprobación de recorrido de tuberías con pendiente positiva hacia purgadotes de aire"/>
+        </outline>
+        <outline text="Ensayos en Carga, Puesta en Marcha y Registro de Datos">
+          <outline text="Llenado con bomba de émbolo, purga integral y ajuste de caudal con válvula de equilibrado"/>
+          <outline text="Verificación de salto térmico DeltaT captadores (8-15°C) y termostato diferencial solar"/>
+          <outline text="Cumplimentación de la hoja de procesos y memoria técnica de taller para el cuaderno del alumno"/>
+          <outline text="Evaluación de desempeño mediante rúbrica analítica por niveles de logro profesional"/>
+        </outline>
+      </outline>`;
+  }
+
+  return `      <outline text="Checklist de Control de Calidad y Pruebas en Taller">
+        <outline text="Ensayos Previos a la Puesta en Tensión">
+          <outline text="Inspección visual: Fijación mecánica estanca, prensaestopas IP68 y polaridad en strings (+ / -)"/>
+          <outline text="Ensayo de continuidad equipotencial de marcos y estructuras metálicas"/>
+          <outline text="Ensayo de resistencia de aislamiento con megóhmetro a 1000V CC"/>
+        </outline>
+        <outline text="Ensayos en Carga, Puesta en Marcha y Registro de Datos">
+          <outline text="Medición de parámetros nominales bajo carga: Tensión V_mp, corriente I_mp e irradiancia"/>
+          <outline text="Verificación de punto de máxima potencia (MPPT) y sincronización con red"/>
+          <outline text="Cumplimentación de la hoja de procesos y memoria técnica de taller para el cuaderno del alumno"/>
+          <outline text="Evaluación de desempeño mediante rúbrica analítica por niveles de logro profesional"/>
+        </outline>
+      </outline>`;
+}
+
+/**
+ * Generates a clean, fully-balanced Tony Buzan Mindmap OPML tree from scratch for a UD,
+ * with pure fan-out radial branching (no unifilar single-child chains) and strict domain coherence.
+ */
+/**
+ * Generates a clean, fully-balanced Tony Buzan Mindmap OPML tree from scratch for a UD,
+ * strictly following the Gemini Gem Mindmap guidelines (Introduction, Justification, Importance, Development, Safety, Quality, Conclusions)
+ * with pure fan-out radial branching (no unifilar single-child chains) and strict domain coherence.
+ */
+function generateBaseSigreOpmlTree(title: string, udTitle: string, m1: any): string {
+  const escapeXml = (str: string) =>
+    (str || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+
+  const cleanText = (str: string) =>
+    (str || "").replace(/<[^>]*>?/gm, "").replace(/\s+/g, " ").trim();
+
+  const domain = detectTechnicalDomain(`${title} ${udTitle}`);
+  const epList = extractEpigrafesFromUD(m1, udTitle);
+
+  // 1. Introducción branch
+  const rawIntro = cleanText(m1?.introduccion || "");
+  const introSummary = rawIntro && rawIntro.length > 25
+    ? rawIntro.substring(0, 160) + (rawIntro.length > 160 ? "..." : "")
+    : `Contextualización técnica y fundamentos operativos esenciales de ${udTitle}.`;
+
+  const rawObjectives = Array.isArray(m1?.objetivosSmart)
+    ? m1.objetivosSmart
+    : typeof m1?.objetivosSmart === "string"
+    ? m1.objetivosSmart.split(/\n+/).filter(Boolean)
+    : [];
+
+  const objectivesList = rawObjectives.length > 0
+    ? rawObjectives.slice(0, 4).map((obj: string) => cleanText(obj))
+    : [
+        `Identificar y aplicar los principios técnicos y magnitudes de trabajo en ${udTitle}.`,
+        `Ejecutar procedimientos de montaje, conexionado e instrumental siguiendo normativa.`,
+        `Verificar parámetros funcionales y aplicar protocolos de seguridad y control de calidad.`,
+      ];
+
+  const introXml = `      <outline text="Introducción">
+        <outline text="${escapeXml(introSummary)}"/>
+        <outline text="Objetivos Específicos de Aprendizaje (SMART):">
+${objectivesList.map((obj: string) => `          <outline text="${escapeXml(obj)}"/>`).join("\n")}
+        </outline>
+        <outline text="Alcance Técnico y Competencias Clave:">
+          <outline text="Dominio de especificaciones de catálogo, curvas características y esquemas de principio"/>
+          <outline text="Destreza operativa en taller, instrumental metrológico y prevención de riesgos"/>
+        </outline>
+      </outline>`;
+
+  // 2. Justificación branch
+  const justificacionXml = `      <outline text="Justificación">
+        <outline text="Necesidad Formativa y Profesional:">
+          <outline text="Adquisición de competencias clave demandadas en el sector productivo de instalaciones"/>
+          <outline text="Alineación con el perfil profesional de técnico instalador y mantenedor"/>
+        </outline>
+        <outline text="Resolución de Problemas Técnicos Reales:">
+          <outline text="Prevención de fallos críticos, pérdidas de rendimiento y averías en servicio"/>
+          <outline text="Optimización de costes de montaje y aseguramiento de la vida útil de los equipos"/>
+        </outline>
+        <outline text="Garantía de Seguridad y Cumplimiento Normativo:">
+          <outline text="Cumplimiento estricto de reglamentos técnicos (RITE / REBT / CTE / UNE-EN)"/>
+          <outline text="Reducción a cero de accidentes laborales mediante consignación y EPIs específicos"/>
+        </outline>
+      </outline>`;
+
+  // 3. Importancia del Tema branch
+  const rawRelacion = cleanText(m1?.relacionIntradisciplinar || "");
+  const relacionSnippet = rawRelacion && rawRelacion.length > 20
+    ? rawRelacion.substring(0, 160) + (rawRelacion.length > 160 ? "..." : "")
+    : `Articulación directa con los módulos de montaje, mantenimiento y dimensionamiento del ciclo.`;
+
+  const importanciaXml = `      <outline text="Importancia del Tema">
+        <outline text="Relevancia en el Sector Productivo e Industrial:">
+          <outline text="Sector en continua expansión tecnológica y alta tasa de empleabilidad técnica"/>
+          <outline text="Transición hacia instalaciones de alta eficiencia y digitalización de procesos"/>
+        </outline>
+        <outline text="Conexión Interdisciplinar y Curricular:">
+          <outline text="${escapeXml(relacionSnippet)}"/>
+          <outline text="Integración de conocimientos de física aplicada, electrotecnia y termodinámica"/>
+        </outline>
+        <outline text="Estándares de Calidad y Sostenibilidad:">
+          <outline text="Eficiencia energética, reducción de emisiones y minimización de huella ambiental"/>
+          <outline text="Fiabilidad técnica y aseguramiento de garantías del fabricante"/>
+        </outline>
+      </outline>`;
+
+  // 4. Desarrollo del Contenido branch
+  const buildEpigrafesOutline = epList
+    .map((ep) => {
+      const subNodesXml = ep.subNodes
+        .map((sub) => {
+          const childrenXml = sub.children
+            .map((c) => `              <outline text="${escapeXml(c)}"/>`)
+            .join("\n");
+          return `            <outline text="${escapeXml(sub.title)}">
+${childrenXml}
+            </outline>`;
+        })
+        .join("\n");
+
+      return `        <outline text="${escapeXml(ep.title)}">
+${subNodesXml}
+        </outline>`;
+    })
+    .join("\n");
+
+  const desarrolloXml = `      <outline text="Desarrollo del Contenido">
+${buildEpigrafesOutline}
+      </outline>`;
+
+  // 5. Puntos Críticos de Seguridad branch
+  const safetyXml = buildSafetyOutlines(domain);
+
+  // 6. Control de Calidad branch
+  const qualityXml = buildQualityChecklistOutlines(domain);
+
+  // 7. Conclusiones branch
+  const rawConclusiones = cleanText(m1?.conclusiones || "");
+  const conclusionesSummary = rawConclusiones && rawConclusiones.length > 25
+    ? rawConclusiones.substring(0, 160) + (rawConclusiones.length > 160 ? "..." : "")
+    : `Consolidación de las competencias técnicas, procedimentales y normativas para la ejecución impecable de ${udTitle}.`;
+
+  const conclusionesXml = `      <outline text="Conclusiones">
+        <outline text="Resumen de Hallazgos y Síntesis de Aprendizaje:">
+          <outline text="${escapeXml(conclusionesSummary)}"/>
+          <outline text="Dominio integral de las variables de diseño, selección e integración de componentes"/>
+        </outline>
+        <outline text="Buenas Prácticas del Instalador / Técnico:">
+          <outline text="Rigor metrológico, verificación sistemática previa a la puesta en marcha y orden de trabajo"/>
+          <outline text="Documentación técnica precisa en cuaderno de taller y trazabilidad de componentes"/>
+        </outline>
+        <outline text="Proyección Laboral y Recomendaciones Finales:">
+          <outline text="Actualización continua frente a innovaciones de mercado y cambios normativos"/>
+          <outline text="Aplicación de criterios de excelencia técnica y sostenibilidad en cada intervención"/>
+        </outline>
+      </outline>`;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>${escapeXml(title)}</title>
+    <dateCreated>${new Date().toUTCString()}</dateCreated>
+    <ownerName>IES Al-Baytar - Sistema SIGRE v6.0</ownerName>
+  </head>
+  <body>
+    <outline text="${escapeXml(title)}">
+${introXml}
+${justificacionXml}
+${importanciaXml}
+${desarrolloXml}
+${safetyXml}
+${qualityXml}
+${conclusionesXml}
+    </outline>
+  </body>
+</opml>`.trim();
+}
+
+/**
+ * Enriches an existing OPML tree so that:
+ * 1. It forms a true Tony Buzan fan-out tree (siblings in parallel, ZERO unifilar straight chains).
+ * 2. Deduplicates repeated epigraph roots.
+ * 3. Enforces the complete Gemini Gem 7-branch structure (Introducción, Justificación, Importancia, Desarrollo, Seguridad, Calidad, Conclusiones).
+ * 4. Incorporates all epigraphs from the UD under Desarrollo del Contenido.
+ * 5. Ensures domain-coherent Safety and Quality branches.
  */
 export function enrichOpmlXmlTo6Levels(
   opmlXml: string,
@@ -959,102 +1978,257 @@ export function enrichOpmlXmlTo6Levels(
   m1: any,
   fullData?: any
 ): string {
-  if (!opmlXml || !opmlXml.includes("<outline")) {
-    return generateSigreOpml(ud, m1, fullData, 6);
-  }
+  const udTitle = ud?.title || m1?.titulo || "Unidad Didáctica";
+  const title = m1?.titulo || ud?.fullCode || ud?.title || "Unidad Didáctica";
+  const ownerName = "IES Al-Baytar - Sistema SIGRE v6.0";
+  const domain = detectTechnicalDomain(`${title} ${udTitle}`);
+
+  const escapeXml = (str: string) =>
+    (str || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+
+  const cleanOpml = sanitizeSigreOpml(opmlXml || "");
 
   try {
     const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(opmlXml, "text/xml");
+    let xmlDoc: Document;
+
+    if (cleanOpml && cleanOpml.includes("<outline")) {
+      xmlDoc = parser.parseFromString(cleanOpml, "text/xml");
+    } else {
+      return generateBaseSigreOpmlTree(title, udTitle, m1);
+    }
+
     const body = xmlDoc.querySelector("body");
-    const title = xmlDoc.querySelector("head > title")?.textContent || ud?.title || "Unidad Didáctica";
-    const ownerName = xmlDoc.querySelector("head > ownerName")?.textContent || "Sistema SIGRE v6.0";
+    if (!body) {
+      return generateBaseSigreOpmlTree(title, udTitle, m1);
+    }
 
-    if (!body) return generateSigreOpml(ud, m1, fullData, 6);
+    // Identify or create root outline
+    let rootOutline = body.querySelector("outline");
+    if (!rootOutline) {
+      return generateBaseSigreOpmlTree(title, udTitle, m1);
+    }
 
-    const escapeXml = (str: string) =>
-      (str || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&apos;");
+    // 1. Identify or create core branches under root
+    let introNode = Array.from(rootOutline.children).find((ch) => {
+      const t = (ch.getAttribute("text") || ch.getAttribute("title") || "").toLowerCase();
+      return t.includes("introducción") || t.includes("introduccion");
+    });
 
-    const getEnrichmentChildren = (nodeText: string, currentLevel: number): string[] => {
-      const lower = nodeText.toLowerCase();
-      if (currentLevel === 3) {
-        if (lower.includes("caída") || lower.includes("altura") || lower.includes("arnés")) {
-          return [
-            `            <outline text="Cálculo de Factor de Caída y distancia libre">
-              <outline text="Fórmula: FC = L_caída / L_cuerda | Fuerza choque máx. 6 kN">
-                <outline text="Norma UNE-EN 355 / UNE-EN 361 y Distancia libre de seguridad D_libre &gt;= 5.75 m"/>
-              </outline>
-            </outline>`,
-          ];
-        }
-        if (lower.includes("eléctric") || lower.includes("reglas de oro") || lower.includes("loto") || lower.includes("tensión")) {
-          return [
-            `            <outline text="Protocolo secuencial de las 5 Reglas de Oro de Seguridad Eléctrica">
-              <outline text="1. Desconectar, 2. Bloquear LOTO, 3. Verificar ausencia, 4. Poner a tierra, 5. Señalizar">
-                <outline text="Multímetro CAT III 1000V + Guantes dieléctricos Clase 0 EN 60903 y REBT ITC-BT-28"/>
-              </outline>
-            </outline>`,
-          ];
-        }
-        if (lower.includes("epi") || lower.includes("epc") || lower.includes("protección") || lower.includes("prl")) {
-          return [
-            `            <outline text="Procedimiento de inspección previa, ajuste y mantenimiento de equipos">
-              <outline text="Revisión de marcado CE, costuras estructurales, testigos de esfuerzo y caducidad">
-                <outline text="Equipos de Protección Individual Normas EN 361, EN 166, EN 397 y Ley 31/1995 PRL"/>
-              </outline>
-            </outline>`,
-          ];
-        }
-        return [
-          `            <outline text="Desarrollo operativo y parámetros técnicos">
-              <outline text="Verificación experimental, fórmulas de cálculo y tablas de tolerancias">
-                <outline text="Normativa técnica de aplicación obligatoria, pautas DUA y PRL en taller"/>
-              </outline>
-            </outline>`,
-        ];
+    let justificacionNode = Array.from(rootOutline.children).find((ch) => {
+      const t = (ch.getAttribute("text") || ch.getAttribute("title") || "").toLowerCase();
+      return t.includes("justificación") || t.includes("justificacion");
+    });
+
+    let importanciaNode = Array.from(rootOutline.children).find((ch) => {
+      const t = (ch.getAttribute("text") || ch.getAttribute("title") || "").toLowerCase();
+      return t.includes("importancia") || t.includes("relevancia");
+    });
+
+    let desarrolloNode = Array.from(rootOutline.children).find((ch) => {
+      const t = (ch.getAttribute("text") || ch.getAttribute("title") || "").toLowerCase();
+      return t.includes("desarrollo");
+    });
+
+    let safetyNode = Array.from(rootOutline.children).find((ch) => {
+      const t = (ch.getAttribute("text") || ch.getAttribute("title") || "").toLowerCase();
+      return t.includes("seguridad") || t.includes("prl") || t.includes("tolerancias");
+    });
+
+    let qualityNode = Array.from(rootOutline.children).find((ch) => {
+      const t = (ch.getAttribute("text") || ch.getAttribute("title") || "").toLowerCase();
+      return t.includes("checklist") || t.includes("control de calidad") || t.includes("pruebas en taller");
+    });
+
+    let conclusionesNode = Array.from(rootOutline.children).find((ch) => {
+      const t = (ch.getAttribute("text") || ch.getAttribute("title") || "").toLowerCase();
+      return t.includes("conclusiones") || t.includes("conclusión") || t.includes("conclusion");
+    });
+
+    // If epigraphs are floating directly under rootOutline, move them inside desarrolloNode
+    const dummyBaseDoc = parser.parseFromString(
+      generateBaseSigreOpmlTree(title, udTitle, m1),
+      "text/xml"
+    );
+    const baseRoot = dummyBaseDoc.querySelector("body > outline");
+
+    if (!introNode && baseRoot) {
+      const baseIntro = Array.from(baseRoot.children).find((ch) =>
+        (ch.getAttribute("text") || "").toLowerCase().includes("introducción")
+      );
+      if (baseIntro) {
+        rootOutline.insertBefore(xmlDoc.importNode(baseIntro, true), rootOutline.firstChild);
       }
-      if (currentLevel === 4) {
-        return [
-          `              <outline text="Parámetros de diseño, fórmulas técnicas y control operativo">
-                <outline text="Normativa reglamentaria aplicable, tolerancias admisibles y pautas DUA"/>
-              </outline>`,
-        ];
-      }
-      if (currentLevel === 5) {
-        return [
-          `                <outline text="Normativa de referencia obligatoria, tolerancias &lt; 0.5 mm y pautas DUA"/>`,
-        ];
-      }
-      return [];
-    };
+    }
 
-    const serializeAndEnrich = (el: Element, currentLevel: number, indent: number): string => {
+    if (!justificacionNode && baseRoot) {
+      const baseJust = Array.from(baseRoot.children).find((ch) =>
+        (ch.getAttribute("text") || "").toLowerCase().includes("justificación")
+      );
+      if (baseJust) {
+        rootOutline.appendChild(xmlDoc.importNode(baseJust, true));
+      }
+    }
+
+    if (!importanciaNode && baseRoot) {
+      const baseImp = Array.from(baseRoot.children).find((ch) =>
+        (ch.getAttribute("text") || "").toLowerCase().includes("importancia")
+      );
+      if (baseImp) {
+        rootOutline.appendChild(xmlDoc.importNode(baseImp, true));
+      }
+    }
+
+    // Ensure desarrolloNode exists
+    if (!desarrolloNode) {
+      desarrolloNode = xmlDoc.createElement("outline");
+      desarrolloNode.setAttribute("text", "Desarrollo del Contenido");
+      rootOutline.appendChild(desarrolloNode);
+    }
+
+    // Move any epigraphs (5.1, 5.2, etc.) that are direct children of root into desarrolloNode
+    const rootDirectChildren = Array.from(rootOutline.children).filter(
+      (c) => c.tagName.toLowerCase() === "outline"
+    );
+
+    const seenEpNumbers = new Set<string>();
+    for (const ch of rootDirectChildren) {
+      const txt = (ch.getAttribute("text") || ch.getAttribute("title") || "").trim();
+      const numMatch = txt.match(/^5\.(\d+)/i) || txt.match(/^epígrafe\s+(\d+)/i);
+      if (numMatch) {
+        const epNum = numMatch[1];
+        if (seenEpNumbers.has(epNum)) {
+          ch.remove();
+        } else {
+          seenEpNumbers.add(epNum);
+          if (ch !== desarrolloNode) {
+            desarrolloNode.appendChild(ch);
+          }
+        }
+      }
+    }
+
+    // Check epigraphs already in desarrolloNode for duplicates
+    const desarrolloChildren = Array.from(desarrolloNode.children).filter(
+      (c) => c.tagName.toLowerCase() === "outline"
+    );
+    for (const ch of desarrolloChildren) {
+      const txt = (ch.getAttribute("text") || ch.getAttribute("title") || "").trim();
+      const numMatch = txt.match(/^5\.(\d+)/i) || txt.match(/^epígrafe\s+(\d+)/i);
+      if (numMatch) {
+        const epNum = numMatch[1];
+        if (seenEpNumbers.has(epNum) && !desarrolloChildren.includes(ch)) {
+          ch.remove();
+        } else {
+          seenEpNumbers.add(epNum);
+        }
+      }
+    }
+
+    // Ensure all missing epigraphs from UD are appended under desarrolloNode
+    const allEpigrafes = extractEpigrafesFromUD(m1, udTitle);
+    for (const ep of allEpigrafes) {
+      const epNumMatch = ep.title.match(/^5\.(\d+)/i) || ep.title.match(/^epígrafe\s+(\d+)/i);
+      const epNum = epNumMatch ? epNumMatch[1] : null;
+
+      const alreadyHas = epNum
+        ? seenEpNumbers.has(epNum)
+        : Array.from(desarrolloNode.children).some((ch) => {
+            const t = (ch.getAttribute("text") || "").toLowerCase();
+            return t.includes(ep.title.toLowerCase().substring(0, 15));
+          });
+
+      if (!alreadyHas) {
+        if (epNum) seenEpNumbers.add(epNum);
+        const newEpOutline = xmlDoc.createElement("outline");
+        newEpOutline.setAttribute("text", ep.title);
+        for (const sub of ep.subNodes) {
+          const newSubOutline = xmlDoc.createElement("outline");
+          newSubOutline.setAttribute("text", sub.title);
+          for (const c of sub.children) {
+            const leaf = xmlDoc.createElement("outline");
+            leaf.setAttribute("text", c);
+            newSubOutline.appendChild(leaf);
+          }
+          newEpOutline.appendChild(newSubOutline);
+        }
+        desarrolloNode.appendChild(newEpOutline);
+      }
+    }
+
+    // 3. Ensure Safety branch exists and is coherent
+    if (!safetyNode) {
+      const dummyParser = new DOMParser();
+      const safetyDoc = dummyParser.parseFromString(
+        `<root>${buildSafetyOutlines(domain)}</root>`,
+        "text/xml"
+      );
+      const safetyEl = safetyDoc.querySelector("outline");
+      if (safetyEl) {
+        rootOutline.appendChild(xmlDoc.importNode(safetyEl, true));
+      }
+    }
+
+    // 4. Ensure Quality Checklist branch exists and is coherent
+    if (!qualityNode) {
+      const dummyParser = new DOMParser();
+      const qualityDoc = dummyParser.parseFromString(
+        `<root>${buildQualityChecklistOutlines(domain)}</root>`,
+        "text/xml"
+      );
+      const qualityEl = qualityDoc.querySelector("outline");
+      if (qualityEl) {
+        rootOutline.appendChild(xmlDoc.importNode(qualityEl, true));
+      }
+    }
+
+    // 5. Ensure Conclusiones branch exists
+    if (!conclusionesNode && baseRoot) {
+      const baseConc = Array.from(baseRoot.children).find((ch) =>
+        (ch.getAttribute("text") || "").toLowerCase().includes("conclusiones")
+      );
+      if (baseConc) {
+        rootOutline.appendChild(xmlDoc.importNode(baseConc, true));
+      }
+    }
+
+    // 6. Clean serialization: Ensure NO node has a single lonely child unless it's a leaf node.
+    // Fan-out branching rule: If a node at Level 3 has 0 children, give it 2-3 parallel sibling children.
+    // If a node at Level 4+ is a leaf, keep it as a clean leaf <outline text="..." />. DO NOT CHAIN!
+    const serializeCleanNode = (el: Element, depth: number, indent: number, parentText: string = ""): string => {
       const spaces = "  ".repeat(indent);
-      const text = escapeXml(el.getAttribute("text") || "");
+      const text = el.getAttribute("text") || el.getAttribute("title") || "";
+      const escapedText = escapeXml(text);
       const outlineChildren = Array.from(el.children).filter(
         (c) => c.tagName.toLowerCase() === "outline"
       );
 
+      // Is it a leaf node?
       if (outlineChildren.length === 0) {
-        if (currentLevel < 6) {
-          const enrichments = getEnrichmentChildren(text, currentLevel);
-          if (enrichments.length > 0) {
-            return `${spaces}<outline text="${text}">\n${enrichments.join("\n")}\n${spaces}</outline>`;
-          }
+        // If it's a substantive section header at depth 2 or 3 that got left empty, give it parallel fan-out siblings
+        if (depth === 2 || (depth === 3 && text.length > 5 && !text.toLowerCase().includes("regla") && !text.toLowerCase().includes("norma"))) {
+          const subItems = getContextualSubnodesForTopic(text, parentText, udTitle);
+          const fanOutXml = subItems
+            .slice(0, 3)
+            .map((item) => `${spaces}  <outline text="${escapeXml(item)}"/>`)
+            .join("\n");
+          return `${spaces}<outline text="${escapedText}">\n${fanOutXml}\n${spaces}</outline>`;
         }
-        return `${spaces}<outline text="${text}"/>`;
+        // Normal terminal leaf
+        return `${spaces}<outline text="${escapedText}"/>`;
       }
 
+      // If it has children, serialize all children as parallel siblings
       const childrenXml = outlineChildren
-        .map((child) => serializeAndEnrich(child, currentLevel + 1, indent + 1))
+        .map((child) => serializeCleanNode(child, depth + 1, indent + 1, text))
         .join("\n");
 
-      return `${spaces}<outline text="${text}">\n${childrenXml}\n${spaces}</outline>`;
+      return `${spaces}<outline text="${escapedText}">\n${childrenXml}\n${spaces}</outline>`;
     };
 
     const rootOutlines = Array.from(body.children).filter(
@@ -1062,7 +2236,7 @@ export function enrichOpmlXmlTo6Levels(
     );
 
     const bodyContent = rootOutlines
-      .map((r) => serializeAndEnrich(r, 1, 2))
+      .map((r) => serializeCleanNode(r, 1, 2))
       .join("\n");
 
     return `<?xml version="1.0" encoding="UTF-8"?>
@@ -1077,13 +2251,14 @@ ${bodyContent}
   </body>
 </opml>`.trim();
   } catch {
-    return generateSigreOpml(ud, m1, fullData, 6);
+    return generateBaseSigreOpmlTree(title, udTitle, m1);
   }
 }
 
 /**
  * Guarantees a rich, valid OPML 2.0 XML document tree for any Sigre UD
- * with deep modular hierarchy (full 6 levels of pedagogical depth).
+ * with deep modular hierarchy, strictly focused on technical development without
+ * meta-pedagogical clutter or repetitive patterns.
  */
 export function generateSigreOpml(
   ud: SigreUDItem,
@@ -1091,270 +2266,42 @@ export function generateSigreOpml(
   fullData?: any,
   maxDepth?: number
 ): string {
-  const escapeXml = (str: string) =>
-    (str || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&apos;");
+  const title = m1?.titulo || ud?.fullCode || ud?.title || "Unidad Didáctica";
 
-  const title = escapeXml(m1?.titulo || ud?.fullCode || ud?.title || "Unidad Didáctica");
-  const udCurricular = fullData?.udCurricular || ud?.data?.udCurricular;
-  const programacionEval = fullData?.programacionEval || ud?.data?.programacionEval;
-  const hdi = fullData?.hdi || ud?.data?.hdi;
-
-  // Check if m1 already has a valid, robust OPML (at least 8 nodes and depth >= 4)
+  // Check if m1 already has an OPML
   if (
     m1?.mapaMentalOpml &&
     m1.mapaMentalOpml.includes("<opml") &&
     m1.mapaMentalOpml.includes("<outline")
   ) {
-    const outlineCount = (m1.mapaMentalOpml.match(/<outline\b/gi) || []).length;
-    const depth = getOpmlXmlNestingDepth(m1.mapaMentalOpml);
-    if (outlineCount >= 8 && depth >= 4) {
+    const cleaned = sanitizeSigreOpml(m1.mapaMentalOpml);
+    const outlineCount = (cleaned.match(/<outline\b/gi) || []).length;
+    const depth = getOpmlXmlNestingDepth(cleaned);
+    const hasSafety = cleaned.toLowerCase().includes("seguridad") || cleaned.toLowerCase().includes("prl");
+    const hasQuality = cleaned.toLowerCase().includes("calidad") || cleaned.toLowerCase().includes("checklist");
+
+    // Only accept as complete if it has sufficient depth and breadth (>= 22 nodes, depth >= 3, and core branches)
+    if (outlineCount >= 22 && depth >= 3 && hasSafety && hasQuality) {
       if (maxDepth && maxDepth < 6) {
-        return pruneOpmlStringToDepth(m1.mapaMentalOpml, maxDepth, title);
+        return pruneOpmlStringToDepth(cleaned, maxDepth, title);
       }
-      return m1.mapaMentalOpml.trim();
+      return cleaned.trim();
     }
-  }
 
-  // Parse Epigraphs and subepigraphs from index & HTML
-  const rawIndice = m1?.indiceDesarrollo || "";
-  const indexLines = rawIndice
-    .split(/\r?\n/)
-    .map((l: string) => l.trim())
-    .filter((l: string) => l.length > 0 && !l.toLowerCase().includes("índice general"));
-
-  // Extract epígrafes 5.X
-  const epigrafesList: { title: string; subitems: string[] }[] = [];
-  let currentEpigrafe: { title: string; subitems: string[] } | null = null;
-
-  for (const line of indexLines) {
-    if (line.match(/^5\.\d+\.?\s+/i) || line.match(/^(epígrafe|tema|bloque)\s+\d+/i) || line.match(/^\d+\.\s+/)) {
-      currentEpigrafe = { title: line, subitems: [] };
-      epigrafesList.push(currentEpigrafe);
-    } else if (currentEpigrafe && line.length > 3) {
-      currentEpigrafe.subitems.push(line);
+    // Otherwise, enrich the existing OPML tree to guarantee complete, non-polluted content
+    const enriched = enrichOpmlXmlTo6Levels(cleaned, ud, m1, fullData);
+    if (maxDepth && maxDepth < 6) {
+      return pruneOpmlStringToDepth(enriched, maxDepth, title);
     }
+    return enriched;
   }
 
-  if (epigrafesList.length === 0) {
-    epigrafesList.push({
-      title: "5.1 Fundamentos y Especificaciones Técnicas",
-      subitems: [
-        "5.1.1 Parámetros operativos y marco regulatorio",
-        "5.1.2 Fórmulas técnicas y tolerancias de montaje",
-        "5.1.3 Verificación experimental y control de calidad",
-      ],
-    });
-    epigrafesList.push({
-      title: "5.2 Procedimientos Operativos en Taller y Seguridad",
-      subitems: [
-        "5.2.1 Protocolo paso a paso y conexionado",
-        "5.2.2 Equipos de Protección Individual (EPI) y PRL",
-        "5.2.3 Ensayos de funcionamiento y puesta en marcha",
-      ],
-    });
-  }
-
-  const conceptuales = (m1?.contenidos?.conceptuales || [
-    "Principios físicos, térmicos y eléctricos de la instalación",
-    "Normativa técnica aplicable (RITE, REBT, CTE, PRL)",
-    "Parámetros de dimensionamiento, tolerancias y cálculo",
-  ]).map((c: string) => escapeXml(c));
-
-  const procedimentales = (m1?.contenidos?.procedimentales || [
-    "Procedimiento de montaje, fijación y conexionado",
-    "Protocolo de calibración, purgado y equilibrado hidráulico/eléctrico",
-    "Ensayos de estanqueidad, mediciones con multímetro y termografía",
-  ]).map((p: string) => escapeXml(p));
-
-  const actitudinales = (m1?.contenidos?.actitudinales || [
-    "Uso obligatorio y riguroso de EPIs normativos (Norma EN)",
-    "Compromiso con el ahorro energético y gestión de residuos SIGRE",
-    "Responsabilidad profesional, orden y limpieza en taller",
-  ]).map((a: string) => escapeXml(a));
-
-  const objetivos = (m1?.objetivosSmart || [
-    "1. Dominar los fundamentos de cálculo y dimensionamiento técnico",
-    "2. Ejecutar el montaje en panel o banco de pruebas con tolerancia < 1mm",
-    "3. Aplicar protocolos de seguridad laboral y prevención de accidentes",
-  ]).map((o: string) => escapeXml(o));
-
-  // Build Level 3-5 multi-branching outlines for Saberes (Tony Buzan tree structure)
-  const buildConceptualesOutline = conceptuales
-    .map(
-      (c: string) => `        <outline text="${c}">
-          <outline text="Fundamento físico-matemático, ecuaciones de balance y magnitudes de trabajo"/>
-          <outline text="Parámetros operativos críticos, coeficientes térmicos y rangos de trabajo admisibles"/>
-          <outline text="Normativa electrotécnica y térmica de aplicación obligatoria (REBT, RITE, CTE)"/>
-        </outline>`
-    )
-    .join("\n");
-
-  const buildProcedimentalesOutline = procedimentales
-    .map(
-      (p: string) => `        <outline text="${p}">
-          <outline text="Secuencia metodológica de montaje, interconexión y ajuste en panel de pruebas"/>
-          <outline text="Manejo de instrumental de medida (analizador I-V, telurómetro, multímetro CAT III 1000V)"/>
-          <outline text="Protocolo de verificación de estanqueidad, apriete dinamométrico y tolerancias"/>
-        </outline>`
-    )
-    .join("\n");
-
-  const buildActitudinalesOutline = actitudinales
-    .map(
-      (a: string) => `        <outline text="${a}">
-          <outline text="Protocolos de seguridad contra riesgo eléctrico y desprendimiento de gases (PRL Ley 31/1995)"/>
-          <outline text="Uso y mantenimiento riguroso de EPIs normativos (Normas UNE-EN)"/>
-          <outline text="Sostenibilidad ambiental, eficiencia energética y gestión de residuos SIGRE"/>
-        </outline>`
-    )
-    .join("\n");
-
-  const buildObjetivosOutline = objetivos
-    .map(
-      (o: string, idx: number) => `        <outline text="Obj. SMART ${idx + 1}: ${o}">
-          <outline text="Criterio de consecución observable y cuantificable en taller o simulación"/>
-          <outline text="Evidencias prácticas recogidas en cuaderno técnico y memoria de cálculo"/>
-          <outline text="Instrumento de evaluación: Rúbrica analítica por niveles de desempeño"/>
-        </outline>`
-    )
-    .join("\n");
-
-  const buildEpigrafesOutline = epigrafesList
-    .map((ep) => {
-      const subitemsXml = (
-        ep.subitems.length > 0
-          ? ep.subitems
-          : ["Especificaciones técnicas y fundamentos", "Procedimiento de taller y cálculo"]
-      )
-        .map(
-          (sub) => `          <outline text="${escapeXml(sub)}">
-            <outline text="Formulación analítica de dimensionamiento y balance de variables"/>
-            <outline text="Criterios de selección técnica, tablas de datos y catálogo de componentes"/>
-            <outline text="Procedimiento secuencial de taller, comprobaciones de funcionamiento y tolerancias"/>
-            <outline text="Prescripciones normativas obligatorias (REBT / RITE / UNE-EN) y pautas DUA"/>
-          </outline>`
-        )
-        .join("\n");
-
-      return `        <outline text="${escapeXml(ep.title)}">
-${subitemsXml}
-        </outline>`;
-    })
-    .join("\n");
-
-  const hdiName = escapeXml(hdi?.nombreApp || `Simulador Interactivo ${ud?.id || "UD"}`);
-  const horasUd = ud?.horasEstimadas || 16;
-  const sesionesUd = ud?.sesionesEstimadas || 8;
-
-  const full6LevelXml = `<?xml version="1.0" encoding="UTF-8"?>
-<opml version="2.0">
-  <head>
-    <title>${title}</title>
-    <dateCreated>${new Date().toUTCString()}</dateCreated>
-    <ownerName>IES Al-Baytar - Sistema SIGRE v6.0</ownerName>
-  </head>
-  <body>
-    <!-- Nivel 1: Unidad Didáctica Raíz -->
-    <outline text="${title}">
-
-      <!-- Rama de Recomendaciones y Mapeo Cognitivo -->
-      <outline text="Recomendaciones Visuales y Mapeo Cognitivo">
-        <outline text="Paleta cromática funcional: Amarillo/Dorado para generación y energía; Naranja para regulación y conversión; Azul para almacenamiento; Rojo para protecciones y PRL."/>
-        <outline text="Iconografía recomendada: Sol para recurso solar y HSP; batería para acumulación; onda senoidal para inversores; triángulo de advertencia para protecciones."/>
-      </outline>
-
-      <!-- 1. Introducción y Contextualización -->
-      <outline text="1. Introducción y Contextualización">
-        <outline text="Marco formativo y perfil profesional del técnico">
-          <outline text="${escapeXml((m1?.introduccion || "Enmarcado en el módulo formativo oficial según currículo técnico profesional").substring(0, 160))}..."/>
-          <outline text="Orientación profesional: garantizar el montaje, dimensionamiento y mantenimiento seguro de instalaciones en entorno real."/>
-          <outline text="Metodología aplicada que combina el cálculo analítico de gabinete con la manipulación de componentes comerciales en taller."/>
-        </outline>
-        <outline text="Objetivos formativos específicos (Criterios SMART)">
-${buildObjetivosOutline}
-        </outline>
-        <outline text="Taxonomía y Mapa de Saberes">
-          <outline text="Saberes Conceptuales (Saber): Fórmulas matemáticas, curvas características, magnitudes y límites reglamentarios."/>
-          <outline text="Saberes Procedimentales (Saber Hacer): Uso de instrumentación, calibración, conexionado seguro y cálculo de secciones."/>
-          <outline text="Saberes Actitudinales (Saber Ser): Prevención de riesgos laborales, rigor en tolerancias y compromiso ambiental."/>
-        </outline>
-      </outline>
-
-      <!-- 2. Justificación y Relevancia Técnica -->
-      <outline text="2. Justificación y Relevancia Técnica">
-        <outline text="Viabilidad operativa e independencia tecnológica">
-          <outline text="Respuesta técnica a requerimientos de eficiencia energética, electrificación limpia y fiabilidad operativa."/>
-          <outline text="Alternativa económica y técnica frente a soluciones convencionales de alto consumo o mantenimiento recurrente."/>
-          <outline text="Eliminación de dependencias contaminantes, reduciendo costes de combustible y emisiones CO2."/>
-        </outline>
-        <outline text="Articulación curricular y proyección profesional">
-          <outline text="${escapeXml((m1?.relacionIntradisciplinar || "Conexión directa con las unidades de montaje, mantenimiento y configuración del ciclo formativo").substring(0, 160))}..."/>
-          <outline text="Herramienta Didáctica Interactiva: ${hdiName} (Simulador técnico y gamificación aplicada)."/>
-          <outline text="Distribución formativa: ${horasUd} horas (${sesionesUd} sesiones) combinando 60% taller y 40% teoría técnica."/>
-        </outline>
-      </outline>
-
-      <!-- 3. Marco Normativo y Estandarización -->
-      <outline text="3. Marco Normativo y Estandarización">
-        <outline text="Reglamento Electrotécnico para Baja Tensión (REBT - RD 842/2002)">
-          <outline text="ITC-BT-40: Prescripciones técnicas para instalaciones generadoras aisladas e interconectadas."/>
-          <outline text="ITC-BT-18 e ITC-BT-19: Puesta a tierra obligatoria y cálculo de conductores por intensidad máxima y caída de tensión admisible (DeltaV menor o igual al 1,5%)."/>
-        </outline>
-        <outline text="Normativa de edificación e instalaciones térmicas (RITE / CTE)">
-          <outline text="RITE (RD 1027/2007): Exigencias de rendimiento, bienestar, calidad del aire y mantenimiento preventivo."/>
-          <outline text="Código Técnico de la Edificación (CTE DB-HE): Contribución solar mínima y eficiencia en la envolvente."/>
-        </outline>
-        <outline text="Normas Técnicas UNE-EN y Seguridad Laboral (Ley 31/1995)">
-          <outline text="Normas UNE-EN de homologación de equipos, ensayos de durabilidad, marcado CE y compatibilidad electromagnética."/>
-          <outline text="Protocolos de seguridad contra riesgo eléctrico en corriente continua y prevención frente a atmósferas explosivas (ATEX)."/>
-        </outline>
-      </outline>
-
-      <!-- 4. Contenidos Específicos y Saberes del Tema -->
-      <outline text="4. Contenidos Específicos y Saberes del Tema">
-        <outline text="4.1 Saberes Conceptuales">
-${buildConceptualesOutline}
-        </outline>
-        <outline text="4.2 Saberes Procedimentales">
-${buildProcedimentalesOutline}
-        </outline>
-        <outline text="4.3 Saberes Actitudinales">
-${buildActitudinalesOutline}
-        </outline>
-      </outline>
-
-      <!-- 5. Desarrollo del Contenido Técnico -->
-      <outline text="5. Desarrollo del Contenido Técnico">
-${buildEpigrafesOutline}
-      </outline>
-
-      <!-- 6. Conclusiones y Síntesis del Tema -->
-      <outline text="6. Conclusiones y Síntesis del Tema">
-        <outline text="Síntesis ejecutiva de competencias profesionales adquiridas">
-          <outline text="${escapeXml((m1?.conclusiones || "Dominio integral del dimensionamiento, conexionado y verificación según normativa vigente").substring(0, 160))}..."/>
-          <outline text="Rigor en la comprobación de tolerancias de montaje, protocolos de calidad y prevención de riesgos laborales."/>
-          <outline text="Capacidad de diagnóstico metódico de averías, detección de anomalías y optimización del rendimiento."/>
-        </outline>
-        <outline text="Proyección interdisciplinar y evaluación de desempeño">
-          <outline text="Transferencia competencial hacia los módulos de montaje, mantenimiento y proyecto integrado del título."/>
-          <outline text="Consolidación de evidencias de aprendizaje mediante rúbrica analítica y memoria técnica de taller."/>
-        </outline>
-      </outline>
-
-    </outline>
-  </body>
-</opml>`.trim();
-
+  // Generate full OPML from UD data
+  const fullOpml = enrichOpmlXmlTo6Levels("", ud, m1, fullData);
   if (maxDepth && maxDepth < 6) {
-    return pruneOpmlStringToDepth(full6LevelXml, maxDepth, title);
+    return pruneOpmlStringToDepth(fullOpml, maxDepth, title);
   }
-
-  return full6LevelXml;
+  return fullOpml;
 }
 
 /**

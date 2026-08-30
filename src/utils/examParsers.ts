@@ -18,6 +18,10 @@ export function cleanOptionText(text: string): string {
 }
 
 export function parseGIFT(text: string): ExamData {
+  if (!text || typeof text !== "string") {
+    throw new Error("Texto GIFT vacío o no válido.");
+  }
+
   const sections = text.split(/(?=\/\/\s*Bloque:)/i);
   const blocks: ExamBlock[] = [];
   let globalQIdx = 0;
@@ -26,75 +30,91 @@ export function parseGIFT(text: string): ExamData {
     const trimmedSec = sec.trim();
     if (!trimmedSec) return;
 
-    let blockTitle = "Examen Importado (GIFT)";
+    let blockTitle = "Banco Moodle GIFT";
     const blockTitleMatch = trimmedSec.match(/^\/\/\s*Bloque:\s*(.+)$/m);
     if (blockTitleMatch) {
       blockTitle = blockTitleMatch[1].trim();
     }
 
-    const cleanText = trimmedSec.replace(/^\/\/.*$/gm, "");
-    const rawQuestions = cleanText.split(/\r?\n\r?\n/);
     const questions: ExamQuestion[] = [];
+    let currentIndex = 0;
 
-    rawQuestions.forEach((rawQ) => {
-      const qTrimmed = rawQ.trim();
-      if (!qTrimmed) return;
+    while (currentIndex < trimmedSec.length) {
+      const braceStart = trimmedSec.indexOf("{", currentIndex);
+      if (braceStart === -1) break;
 
-      let enunciadoAndOptions = qTrimmed;
-      const titleMatch = qTrimmed.match(/^::(.*?)::/);
+      const braceEnd = trimmedSec.indexOf("}", braceStart);
+      if (braceEnd === -1) break;
+
+      const headerRaw = trimmedSec.substring(currentIndex, braceStart);
+      const optionsRaw = trimmedSec.substring(braceStart + 1, braceEnd);
+      currentIndex = braceEnd + 1;
+
+      // Clean header: remove comment lines (//...) and empty lines
+      const cleanHeaderLines = headerRaw
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && !l.startsWith("//"));
+
+      const cleanHeader = cleanHeaderLines.join(" ").trim();
+      if (!cleanHeader && !optionsRaw.trim()) continue;
+
+      let enunciado = cleanHeader;
+      const titleMatch = cleanHeader.match(/^::(.*?)::\s*(.*)$/);
       if (titleMatch) {
-        enunciadoAndOptions = qTrimmed.substring(titleMatch[0].length).trim();
+        enunciado = titleMatch[2].trim() || titleMatch[1].trim();
       }
 
-      const braceStart = enunciadoAndOptions.indexOf("{");
-      const braceEnd = enunciadoAndOptions.lastIndexOf("}");
-      if (braceStart !== -1 && braceEnd !== -1 && braceEnd > braceStart) {
-        const enunciado = enunciadoAndOptions.substring(0, braceStart).trim();
-        const optionsText = enunciadoAndOptions.substring(braceStart + 1, braceEnd).trim();
+      // Parse options inside { ... }
+      const options: string[] = [];
+      let indiceCorrecta = 0;
+      let justificacion = "";
 
-        const options: string[] = [];
-        let indiceCorrecta = 0;
-        let justificacion = "";
+      // Match all option tokens starting with = or ~
+      const optionTokenRegex = /([=~])\s*([\s\S]*?)(?=(?:[=~]|$))/g;
+      let optMatch: RegExpExecArray | null;
 
-        const lines = optionsText.split(/\r?\n/);
-        lines.forEach((line) => {
-          const lTrim = line.trim();
-          if (!lTrim) return;
+      while ((optMatch = optionTokenRegex.exec(optionsRaw)) !== null) {
+        const isCorrect = optMatch[1] === "=";
+        const rawContent = optMatch[2].trim();
+        if (!rawContent) continue;
 
-          const isCorrect = lTrim.startsWith("=");
-          const isIncorrect = lTrim.startsWith("~");
-          if (isCorrect || isIncorrect) {
-            const optAndFeed = lTrim.substring(1).trim();
-            const hashIdx = optAndFeed.indexOf("#");
-            let optText = optAndFeed;
-            if (hashIdx !== -1) {
-              optText = optAndFeed.substring(0, hashIdx).trim();
-              const feed = optAndFeed.substring(hashIdx + 1).trim();
-              if (feed) justificacion = feed;
-            }
-            options.push(cleanOptionText(optText));
-            if (isCorrect) {
-              indiceCorrecta = options.length - 1;
-            }
+        let optText = rawContent;
+        const hashIdx = rawContent.indexOf("#");
+        if (hashIdx !== -1) {
+          optText = rawContent.substring(0, hashIdx).trim();
+          const feedback = rawContent.substring(hashIdx + 1).trim();
+          if (feedback && !justificacion) {
+            justificacion = feedback;
           }
-        });
+        }
 
-        if (enunciado && options.length > 0) {
-          questions.push({
-            enunciado,
-            opciones: options,
-            indiceCorrecta,
-            justificacion: justificacion || "Retroalimentación técnica recuperada del formato GIFT.",
-            origQId: globalQIdx++,
-            opcionesObjs: options.map((txt, oIdx) => ({
-              text: txt,
-              isCorrect: oIdx === indiceCorrecta,
-              origOId: oIdx,
-            })),
-          });
+        // Unescape standard GIFT characters
+        optText = optText.replace(/\\([=~#{}])/g, "$1").trim();
+        const cleaned = cleanOptionText(optText);
+        if (cleaned) {
+          options.push(cleaned);
+          if (isCorrect) {
+            indiceCorrecta = options.length - 1;
+          }
         }
       }
-    });
+
+      if (enunciado && options.length >= 2) {
+        questions.push({
+          enunciado: enunciado.replace(/\\([=~#{}])/g, "$1").trim(),
+          opciones: options,
+          indiceCorrecta,
+          justificacion: justificacion || "Retroalimentación técnica extraída del formato GIFT.",
+          origQId: globalQIdx++,
+          opcionesObjs: options.map((txt, oIdx) => ({
+            text: txt,
+            isCorrect: oIdx === indiceCorrecta,
+            origOId: oIdx,
+          })),
+        });
+      }
+    }
 
     if (questions.length > 0) {
       blocks.push({

@@ -39,38 +39,38 @@ interface OpmlNode {
 
 const LEVEL_DESCRIPTIONS: Record<number, { title: string; subtitle: string; color: string; badgeBg: string }> = {
   1: {
-    title: "Nivel 1: Unidad Didáctica Raíz",
-    subtitle: "Título oficial, código del módulo formativo y perfil profesional",
+    title: "Nivel 1: Idea Central (UD)",
+    subtitle: "Título oficial, código del módulo y reto profesional central",
     color: "text-amber-400",
     badgeBg: "bg-amber-500/10 border-amber-500/30 text-amber-300",
   },
   2: {
-    title: "Nivel 2: Ejes y Bloques Curriculares",
-    subtitle: "Marco Formativo, Mapa de Saberes, Epígrafes, Vinculación Curricular, Actividades, Evaluación",
+    title: "Nivel 2: Ramas Principales Base (Tony Buzan)",
+    subtitle: "Introducción, Justificación, Importancia del Tema, Desarrollo del Contenido, Seguridad, Calidad, Conclusiones",
     color: "text-blue-400",
     badgeBg: "bg-blue-500/10 border-blue-500/30 text-blue-300",
   },
   3: {
-    title: "Nivel 3: Epígrafes / RAs / Saberes Específicos",
-    subtitle: "Epígrafes temáticos (5.1, 5.2...), Resultados de Aprendizaje (RA) y Saberes (Conceptuales, Procedimentales, Actitudinales)",
+    title: "Nivel 3: Epígrafes Temáticos y Ejes Operativos",
+    subtitle: "Subtemas de desarrollo (5.1, 5.2...), Objetivos SMART, Protocolos y Necesidades Formativas",
     color: "text-emerald-400",
     badgeBg: "bg-emerald-500/10 border-emerald-500/30 text-emerald-300",
   },
   4: {
-    title: "Nivel 4: Subepígrafes / Criterios de Evaluación (CE) / Fases",
-    subtitle: "Subepígrafes técnicos (5.1.1...), Criterios de Evaluación (CE), Objetivos SMART y Fases de Taller",
+    title: "Nivel 4: Aspectos Clave, Fórmulas y Métodos",
+    subtitle: "Aspectos Clave, Metodología de Cálculo, Especificaciones de Catálogo y Procedimientos de Taller",
     color: "text-purple-400",
     badgeBg: "bg-purple-500/10 border-purple-500/30 text-purple-300",
   },
   5: {
-    title: "Nivel 5: Rúbricas / Indicadores / Parámetros Operativos",
-    subtitle: "Rúbricas analíticas por nivel de desempeño (Excelente a Insuficiente), evidencias, instrumental y fórmulas",
+    title: "Nivel 5: Parámetros Técnicos e Instrumental",
+    subtitle: "Ecuaciones dimensionales, Instrumental CAT III/IV, Maniobras de taller y Casos reales",
     color: "text-rose-400",
     badgeBg: "bg-rose-500/10 border-rose-500/30 text-rose-300",
   },
   6: {
-    title: "Nivel 6: Descriptores DUA / EPIs / Normativa Detallada",
-    subtitle: "Pautas de Accesibilidad DUA, Tolerancias milimétricas, EPIs obligatorios (Normas EN) y Reglamentación (RITE/REBT)",
+    title: "Nivel 6: Tolerancias Metrológicas y Normativa",
+    subtitle: "Límites reglamentarios (RITE/REBT), Pares de apriete (N·m), EPIs UNE-EN y Verificaciones",
     color: "text-cyan-400",
     badgeBg: "bg-cyan-500/10 border-cyan-500/30 text-cyan-300",
   },
@@ -207,20 +207,23 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   if (!matchesFilter && searchFilter) return null;
 
   const getNodeIcon = (lvl: number, txt: string) => {
+    const upper = txt.toUpperCase();
     if (lvl === 1) return <Compass className="w-4 h-4 text-amber-400" />;
     if (lvl === 2) {
-      if (txt.includes("1.") || txt.includes("MARCO") || txt.includes("INTRODUCCIÓN"))
+      if (upper.includes("INTRODUCCIÓN") || upper.includes("INTRODUCCION"))
         return <BookOpen className="w-3.5 h-3.5 text-blue-400" />;
-      if (txt.includes("2.") || txt.includes("SABERES") || txt.includes("CONTENIDOS"))
-        return <Layers className="w-3.5 h-3.5 text-emerald-400" />;
-      if (txt.includes("3.") || txt.includes("EPÍGRAFES") || txt.includes("DESARROLLO"))
+      if (upper.includes("JUSTIFICACIÓN") || upper.includes("JUSTIFICACION"))
+        return <Target className="w-3.5 h-3.5 text-emerald-400" />;
+      if (upper.includes("IMPORTANCIA") || upper.includes("RELEVANCIA"))
+        return <Sparkles className="w-3.5 h-3.5 text-purple-400" />;
+      if (upper.includes("DESARROLLO"))
         return <Workflow className="w-3.5 h-3.5 text-amber-400" />;
-      if (txt.includes("4.") || txt.includes("VINCULACIÓN") || txt.includes("RA"))
-        return <Target className="w-3.5 h-3.5 text-purple-400" />;
-      if (txt.includes("5.") || txt.includes("ACTIVIDADES") || txt.includes("TALLER"))
-        return <Award className="w-3.5 h-3.5 text-rose-400" />;
-      if (txt.includes("6.") || txt.includes("EVALUACIÓN") || txt.includes("RÚBRICA") || txt.includes("HDI"))
-        return <Sparkles className="w-3.5 h-3.5 text-cyan-400" />;
+      if (upper.includes("SEGURIDAD") || upper.includes("PRL") || upper.includes("TOLERANCIAS"))
+        return <ShieldCheck className="w-3.5 h-3.5 text-rose-400" />;
+      if (upper.includes("CALIDAD") || upper.includes("CHECKLIST") || upper.includes("PRUEBAS"))
+        return <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />;
+      if (upper.includes("CONCLUSIONES") || upper.includes("CONCLUSION"))
+        return <Award className="w-3.5 h-3.5 text-amber-300" />;
       return <FolderTree className="w-3.5 h-3.5 text-slate-400" />;
     }
     if (lvl === 3) return <ListTree className="w-3 h-3 text-emerald-400" />;
@@ -232,17 +235,17 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const getLevelBadge = (lvl: number) => {
     switch (lvl) {
       case 1:
-        return <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">N1 • UD</span>;
+        return <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">N1 • Idea Central</span>;
       case 2:
-        return <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono font-bold">N2 • Eje</span>;
+        return <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono font-bold">N2 • Rama Base</span>;
       case 3:
-        return <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">N3 • Epígrafe/RA</span>;
+        return <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">N3 • Epígrafe</span>;
       case 4:
-        return <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono font-bold">N4 • Subepígrafe/CE</span>;
+        return <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono font-bold">N4 • Aspecto/Método</span>;
       case 5:
-        return <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono font-bold">N5 • Rúbrica/Paso</span>;
+        return <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono font-bold">N5 • Parámetro/Instrumental</span>;
       default:
-        return <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">N{lvl} • DUA/EPI</span>;
+        return <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">N{lvl} • Tolerancia/Norma</span>;
     }
   };
 
@@ -308,7 +311,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
 export const SigreOpmlViewer: React.FC<SigreOpmlViewerProps> = ({
   opmlCode,
-  title = "5. Mapa Mental Estructurado (OPML XML)",
+  title = "4. Mapa Mental Estructurado (OPML XML)",
   onDownload,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -331,10 +334,19 @@ export const SigreOpmlViewer: React.FC<SigreOpmlViewerProps> = ({
     return parseOpmlToTree(cleanOpml);
   }, [cleanOpml]);
 
-  const effectiveMaxDepth = Math.max(parsedMaxDepth || 1, 6);
+  // Actual maximum depth present in the generated OPML
+  const effectiveMaxDepth = Math.max(parsedMaxDepth || 1, 1);
+
+  // Keep slider depth clamped to effectiveMaxDepth
+  useEffect(() => {
+    if (parsedMaxDepth > 0 && sliderDepth > parsedMaxDepth) {
+      setSliderDepth(parsedMaxDepth);
+    }
+  }, [parsedMaxDepth, sliderDepth]);
 
   // When slider depth changes, clear manual node overrides so the entire tree aligns to the slider depth
   const handleSliderChange = (newDepth: number) => {
+    if (newDepth > effectiveMaxDepth) return;
     setSliderDepth(newDepth);
     setManuallyToggled({});
   };
@@ -487,20 +499,31 @@ export const SigreOpmlViewer: React.FC<SigreOpmlViewerProps> = ({
 
             {/* Quick Level Presets & Expand/Collapse */}
             <div className="flex flex-wrap items-center gap-1.5">
-              {[1, 2, 3, 4, 5, 6].map((lvl) => (
-                <button
-                  key={lvl}
-                  type="button"
-                  onClick={() => handleSliderChange(lvl)}
-                  className={`px-2 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
-                    sliderDepth === lvl
-                      ? "bg-purple-500 text-white shadow-sm shadow-purple-500/30 scale-105"
-                      : "bg-surface border border-border-default hover:bg-alt text-text-muted hover:text-text-primary"
-                  }`}
-                >
-                  Niv. {lvl}
-                </button>
-              ))}
+              {[1, 2, 3, 4, 5, 6].map((lvl) => {
+                const isDisabled = lvl > effectiveMaxDepth;
+                return (
+                  <button
+                    key={lvl}
+                    type="button"
+                    disabled={isDisabled}
+                    onClick={() => handleSliderChange(lvl)}
+                    className={`px-2 py-1 text-[11px] font-bold rounded-md transition-all ${
+                      isDisabled
+                        ? "opacity-30 bg-surface/40 border border-border-default/40 text-text-muted cursor-not-allowed line-through"
+                        : sliderDepth === lvl
+                        ? "bg-purple-500 text-white shadow-sm shadow-purple-500/30 scale-105 cursor-pointer"
+                        : "bg-surface border border-border-default hover:bg-alt text-text-muted hover:text-text-primary cursor-pointer"
+                    }`}
+                    title={
+                      isDisabled
+                        ? `Nivel ${lvl} no disponible (profundidad máxima actual: ${effectiveMaxDepth})`
+                        : `Ver hasta Nivel ${lvl}`
+                    }
+                  >
+                    Niv. {lvl}
+                  </button>
+                );
+              })}
 
               <button
                 type="button"

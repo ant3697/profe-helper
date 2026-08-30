@@ -46,7 +46,7 @@ export const SigreRubricXmlViewer: React.FC<SigreRubricXmlViewerProps> = ({
         <div>
           <h4 className="text-sm font-black text-text-primary flex items-center gap-2">
             <BookCheck className="w-4 h-4 text-blue-500" />
-            3. Programación, Alineación Curricular y Rúbricas
+            5. Programación, Alineación Curricular y Rúbricas XML
           </h4>
           <p className="text-xs text-text-muted mt-0.5">
             Matrices formales de ponderación y rúbricas XML estandarizadas para evaluación competencial.
