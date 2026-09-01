@@ -89,13 +89,16 @@ import { SigreCurricularViewer } from "./SigreCurricularViewer";
 import { SigreScheduleGuardManager } from "./SigreScheduleGuardManager";
 import { SigreMultiLevelTimeline } from "./SigreMultiLevelTimeline";
 import { SigreAcademicCalendarManager } from "./SigreAcademicCalendarManager";
+import { SigreModulePlanningView } from "./SigreModulePlanningView";
 import { SigreTechnicalAuditModal } from "./SigreTechnicalAuditModal";
 import { getSampleFPModuleUds } from "../../data/sigreSampleModule";
 import { INITIAL_SIGRE_SCHEDULE_CONFIG } from "../../data/sigreSchedulePresets";
 import { extractTextFromFile } from "../../utils/pdfExtractor";
 import { getModuleCurriculum, saveModuleCurriculum } from "../../utils/sigreModuleCurriculumStore";
+import { autoDistributeUdsToCalendar, sanitizeAcademicCalendar } from "../../utils/sigreCalendarUtils";
 import { exportHtmlToDocx } from "../../utils/docxExport";
 import { preparePrintableHtmlDocument } from "../../utils/topicPromptGenerator";
+import { downloadBlob } from "../../utils/fileHelpers";
 import { robustJsonParse } from "../../utils/jsonRepair";
 
 interface SigreCurricularViewProps {
@@ -113,6 +116,24 @@ const DEFAULT_CONFIG: SigreCurricularConfig = {
   cicloFormativo: "Grado Superior en Mantenimiento Electrónico",
   familiaProfesional: "Electricidad y Electrónica",
   curso: "1º",
+  cursoModulo: 1,
+  etapaCiclo: "superior",
+  regimenDual: "general",
+  porcentajeDualPrimerCurso: 12.1,
+  porcentajeDualSegundoCurso: 25.0,
+  porcentajeDual: 12.1,
+  horasPrimerCurso: 995,
+  horasSegundoCurso: 1005,
+  horasFfeoePrimerCurso: 120,
+  horasFfeoeSegundoCurso: 410,
+  fechaInicioDualPrimerCurso: "17 de marzo",
+  fechaInicioDualSegundoCurso: "24 de marzo",
+  horasSemanalesDualPrimerCurso: 30,
+  horasSemanalesDualSegundoCurso: 30,
+  fechaInicioDual: "17 de marzo",
+  horasSemanalesDual: 30,
+  horasFceModulo: 140,
+  horasFfeoeModulo: 20,
   curriculoReferencia: "Real Decreto 1578/2011 y normativa autonómica",
   contextoAplicacion: "IES Al-Baytar de Benalmádena (Málaga)",
   horasTotales: 160,
@@ -121,6 +142,14 @@ const DEFAULT_CONFIG: SigreCurricularConfig = {
   semanasCurso: 32, // 32 semanas lectivas estándar del curso (incluye FFEOE práctica y FCE práctica UDs)
   duracionSesionMinutos: 60,
   horasPorSesion: 1,
+  diasSemanaImparticion: ["L", "M", "X", "J", "V"],
+  distribucionSemanalDias: [
+    { dia: "L", nombre: "Lunes", horas: 1, activo: true },
+    { dia: "M", nombre: "Martes", horas: 1, activo: true },
+    { dia: "X", nombre: "Miércoles", horas: 1, activo: true },
+    { dia: "J", nombre: "Jueves", horas: 1, activo: true },
+    { dia: "V", nombre: "Viernes", horas: 1, activo: true },
+  ],
   totalSesionesPrevistas: 160,
   incluyePeriodoRecuperacionJunio: true,
   incluyePlanificacionSiguienteCursoJunio: true,
@@ -305,7 +334,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   const [isAudit6AxesOpen, setIsAudit6AxesOpen] = useState(false);
   const [isTechnicalAuditModalOpen, setIsTechnicalAuditModalOpen] = useState(false);
   const [globalViewMode, setGlobalViewMode] = useState<
-    "unidades" | "calendario" | "cronogramas" | "horarios" | "parametros"
+    "unidades" | "parametros" | "planificacion" | "calendario" | "cronogramas" | "horarios"
   >("unidades");
   const [udSearchQuery, setUdSearchQuery] = useState("");
   const [udFilterStatus, setUdFilterStatus] = useState<"all" | "completed" | "pending" | "prl">("all");
@@ -342,7 +371,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   // Handler for loading a module's curriculum from Cartera de Módulos (double-click / context menu)
   const handleOpenModuleCurriculum = (
     cal: SigreAcademicCalendar,
-    targetView: "unidades" | "parametros" | "cronogramas" = "unidades"
+    targetView: "unidades" | "parametros" | "planificacion" | "calendario" | "cronogramas" = "unidades"
   ) => {
     // 1. Save current active module curriculum first to preserve modifications
     const currentKey = config.codigo || config.moduloFormativo;
@@ -380,7 +409,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
     });
   };
 
-  // Sync with LocalStorage
+  // Sync with LocalStorage and dynamically synchronize module portfolio calendars
   useEffect(() => {
     try {
       localStorage.setItem("docuexam_sigre_config", JSON.stringify(config));
@@ -390,8 +419,48 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   useEffect(() => {
     try {
       localStorage.setItem("docuexam_sigre_uds", JSON.stringify(uds));
-    } catch {}
-  }, [uds]);
+      const currentKey = config.codigo || config.moduloFormativo;
+      if (currentKey) {
+        saveModuleCurriculum(currentKey, {
+          config,
+          uds,
+          ragDocuments,
+        });
+
+        // Dynamic synchronization with academic calendars in portfolio
+        const STORAGE_KEY_CALENDARS = "sigre_academic_calendars_portfolio_v2";
+        const savedCals = localStorage.getItem(STORAGE_KEY_CALENDARS);
+        if (savedCals) {
+          const parsedCals: SigreAcademicCalendar[] = JSON.parse(savedCals);
+          if (Array.isArray(parsedCals) && parsedCals.length > 0) {
+            let changed = false;
+            const updatedCals = parsedCals.map((cal) => {
+              const matchesCode =
+                cal.codigoModulo &&
+                config.codigo &&
+                cal.codigoModulo.trim().toLowerCase() === config.codigo.trim().toLowerCase();
+              const matchesName =
+                cal.moduloFormativo &&
+                config.moduloFormativo &&
+                cal.moduloFormativo.trim().toLowerCase() === config.moduloFormativo.trim().toLowerCase();
+
+              if (matchesCode || matchesName) {
+                changed = true;
+                return autoDistributeUdsToCalendar(cal, uds, config.codigo || cal.codigoModulo);
+              }
+              return cal;
+            });
+
+            if (changed) {
+              localStorage.setItem(STORAGE_KEY_CALENDARS, JSON.stringify(updatedCals));
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Error in dynamic calendar sync:", e);
+    }
+  }, [uds, config, ragDocuments]);
 
   useEffect(() => {
     try {
@@ -434,6 +503,40 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
     const sample = getSampleFPModuleUds(config);
     setUds(sample);
     setSelectedUdId(sample[0]?.id || null);
+  };
+
+  const handleDownloadSampleFPModule = () => {
+    const sample = getSampleFPModuleUds(config);
+    const samplePackage = {
+      metadata: {
+        sistema: "SIGRE V6.0 - Sistema Inteligente de Gestión de Recursos Educativos",
+        tipo: "Modulo_FP_Completo",
+        version: "6.0",
+        fechaExportacion: new Date().toISOString(),
+        totalUnidades: sample.length,
+        moduloCodigo: config.codigo || "0238",
+        moduloFormativo: config.moduloFormativo || "Instalaciones Eléctricas Interiores",
+        cicloFormativo: config.cicloFormativo || "Técnico en Instalaciones Eléctricas y Automáticas (CFGM)",
+        familiaProfesional: config.familiaProfesional || "Electricidad y Electrónica",
+        horasTotales: config.horasTotales || 160,
+        horasSemanales: config.horasSemanales || 5,
+        semanasCurso: config.semanasCurso || 32,
+        totalSesionesPrevistas: config.totalSesionesPrevistas || 160,
+      },
+      configuracionCurricular: {
+        ...config,
+        moduloFormativo: config.moduloFormativo || "Instalaciones Eléctricas Interiores",
+        codigo: config.codigo || "0238",
+        cicloFormativo: config.cicloFormativo || "Técnico en Instalaciones Eléctricas y Automáticas (CFGM)",
+        familiaProfesional: config.familiaProfesional || "Electricidad y Electrónica",
+      },
+      unidadesDidacticas: sample,
+    };
+
+    const jsonStr = JSON.stringify(samplePackage, null, 2);
+    const cleanModName = (config.moduloFormativo || "Instalaciones_Electricas").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const fileName = `SIGRE_Ejemplo_FP_${cleanModName}_${sample.length}UDs.json`;
+    downloadBlob(fileName, jsonStr, "application/json;charset=utf-8");
   };
 
   // Compute live pedagogical audit if UD is selected
@@ -531,17 +634,30 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
         const parsed = robustJsonParse<{ uds?: any[] }>(data.text, {});
         if (Array.isArray(parsed.uds)) {
           const defaultHoursPerUd = Math.round((config.horasTotales || 160) / parsed.uds.length);
+          const defaultWeight = parseFloat((100 / parsed.uds.length).toFixed(2));
           parsedUds = parsed.uds.map((item: any, idx: number) => {
             const h = item.horasEstimadas || defaultHoursPerUd;
+            const hFfce = item.horasFfce ?? h;
+            const hFfeoe = item.horasFfeoe ?? 0;
+            const raCe = item.raCeText || (item.rasAssociated ? `${item.rasAssociated.join(", ")}: ${(item.crevsAssociated || []).join(", ")}` : `RA ${idx + 1}`);
             return {
               id: item.id || `UD${String(idx + 1).padStart(2, "0")}`,
               number: item.number || idx + 1,
               bcCode: item.bcCode || `BC${idx + 1}`,
+              bcText: item.bcText || item.bcCode?.replace("BC", "") || `${idx + 1}`,
               title: item.title || "Unidad Didáctica",
               fullCode: item.fullCode || `UD${String(idx + 1).padStart(2, "0")}. ${item.title}`,
               isPrl: !!item.isPrl,
               horasEstimadas: h,
               sesionesEstimadas: item.sesionesEstimadas || Math.max(1, Math.round(h / 2)),
+              horasFfce: hFfce,
+              horasFfeoe: hFfeoe,
+              pesoPorcentaje: item.pesoPorcentaje ?? defaultWeight,
+              raCeText: raCe,
+              cppsText: item.cppsText || (idx % 2 === 0 ? "r" : "c"),
+              ogText: item.ogText || (idx % 2 === 0 ? "s" : "c"),
+              fasePedagogicaId: item.fasePedagogicaId || (idx < 4 ? "fase_1" : idx < 7 ? "fase_2" : idx < 9 ? "fase_3" : "fase_4"),
+              fasePedagogicaNombre: item.fasePedagogicaNombre || (idx < 4 ? "Fase I: Planificación y Fundamentos" : idx < 7 ? "Fase II: Desarrollo Técnico" : idx < 9 ? "Fase III: Aplicación y Práctica" : "Fase IV: Integración y Explotación"),
               status: "pending",
             };
           });
@@ -1043,6 +1159,21 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
               ...u.data,
               udCurricular: sanitized,
             },
+          };
+        }
+        return u;
+      })
+    );
+  };
+
+  const handlePropagateCurricularToUdItem = (updates: Partial<SigreUDItem>) => {
+    if (!selectedUd) return;
+    setUds((prev) =>
+      prev.map((u) => {
+        if (u.id === selectedUd.id) {
+          return {
+            ...u,
+            ...updates,
           };
         }
         return u;
@@ -1560,19 +1691,36 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
-              onClick={() => setGlobalViewMode("unidades")}
+              onClick={() => setGlobalViewMode("parametros")}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                globalViewMode === "unidades"
+                globalViewMode === "parametros"
                   ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black"
                   : theme === "dark"
                   ? "bg-slate-900/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60"
                   : "bg-white text-slate-700 hover:text-black hover:bg-slate-100 border border-slate-300"
               }`}
+              title="Paso 1: Marco Normativo, horas anuales y parámetros pedagógicos"
             >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Unidades Didácticas</span>
-              <span className="px-1.5 py-0.2 rounded-md bg-black/20 text-[10px] font-mono">
-                {uds.length}
+              <Sliders className="w-3.5 h-3.5 text-amber-400" />
+              <span>1. Parámetros Curriculares</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setGlobalViewMode("planificacion")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                globalViewMode === "planificacion" || globalViewMode === "cronogramas"
+                  ? "bg-cyan-500 text-black shadow-md shadow-cyan-500/20 font-black"
+                  : theme === "dark"
+                  ? "bg-slate-900/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60"
+                  : "bg-white text-slate-700 hover:text-black hover:bg-slate-100 border border-slate-300"
+              }`}
+              title="Paso 2: Planificación, secuenciación y dimensionamiento horario de las UDs"
+            >
+              <Clock className="w-3.5 h-3.5 text-cyan-400" />
+              <span>2. Planificación de Módulos</span>
+              <span className="px-1.5 py-0.2 rounded-md bg-cyan-500/20 text-cyan-400 text-[10px] font-mono border border-cyan-500/30">
+                4N
               </span>
             </button>
 
@@ -1586,26 +1734,27 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                   ? "bg-slate-900/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60"
                   : "bg-white text-slate-700 hover:text-black hover:bg-slate-100 border border-slate-300"
               }`}
+              title="Paso 3: Aterrizaje temporal en el calendario escolar oficial, festivos y evaluaciones"
             >
               <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Calendario Escolar</span>
+              <span>3. Calendario Escolar</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setGlobalViewMode("cronogramas")}
+              onClick={() => setGlobalViewMode("unidades")}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                globalViewMode === "cronogramas"
-                  ? "bg-cyan-500 text-black shadow-md shadow-cyan-500/20 font-black"
+                globalViewMode === "unidades"
+                  ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black"
                   : theme === "dark"
                   ? "bg-slate-900/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60"
                   : "bg-white text-slate-700 hover:text-black hover:bg-slate-100 border border-slate-300"
               }`}
             >
-              <Clock className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Cronogramas (4 Niveles)</span>
-              <span className="px-1.5 py-0.2 rounded-md bg-cyan-500/20 text-cyan-400 text-[10px] font-mono border border-cyan-500/30">
-                4N
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Unidades Didácticas</span>
+              <span className="px-1.5 py-0.2 rounded-md bg-black/20 text-[10px] font-mono">
+                {uds.length}
               </span>
             </button>
 
@@ -1626,21 +1775,6 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                 GUA
               </span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setGlobalViewMode("parametros")}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                globalViewMode === "parametros"
-                  ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black"
-                  : theme === "dark"
-                  ? "bg-slate-900/80 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60"
-                  : "bg-white text-slate-700 hover:text-black hover:bg-slate-100 border border-slate-300"
-              }`}
-            >
-              <Sliders className="w-3.5 h-3.5 text-amber-400" />
-              <span>Parámetros Curriculares</span>
-            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1648,7 +1782,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
               <button
                 type="button"
                 onClick={handleLoadSampleFPModule}
-                className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
                 title="Cargar inmediatamente 8 Unidades Didácticas de Formación Profesional con bancos GIFT y rúbricas"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -1658,32 +1792,71 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
               <button
                 type="button"
                 onClick={handleLoadSampleFPModule}
-                className="px-2.5 py-1 bg-surface hover:bg-alt text-text-muted hover:text-text-primary border border-border-default text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
-                title="Reiniciar con el Módulo Oficial de FP (8 UDs desarrolladas)"
+                className="px-2.5 py-1.5 bg-surface hover:bg-alt text-text-muted hover:text-text-primary border border-border-default text-[11px] font-semibold rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                title="Cargar / Reiniciar con el Módulo Oficial de FP (8 UDs desarrolladas)"
               >
-                Ejemplo FP
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span>Ejemplo FP</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={handleDownloadSampleFPModule}
+              className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30 hover:border-amber-500/50 text-[11px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs hover:scale-105 active:scale-95"
+              title="Descargar paquete completo del Módulo de Ejemplo FP (8 UDs desarrolladas con GIFT, rúbricas y simulador en JSON)"
+            >
+              <Download className="w-3.5 h-3.5 text-amber-500" />
+              <span>Descargar Ejemplo FP</span>
+            </button>
           </div>
         </div>
+      </div>
 
-        {/* Global View: Curricular Parameters Panel */}
-        {globalViewMode === "parametros" && (
-          <div className={`mt-6 pt-5 border-t space-y-4 text-xs ${theme === "dark" ? "border-slate-700/60" : "border-slate-300/80"}`}>
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-amber-400 flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-amber-400" />
+      {/* Global View: Curricular Parameters Panel (Independent Window) */}
+      {globalViewMode === "parametros" && (
+        <div className={`p-5 sm:p-6 rounded-2xl border shadow-lg space-y-5 text-xs transition-colors ${
+          theme === "dark"
+            ? "bg-slate-900/90 border-slate-700/80 text-white shadow-black/20"
+            : "bg-surface border-border-default text-slate-900 shadow-slate-200/50"
+        }`}>
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border-default">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] uppercase font-black tracking-widest px-2.5 py-0.5 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  Nivel 1: Marco Normativo
+                </span>
+                <span className="text-xs font-mono font-bold text-text-muted">
+                  {config.codigo || "0037"} - {config.moduloFormativo || "Módulo Profesional"}
+                </span>
+              </div>
+              <h3 className="text-sm sm:text-base font-black text-amber-500 dark:text-amber-400 flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-amber-500" />
                 Configuración del Marco Normativo y Parámetros Curriculares
               </h3>
+              <p className="text-[11px] text-text-muted mt-0.5">
+                Define el contexto normativo oficial, las horas totales y semanales del módulo ({config.horasTotales || 160}h / {config.horasSemanales || 5}h/sem) y los parámetros pedagógicos que nutrirán la <strong>Planificación</strong> y el <strong>Calendario</strong>.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setGlobalViewMode("planificacion")}
+                className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-black font-black text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs hover:scale-105 active:scale-95"
+                title="Avanzar al Paso 2: Planificación y Secuenciación del Módulo"
+              >
+                <span>Avanzar a Planificación</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
               <button
                 type="button"
                 onClick={() => setGlobalViewMode("unidades")}
-                className="text-xs font-bold text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                className="px-3 py-1.5 bg-surface hover:bg-hover text-text-secondary hover:text-text-primary border border-border-default text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
               >
-                <span>Volver a Unidades Didácticas</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <span>Ver UDs</span>
               </button>
             </div>
+          </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1">
@@ -1952,7 +2125,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                       {Math.round((config.horasTotales || 160) / (config.horasPorSesion || 1))} ses.
                     </span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="space-y-1.5">
                     <select
                       value={config.horasPorSesion || 1}
                       onChange={(e) => {
@@ -1961,21 +2134,337 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                         setConfig({
                           ...config,
                           horasPorSesion: h,
-                          duracionSesionMinutos: h === 2 ? 120 : 60,
+                          duracionSesionMinutos: h * 60,
                           totalSesionesPrevistas: Math.round(totH / h),
                         });
                       }}
                       className="w-full px-2 py-1.5 bg-alt border border-purple-500/40 rounded-lg text-text-primary font-semibold text-xs focus:outline-none"
                     >
-                      <option value={1}>1h / sesión (60m)</option>
-                      <option value={2}>2h / sesión (Taller 120m)</option>
+                      <option value={1}>1h / sesión (60m - Estándar)</option>
+                      <option value={2}>2h / sesión (Taller 120m - Doble)</option>
+                      <option value={3}>3h / sesión (Taller-Lab 180m - Triple)</option>
+                      <option value={4}>4h / sesión (Intensivo / Proyecto 240m)</option>
                     </select>
+
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4].map((hVal) => (
+                        <button
+                          key={hVal}
+                          type="button"
+                          onClick={() => {
+                            const totH = config.horasTotales || 160;
+                            setConfig({
+                              ...config,
+                              horasPorSesion: hVal,
+                              duracionSesionMinutos: hVal * 60,
+                              totalSesionesPrevistas: Math.round(totH / hVal),
+                            });
+                          }}
+                          className={`flex-1 py-0.5 rounded text-[10px] font-mono font-bold transition-colors cursor-pointer text-center ${
+                            (config.horasPorSesion || 1) === hVal
+                              ? "bg-purple-500 text-white shadow-xs font-black"
+                              : "bg-alt text-purple-300 hover:bg-purple-500/20 border border-purple-500/30"
+                          }`}
+                        >
+                          {hVal}h
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-purple-300/80 pt-1">
                     <span>Semanal: <strong className="text-purple-300 font-mono">{Math.round((config.horasSemanales || 5) / (config.horasPorSesion || 1))} ses/sem</strong></span>
                     <span>Total: <strong className="text-purple-300 font-mono">{Math.round((config.horasTotales || 160) / (config.horasPorSesion || 1))} ses</strong></span>
                   </div>
                 </div>
+              </div>
+
+              {/* Distribución Semanal en los 5 Días Lectivos (Lunes a Viernes) en Sesiones de 1, 2, 3 y 4 horas */}
+              <div className="p-3 bg-alt/60 border border-purple-500/30 rounded-xl space-y-3 shadow-2xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-purple-400" />
+                    <span className="font-bold text-text-primary text-xs">
+                      Distribución Semanal en los 5 Días Lectivos (Lunes a Viernes):
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold">
+                      Sesiones de 1h, 2h, 3h y 4h
+                    </span>
+                  </div>
+                </div>
+
+                {/* 5 Days Interactive Grid */}
+                {(() => {
+                  const diasBase: { dia: "L" | "M" | "X" | "J" | "V"; nombre: string }[] = [
+                    { dia: "L", nombre: "Lunes" },
+                    { dia: "M", nombre: "Martes" },
+                    { dia: "X", nombre: "Miércoles" },
+                    { dia: "J", nombre: "Jueves" },
+                    { dia: "V", nombre: "Viernes" },
+                  ];
+
+                  const currentDistrib = config.distribucionSemanalDias || diasBase.map((d, i) => {
+                    // Default distribution based on horasSemanales (ej. 5h -> 1h cada día L-V)
+                    const hSem = config.horasSemanales || 5;
+                    const hPorDia = i < hSem ? Math.max(1, Math.min(4, config.horasPorSesion || 1)) : 0;
+                    return {
+                      dia: d.dia,
+                      nombre: d.nombre,
+                      horas: i < Math.min(5, Math.ceil(hSem / (config.horasPorSesion || 1))) ? (config.horasPorSesion || 1) : 0,
+                      activo: i < Math.min(5, Math.ceil(hSem / (config.horasPorSesion || 1))),
+                    };
+                  });
+
+                  const totalHorasCalculadas = currentDistrib.reduce((acc, d) => acc + (d.activo ? d.horas : 0), 0);
+                  const totalSesionesCalculadas = currentDistrib.filter((d) => d.activo && d.horas > 0).length;
+
+                  const updateDay = (dia: "L" | "M" | "X" | "J" | "V", horas: number, activo: boolean) => {
+                    const newDistrib = diasBase.map((d) => {
+                      const exist = currentDistrib.find((item) => item.dia === d.dia);
+                      if (d.dia === dia) {
+                        return { dia: d.dia, nombre: d.nombre, horas, activo };
+                      }
+                      return exist || { dia: d.dia, nombre: d.nombre, horas: 1, activo: true };
+                    });
+                    const newTotalH = newDistrib.reduce((acc, d) => acc + (d.activo ? d.horas : 0), 0);
+                    const newActiveDays = newDistrib.filter((d) => d.activo && d.horas > 0).map((d) => d.dia);
+                    
+                    setConfig({
+                      ...config,
+                      distribucionSemanalDias: newDistrib,
+                      diasSemanaImparticion: newActiveDays,
+                      horasSemanales: newTotalH > 0 ? newTotalH : config.horasSemanales,
+                      horasTotales: newTotalH > 0 ? newTotalH * (config.semanasCurso || 32) : config.horasTotales,
+                      totalSesionesPrevistas: newTotalH > 0 ? Math.round((newTotalH * (config.semanasCurso || 32)) / (config.horasPorSesion || 1)) : config.totalSesionesPrevistas,
+                    });
+                  };
+
+                  const applyPreset = (presetType: "5x1" | "5x2" | "3x2" | "2x3" | "2x2_1x1" | "1x4" | "2x4") => {
+                    let newDistrib: { dia: "L" | "M" | "X" | "J" | "V"; nombre: string; horas: number; activo: boolean }[] = [];
+                    let dominantH = 1;
+
+                    switch (presetType) {
+                      case "5x1":
+                        dominantH = 1;
+                        newDistrib = [
+                          { dia: "L", nombre: "Lunes", horas: 1, activo: true },
+                          { dia: "M", nombre: "Martes", horas: 1, activo: true },
+                          { dia: "X", nombre: "Miércoles", horas: 1, activo: true },
+                          { dia: "J", nombre: "Jueves", horas: 1, activo: true },
+                          { dia: "V", nombre: "Viernes", horas: 1, activo: true },
+                        ];
+                        break;
+                      case "5x2":
+                        dominantH = 2;
+                        newDistrib = [
+                          { dia: "L", nombre: "Lunes", horas: 2, activo: true },
+                          { dia: "M", nombre: "Martes", horas: 2, activo: true },
+                          { dia: "X", nombre: "Miércoles", horas: 2, activo: true },
+                          { dia: "J", nombre: "Jueves", horas: 2, activo: true },
+                          { dia: "V", nombre: "Viernes", horas: 2, activo: true },
+                        ];
+                        break;
+                      case "3x2":
+                        dominantH = 2;
+                        newDistrib = [
+                          { dia: "L", nombre: "Lunes", horas: 2, activo: true },
+                          { dia: "M", nombre: "Martes", horas: 0, activo: false },
+                          { dia: "X", nombre: "Miércoles", horas: 2, activo: true },
+                          { dia: "J", nombre: "Jueves", horas: 0, activo: false },
+                          { dia: "V", nombre: "Viernes", horas: 2, activo: true },
+                        ];
+                        break;
+                      case "2x3":
+                        dominantH = 3;
+                        newDistrib = [
+                          { dia: "L", nombre: "Lunes", horas: 3, activo: true },
+                          { dia: "M", nombre: "Martes", horas: 0, activo: false },
+                          { dia: "X", nombre: "Miércoles", horas: 3, activo: true },
+                          { dia: "J", nombre: "Jueves", horas: 0, activo: false },
+                          { dia: "V", nombre: "Viernes", horas: 0, activo: false },
+                        ];
+                        break;
+                      case "2x2_1x1":
+                        dominantH = 2;
+                        newDistrib = [
+                          { dia: "L", nombre: "Lunes", horas: 2, activo: true },
+                          { dia: "M", nombre: "Martes", horas: 0, activo: false },
+                          { dia: "X", nombre: "Miércoles", horas: 2, activo: true },
+                          { dia: "J", nombre: "Jueves", horas: 0, activo: false },
+                          { dia: "V", nombre: "Viernes", horas: 1, activo: true },
+                        ];
+                        break;
+                      case "1x4":
+                        dominantH = 4;
+                        newDistrib = [
+                          { dia: "L", nombre: "Lunes", horas: 0, activo: false },
+                          { dia: "M", nombre: "Martes", horas: 0, activo: false },
+                          { dia: "X", nombre: "Miércoles", horas: 0, activo: false },
+                          { dia: "J", nombre: "Jueves", horas: 0, activo: false },
+                          { dia: "V", nombre: "Viernes", horas: 4, activo: true },
+                        ];
+                        break;
+                      case "2x4":
+                        dominantH = 4;
+                        newDistrib = [
+                          { dia: "L", nombre: "Lunes", horas: 0, activo: false },
+                          { dia: "M", nombre: "Martes", horas: 4, activo: true },
+                          { dia: "X", nombre: "Miércoles", horas: 0, activo: false },
+                          { dia: "J", nombre: "Jueves", horas: 4, activo: true },
+                          { dia: "V", nombre: "Viernes", horas: 0, activo: false },
+                        ];
+                        break;
+                    }
+
+                    const newTotalH = newDistrib.reduce((acc, d) => acc + (d.activo ? d.horas : 0), 0);
+                    const newActiveDays = newDistrib.filter((d) => d.activo && d.horas > 0).map((d) => d.dia);
+
+                    setConfig({
+                      ...config,
+                      distribucionSemanalDias: newDistrib,
+                      diasSemanaImparticion: newActiveDays,
+                      horasPorSesion: dominantH,
+                      duracionSesionMinutos: dominantH * 60,
+                      horasSemanales: newTotalH,
+                      horasTotales: newTotalH * (config.semanasCurso || 32),
+                      totalSesionesPrevistas: Math.round((newTotalH * (config.semanasCurso || 32)) / dominantH),
+                    });
+                  };
+
+                  return (
+                    <div className="space-y-2.5">
+                      {/* 5 Day Cards Grid */}
+                      <div className="grid grid-cols-5 gap-2">
+                        {diasBase.map((d) => {
+                          const info = currentDistrib.find((item) => item.dia === d.dia) || {
+                            dia: d.dia,
+                            nombre: d.nombre,
+                            horas: 1,
+                            activo: false,
+                          };
+
+                          return (
+                            <div
+                              key={d.dia}
+                              className={`p-2 rounded-xl border transition-all flex flex-col justify-between ${
+                                info.activo && info.horas > 0
+                                  ? "bg-purple-500/15 border-purple-500/50 shadow-xs"
+                                  : "bg-surface/50 border-border-default/60 opacity-60 hover:opacity-100"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-1 mb-1.5">
+                                <label className="flex items-center gap-1 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={info.activo && info.horas > 0}
+                                    onChange={(e) => {
+                                      const active = e.target.checked;
+                                      updateDay(d.dia, active ? (info.horas || config.horasPorSesion || 1) : 0, active);
+                                    }}
+                                    className="w-3.5 h-3.5 text-purple-600 rounded border-border-default focus:ring-purple-500 cursor-pointer"
+                                  />
+                                  <span className="font-black text-xs text-text-primary">
+                                    {d.dia} <span className="hidden sm:inline font-semibold text-[11px] text-text-muted">({d.nombre.slice(0, 3)})</span>
+                                  </span>
+                                </label>
+                                <span className={`text-[10px] font-mono font-black px-1 rounded ${
+                                  info.activo && info.horas > 0 ? "bg-purple-500 text-white" : "bg-alt text-text-muted"
+                                }`}>
+                                  {info.activo ? `${info.horas}h` : "0h"}
+                                </span>
+                              </div>
+
+                              {/* Session Hours Selector for this day: 1h, 2h, 3h, 4h */}
+                              <div className="grid grid-cols-4 gap-0.5 pt-1 border-t border-border-default/40">
+                                {[1, 2, 3, 4].map((hVal) => (
+                                  <button
+                                    key={hVal}
+                                    type="button"
+                                    onClick={() => updateDay(d.dia, hVal, true)}
+                                    title={`${d.nombre}: sesión de ${hVal} hora(s)`}
+                                    className={`py-1 text-[10px] font-mono font-bold rounded cursor-pointer transition-colors text-center ${
+                                      info.activo && info.horas === hVal
+                                        ? "bg-purple-600 text-white font-black shadow-2xs"
+                                        : "bg-alt/80 hover:bg-purple-500/20 text-text-secondary hover:text-purple-300 border border-transparent"
+                                    }`}
+                                  >
+                                    {hVal}h
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Quick presets row */}
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-border-default/60 text-xs">
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className="text-[10px] font-bold text-text-muted mr-1">Plantillas rápidas:</span>
+                          <button
+                            type="button"
+                            onClick={() => applyPreset("5x1")}
+                            className="px-2 py-0.5 rounded text-[10px] font-semibold bg-alt hover:bg-purple-500/20 hover:text-purple-300 border border-border-default cursor-pointer transition-colors"
+                          >
+                            5 días × 1h (5h)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyPreset("5x2")}
+                            className="px-2 py-0.5 rounded text-[10px] font-semibold bg-alt hover:bg-purple-500/20 hover:text-purple-300 border border-border-default cursor-pointer transition-colors"
+                          >
+                            5 días × 2h (10h)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyPreset("2x2_1x1")}
+                            className="px-2 py-0.5 rounded text-[10px] font-semibold bg-alt hover:bg-purple-500/20 hover:text-purple-300 border border-border-default cursor-pointer transition-colors"
+                          >
+                            2d×2h + 1d×1h (5h)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyPreset("3x2")}
+                            className="px-2 py-0.5 rounded text-[10px] font-semibold bg-alt hover:bg-purple-500/20 hover:text-purple-300 border border-border-default cursor-pointer transition-colors"
+                          >
+                            3 días × 2h (6h)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyPreset("2x3")}
+                            className="px-2 py-0.5 rounded text-[10px] font-semibold bg-alt hover:bg-purple-500/20 hover:text-purple-300 border border-border-default cursor-pointer transition-colors"
+                          >
+                            2 días × 3h (6h)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyPreset("1x4")}
+                            className="px-2 py-0.5 rounded text-[10px] font-semibold bg-alt hover:bg-purple-500/20 hover:text-purple-300 border border-border-default cursor-pointer transition-colors"
+                          >
+                            1 día × 4h (4h)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyPreset("2x4")}
+                            className="px-2 py-0.5 rounded text-[10px] font-semibold bg-alt hover:bg-purple-500/20 hover:text-purple-300 border border-border-default cursor-pointer transition-colors"
+                          >
+                            2 días × 4h (8h)
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs font-mono">
+                          <span className="text-purple-400 font-bold">
+                            Total: <strong className="text-white bg-purple-600 px-1.5 py-0.5 rounded font-black">{totalHorasCalculadas}h/sem</strong>
+                          </span>
+                          <span className="text-text-muted text-[11px]">
+                            ({totalSesionesCalculadas} sesiones/sem · {totalSesionesCalculadas * (config.semanasCurso || 32)} ses/año)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Live Temporal Metrics & Periodization Breakdown (32 weeks + June) */}
@@ -2218,7 +2707,6 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
           </div>
         </div>
       )}
-    </div>
 
       {/* Document Viewer Modal for Reference Documents */}
       <SigreDocumentViewerModal
@@ -2282,7 +2770,25 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
         </div>
       )}
 
-      {/* Global View: Calendario Escolar Oficial */}
+      {/* Global View: Planificación y Secuenciación de Módulos (Nivel 2) */}
+      {(globalViewMode === "planificacion" || globalViewMode === "cronogramas") && (
+        <div className="space-y-4">
+          <SigreModulePlanningView
+            config={config}
+            uds={uds}
+            selectedUdId={selectedUdId}
+            onSelectUd={(udId) => setSelectedUdId(udId)}
+            onUpdateUds={(newUds) => setUds(newUds)}
+            onUpdateConfig={(newConf) => setConfig(newConf)}
+            onNavigateToView={(view) => setGlobalViewMode(view)}
+            onOpenModuleCurriculum={handleOpenModuleCurriculum}
+            onOpenPlanModal={() => setIsPlanModalOpen(true)}
+            theme={theme}
+          />
+        </div>
+      )}
+
+      {/* Global View: Calendario Escolar Oficial (Nivel 3) */}
       {globalViewMode === "calendario" && (
         <div className="space-y-4">
           <SigreAcademicCalendarManager
@@ -2291,20 +2797,6 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
             moduloNombre={config.moduloFormativo}
             cicloFormativo={config.cicloFormativo}
             docenteNombre={config.docenteNombre}
-            onOpenModuleCurriculum={handleOpenModuleCurriculum}
-            theme={theme}
-          />
-        </div>
-      )}
-
-      {/* Global View: Cronogramas a 4 Niveles */}
-      {globalViewMode === "cronogramas" && (
-        <div className="space-y-4">
-          <SigreMultiLevelTimeline
-            uds={uds}
-            config={config}
-            selectedUdId={selectedUdId}
-            onSelectUd={(udId) => setSelectedUdId(udId)}
             onOpenModuleCurriculum={handleOpenModuleCurriculum}
             theme={theme}
           />
@@ -2911,6 +3403,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                         onGenerateFull={() => handleGenerateCurricularUD(selectedUd)}
                         onGenerateSection={(sectionKey) => handleGenerateCurricularUDSection(sectionKey)}
                         onUpdateData={(updatedData) => handleUpdateCurricularData(updatedData)}
+                        onPropagateToMatrix71={handlePropagateCurricularToUdItem}
                       />
                     )}
 

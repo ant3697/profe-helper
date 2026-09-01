@@ -44,6 +44,7 @@ interface SigreCurricularViewerProps {
   onGenerateFull?: () => void;
   onGenerateSection?: (sectionKey: "contexto_justificacion" | "competencias_objetivos" | "contenidos_transversales" | "metodologia_diversidad" | "secuenciacion_actividades" | "evaluacion_criterios" | "recursos_bibliografia") => void;
   onUpdateData?: (updatedData: SigreUDCurricularData) => void;
+  onPropagateToMatrix71?: (updates: Partial<SigreUDItem>) => void;
 }
 
 export const SigreCurricularViewer: React.FC<SigreCurricularViewerProps> = ({
@@ -54,8 +55,10 @@ export const SigreCurricularViewer: React.FC<SigreCurricularViewerProps> = ({
   onGenerateFull,
   onGenerateSection,
   onUpdateData,
+  onPropagateToMatrix71,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [syncedToast, setSyncedToast] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"sheet" | "structured" | "edit">("sheet");
   const [showSectionMenu, setShowSectionMenu] = useState(false);
 
@@ -63,6 +66,91 @@ export const SigreCurricularViewer: React.FC<SigreCurricularViewerProps> = ({
   const curricularData: SigreUDCurricularData | undefined = rawCurricular
     ? cleanSigreCurricularData(rawCurricular)
     : undefined;
+
+  // Local state for interactive editing mode
+  const [editData, setEditData] = useState<SigreUDCurricularData | null>(null);
+
+  // Synchronize base metadata from Matrix 7.1 to 19-point UD
+  const handleSyncFromMatrix71 = () => {
+    if (!curricularData || !onUpdateData) return;
+    const horasFfce = ud.horasFfce ?? ud.horasEstimadas ?? 11;
+    const horasFfeoe = ud.horasFfeoe || 0;
+    const sesiones = ud.sesionesEstimadas || Math.max(1, Math.round(horasFfce / 2));
+    const peso = (ud.pesoPorcentaje || 10).toFixed(2);
+
+    const updated: SigreUDCurricularData = {
+      ...curricularData,
+      temporalizacion: {
+        ...curricularData.temporalizacion,
+        horas: horasFfce,
+        sesiones: sesiones,
+        horasSemanalesTexto: `${horasFfce} horas (${sesiones} sesiones)${horasFfeoe > 0 ? ` + ${horasFfeoe}h FP Dual` : ""}`,
+      },
+    };
+
+    if (ud.raCeText) {
+      updated.resultadosAprendizaje = [
+        `Resultados de Aprendizaje y Criterios vinculados (7.1): ${ud.raCeText}`,
+      ];
+      if (updated.criteriosEvaluacionPonderados) {
+        updated.criteriosEvaluacionPonderados.raGlobal = `${ud.raCeText} (${peso}% global)`;
+      }
+    }
+
+    if (ud.cppsText) {
+      updated.contribucionCompetenciasProfesionales = `${ud.cppsText}) Aplicación de competencias profesionales vinculadas a la unidad en entorno formativo y productivo.`;
+    }
+
+    if (ud.ogText) {
+      updated.contribucionObjetivosGenerales = `${ud.ogText}) Contribución directa a los objetivos generales del ciclo formativo.`;
+    }
+
+    onUpdateData(updated);
+    setSyncedToast("✓ Metadatos de la Matriz 7.1 sincronizados en la Ficha Curricular (19 Puntos).");
+    setTimeout(() => setSyncedToast(null), 3500);
+  };
+
+  // Propagate values from this 19-point UD back into the 7.1 Matrix
+  const handlePropagateToMatrix71 = () => {
+    if (!curricularData || !onPropagateToMatrix71) return;
+    const horas = curricularData.temporalizacion?.horas || ud.horasFfce || ud.horasEstimadas || 11;
+    const sesiones = curricularData.temporalizacion?.sesiones || ud.sesionesEstimadas || 4;
+
+    onPropagateToMatrix71({
+      horasFfce: horas,
+      horasEstimadas: horas,
+      sesionesEstimadas: sesiones,
+    });
+
+    setSyncedToast("✓ Datos de la Ficha Curricular propagados con éxito a la Matriz 7.1.");
+    setTimeout(() => setSyncedToast(null), 3500);
+  };
+
+  // Start edit mode with clone of data
+  const handleStartEdit = () => {
+    if (curricularData) {
+      setEditData(JSON.parse(JSON.stringify(curricularData)));
+      setViewMode("edit");
+    }
+  };
+
+  // Save edit form
+  const handleSaveEdit = (propagate: boolean = false) => {
+    if (!editData || !onUpdateData) return;
+    onUpdateData(editData);
+    if (propagate && onPropagateToMatrix71) {
+      const horas = editData.temporalizacion?.horas || ud.horasFfce || ud.horasEstimadas || 11;
+      const sesiones = editData.temporalizacion?.sesiones || ud.sesionesEstimadas || 4;
+      onPropagateToMatrix71({
+        horasFfce: horas,
+        horasEstimadas: horas,
+        sesionesEstimadas: sesiones,
+      });
+    }
+    setViewMode("structured");
+    setSyncedToast(propagate ? "✓ Cambios guardados y propagados a la Matriz 7.1." : "✓ Ficha Curricular actualizada correctamente.");
+    setTimeout(() => setSyncedToast(null), 3500);
+  };
 
   const handleCopyHtml = () => {
     if (!curricularData) return;
@@ -325,8 +413,345 @@ export const SigreCurricularViewer: React.FC<SigreCurricularViewerProps> = ({
         </div>
       </div>
 
+      {/* Toast Notification */}
+      {syncedToast && (
+        <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-xs font-bold text-emerald-400 flex items-center justify-between shadow-md animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{syncedToast}</span>
+          </div>
+          <button
+            onClick={() => setSyncedToast(null)}
+            className="text-emerald-400 hover:text-emerald-200 text-xs px-2 py-0.5"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Panel de Coherencia y Alineación Bidireccional Matriz 7.1 <-> Ficha Curricular 1b */}
+      <div
+        className={`p-4 rounded-xl border transition-all ${
+          theme === "dark"
+            ? "bg-slate-900/90 border-cyan-500/30 shadow-md shadow-cyan-950/20"
+            : "bg-cyan-50/70 border-cyan-200 shadow-sm"
+        }`}
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-cyan-500/20">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-cyan-500 shrink-0" />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                  Alineación Bidireccional: Matriz 7.1 ⇄ Ficha Curricular 1b (19 Puntos)
+                </span>
+                <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  RD 659/2023
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Garantiza la coherencia pedagógica entre la programación del módulo y el detalle de cada Unidad Didáctica.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleSyncFromMatrix71}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+              title="Importar horas, sesiones, RA/CE y competencias desde la Matriz 7.1 a esta ficha"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Sincronizar desde 7.1</span>
+            </button>
+
+            {onPropagateToMatrix71 && (
+              <button
+                type="button"
+                onClick={handlePropagateToMatrix71}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                title="Actualizar las horas y parámetros de la Matriz 7.1 con los datos de esta ficha"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Propagar a Matriz 7.1</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleStartEdit}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                viewMode === "edit"
+                  ? "bg-amber-500 text-black font-black shadow-xs"
+                  : "bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+              }`}
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Editar 19 Puntos</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Matriz 7.1 Synced Fields Summary Badges */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-3 text-[11px]">
+          <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold">Carga Horaria Centro:</span>
+            <span className="font-bold text-amber-600 dark:text-amber-400">
+              {ud.horasFfce ?? ud.horasEstimadas ?? 11}h ({ud.sesionesEstimadas || Math.round((ud.horasFfce || 11)/2)} sesiones)
+            </span>
+          </div>
+
+          <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold">FP Dual Empresa:</span>
+            <span className="font-bold text-indigo-600 dark:text-indigo-400">
+              {ud.horasFfeoe ? `${ud.horasFfeoe}h Dual` : "0h (Aula/Taller)"}
+            </span>
+          </div>
+
+          <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold">Peso Ponderado:</span>
+            <span className="font-bold text-purple-600 dark:text-purple-400">
+              {(ud.pesoPorcentaje || 10).toFixed(2)}%
+            </span>
+          </div>
+
+          <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold">Fase Pedagógica:</span>
+            <span className="font-bold text-slate-700 dark:text-slate-200 truncate block" title={ud.fasePedagogicaNombre || "Fase Ordinaria"}>
+              {ud.fasePedagogicaNombre || "Ordinaria"}
+            </span>
+          </div>
+
+          <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 col-span-2">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold">RA / Criterios Evaluables (7.1):</span>
+            <span className="font-bold text-emerald-600 dark:text-emerald-400 truncate block" title={ud.raCeText || "Pendiente asignar"}>
+              {ud.raCeText || "No asignados"}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Main Content Render */}
-      {viewMode === "sheet" ? (
+      {viewMode === "edit" && editData ? (
+        /* Interactive Form for Editing all 19 Points */
+        <div className={`p-5 sm:p-6 rounded-2xl border ${theme === "dark" ? "bg-slate-900 border-amber-500/30" : "bg-white border-amber-300"} shadow-xl space-y-6 animate-in fade-in duration-200`}>
+          <div className="flex items-center justify-between pb-3 border-b border-border-default">
+            <div className="flex items-center gap-2">
+              <Edit3 className="w-5 h-5 text-amber-500" />
+              <div>
+                <h3 className="text-base font-black text-text-primary">
+                  Editor Integral de Ficha Curricular (19 Puntos Oficiales)
+                </h3>
+                <p className="text-xs text-text-muted">
+                  Personalice el marco normativo, temporalización, metodologías, evaluación y bibliografía.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setViewMode("structured")}
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-alt hover:bg-border-default text-text-secondary cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveEdit(false)}
+                className="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-amber-600 hover:bg-amber-500 text-white cursor-pointer shadow-xs"
+              >
+                Guardar Ficha
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveEdit(true)}
+                className="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 cursor-pointer shadow-xs font-black"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Guardar y Actualizar Matriz 7.1</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Form Sections */}
+          <div className="space-y-5 text-xs">
+            {/* Bloque I: Contexto y Justificación (1-4) */}
+            <div className="p-4 rounded-xl bg-alt/50 border border-border-default space-y-3">
+              <h4 className="font-bold text-amber-500 text-xs uppercase flex items-center gap-2">
+                <BookOpen className="w-4 h-4" /> Bloque I: Marco General, Contexto y Justificación (1-4)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-text-primary mb-1">3. Contextualización del Grupo y Entorno:</label>
+                  <textarea
+                    rows={3}
+                    value={editData.contextualizacion || ""}
+                    onChange={(e) => setEditData({ ...editData, contextualizacion: e.target.value })}
+                    className="w-full p-2.5 rounded-lg bg-surface border border-border-default text-text-primary text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-text-primary mb-1">4. Justificación y Marco Normativo (LO 3/2022, RD 659/2023):</label>
+                  <textarea
+                    rows={3}
+                    value={editData.justificacionNormativa || ""}
+                    onChange={(e) => setEditData({ ...editData, justificacionNormativa: e.target.value })}
+                    className="w-full p-2.5 rounded-lg bg-surface border border-border-default text-text-primary text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border-default/50">
+                <div>
+                  <label className="block font-semibold text-text-primary mb-1">Horas Totales:</label>
+                  <input
+                    type="number"
+                    value={editData.temporalizacion?.horas || 11}
+                    onChange={(e) => setEditData({
+                      ...editData,
+                      temporalizacion: { ...editData.temporalizacion, horas: Number(e.target.value) || 0 }
+                    })}
+                    className="w-full p-2 rounded-lg bg-surface border border-border-default text-text-primary text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-text-primary mb-1">Nº de Sesiones:</label>
+                  <input
+                    type="number"
+                    value={editData.temporalizacion?.sesiones || 4}
+                    onChange={(e) => setEditData({
+                      ...editData,
+                      temporalizacion: { ...editData.temporalizacion, sesiones: Number(e.target.value) || 0 }
+                    })}
+                    className="w-full p-2 rounded-lg bg-surface border border-border-default text-text-primary text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-text-primary mb-1">Trimestre / Periodo:</label>
+                  <input
+                    type="text"
+                    value={editData.temporalizacion?.trimestre || "1º Trimestre"}
+                    onChange={(e) => setEditData({
+                      ...editData,
+                      temporalizacion: { ...editData.temporalizacion, trimestre: e.target.value }
+                    })}
+                    className="w-full p-2 rounded-lg bg-surface border border-border-default text-text-primary text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bloque II: Competencias y Objetivos (5-9) */}
+            <div className="p-4 rounded-xl bg-alt/50 border border-border-default space-y-3">
+              <h4 className="font-bold text-amber-500 text-xs uppercase flex items-center gap-2">
+                <Target className="w-4 h-4" /> Bloque II: Competencias, RAs y Objetivos de Aprendizaje (5-9)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-text-primary mb-1">5. Contribución a Objetivos Generales (OG):</label>
+                  <textarea
+                    rows={2}
+                    value={editData.contribucionObjetivosGenerales || ""}
+                    onChange={(e) => setEditData({ ...editData, contribucionObjetivosGenerales: e.target.value })}
+                    className="w-full p-2 rounded-lg bg-surface border border-border-default text-text-primary text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-text-primary mb-1">8. Competencias Profesionales, Personales y Sociales (CPPS):</label>
+                  <textarea
+                    rows={2}
+                    value={editData.contribucionCompetenciasProfesionales || ""}
+                    onChange={(e) => setEditData({ ...editData, contribucionCompetenciasProfesionales: e.target.value })}
+                    className="w-full p-2 rounded-lg bg-surface border border-border-default text-text-primary text-xs font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bloque III: Metodología Activa y DUA (12-13) */}
+            <div className="p-4 rounded-xl bg-alt/50 border border-border-default space-y-3">
+              <h4 className="font-bold text-purple-400 text-xs uppercase flex items-center gap-2">
+                <Cpu className="w-4 h-4" /> Bloque III: Metodología, DUA y Medidas Inclusivas (12-13)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-text-primary mb-1">12. Metodologías Activas y TIC:</label>
+                  <textarea
+                    rows={2}
+                    value={editData.metodologiaTic?.metodologiasActivas || ""}
+                    onChange={(e) => setEditData({
+                      ...editData,
+                      metodologiaTic: { ...editData.metodologiaTic, metodologiasActivas: e.target.value }
+                    })}
+                    className="w-full p-2 rounded-lg bg-surface border border-border-default text-text-primary text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-text-primary mb-1">13. Atención a la Diversidad (DUA):</label>
+                  <textarea
+                    rows={2}
+                    value={editData.atencionDiversidad?.dua || ""}
+                    onChange={(e) => setEditData({
+                      ...editData,
+                      atencionDiversidad: { ...editData.atencionDiversidad, dua: e.target.value }
+                    })}
+                    className="w-full p-2 rounded-lg bg-surface border border-border-default text-text-primary text-xs font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bloque IV: Evaluación y Criterios Ponderados (15-17) */}
+            <div className="p-4 rounded-xl bg-alt/50 border border-border-default space-y-3">
+              <h4 className="font-bold text-emerald-400 text-xs uppercase flex items-center gap-2">
+                <FileCheck className="w-4 h-4" /> Bloque IV: Evaluación y Criterios Ponderados (15-17)
+              </h4>
+              <div>
+                <label className="block font-semibold text-text-primary mb-1">17. RA Global y Criterios Evaluables:</label>
+                <input
+                  type="text"
+                  value={editData.criteriosEvaluacionPonderados?.raGlobal || ""}
+                  onChange={(e) => setEditData({
+                    ...editData,
+                    criteriosEvaluacionPonderados: {
+                      ...editData.criteriosEvaluacionPonderados,
+                      raGlobal: e.target.value
+                    }
+                  })}
+                  className="w-full p-2 rounded-lg bg-surface border border-border-default text-text-primary text-xs font-mono"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-4 border-t border-border-default">
+            <button
+              type="button"
+              onClick={() => setViewMode("structured")}
+              className="px-4 py-2 text-xs font-bold rounded-xl bg-alt hover:bg-border-default text-text-secondary cursor-pointer"
+            >
+              Cerrar sin guardar
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSaveEdit(false)}
+              className="px-4 py-2 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-500 text-white cursor-pointer shadow-sm"
+            >
+              Guardar Ficha
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSaveEdit(true)}
+              className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-2 cursor-pointer shadow-md font-black"
+            >
+              <Check className="w-4 h-4" />
+              <span>Guardar y Actualizar Matriz 7.1</span>
+            </button>
+          </div>
+        </div>
+      ) : viewMode === "sheet" ? (
         <div className={`p-6 rounded-xl border ${
           theme === "dark" ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"
         } shadow-inner overflow-x-auto`}>

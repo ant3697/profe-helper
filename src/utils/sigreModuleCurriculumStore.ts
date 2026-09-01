@@ -406,16 +406,12 @@ export function normalizeModuleCodeKey(rawCodeOrName: string): string {
  * Generates custom UDs from a calendar's legend items (e.g. UD/RA markers)
  */
 export function generateUdsFromCalendarLegend(calendar: SigreAcademicCalendar): SigreUDItem[] {
-  const udLegends = calendar.legendItems.filter((item) => item.type === "ud_ra");
+  const udLegends = (calendar.legendItems || []).filter((item) => item.type === "ud_ra");
 
   if (udLegends.length === 0) {
-    // Fallback: generate default 6 UDs based on module name
-    return getSampleFPModuleUds({
-      moduloFormativo: calendar.moduloFormativo || "Módulo Profesional",
-      codigo: calendar.codigoModulo || "MOD",
-      cicloFormativo: calendar.cicloFormativo || "Ciclo Formativo FP",
-      docenteNombre: calendar.docente || "Profesorado FP",
-    } as SigreCurricularConfig);
+    // Strict compliance: If no UDs have been generated or configured, return empty array.
+    // No fictitious UDs should exist on calendars or curriculum packages until explicitly generated.
+    return [];
   }
 
   const cycle = calendar.cicloFormativo || "Ciclo Formativo FP";
@@ -450,6 +446,24 @@ export function generateUdsFromCalendarLegend(calendar: SigreAcademicCalendar): 
   });
 
   return createCustomUds(modName, modCode, cycle, definitions);
+}
+
+/**
+ * Checks if a module has generated UDs in either the saved store or predefined packages
+ */
+export function hasGeneratedUdsForModule(calendar: SigreAcademicCalendar | null): boolean {
+  if (!calendar) return false;
+  const allSaved = getAllSavedModuleCurricula();
+  const idKey = calendar.id;
+  const codeKey = (calendar.codigoModulo || "").trim();
+  const normKey = normalizeModuleCodeKey(calendar.codigoModulo || calendar.moduloFormativo || "");
+
+  if (allSaved[idKey]?.uds && allSaved[idKey].uds.length > 0) return true;
+  if (codeKey && allSaved[codeKey]?.uds && allSaved[codeKey].uds.length > 0) return true;
+  if (normKey && allSaved[normKey]?.uds && allSaved[normKey].uds.length > 0) return true;
+  if (PREDEFINED_MODULE_CURRICULA[normKey]?.uds && PREDEFINED_MODULE_CURRICULA[normKey].uds.length > 0) return true;
+
+  return false;
 }
 
 /**

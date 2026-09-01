@@ -187,7 +187,17 @@ ${sizingRule}
 3. FORMATO LIMPIO DE TÍTULO DE UD:
    - El título debe ser profesional, conciso y legible (ej. "Prevención de riesgos laborales y protección ambiental" o "Entornos cloud, gemelos digitales e IoT en instalaciones").
    - PROHIBIDO incluir corchetes, ratios de horas confusos o redundancias como "[UD01] [RA1] [20/160h] [10 sesiones]". El código 'fullCode' debe ser simplemente "UD01. Prevención de riesgos laborales y protección ambiental".
-4. Asocia a cada UD los Resultados de Aprendizaje (RA) y Criterios de Evaluación (CrEv) vinculados, así como las "horasEstimadas" y "sesionesEstimadas".
+4. ASIGNACIÓN COMPLETA DE CAMPOS DE LA TABLA OFICIAL (RD 659/2023):
+   Para cada UD debes estructurar:
+   - "rasAssociated" y "crevsAssociated" (o "raCeText" formateado, ej: "RA 1: a, b, c, d, e").
+   - "bcText": Número o código del Bloque de Contenido (ej: "7", "1", "2, 3").
+   - "cppsText": Competencias Profesionales, Personales y Sociales vinculadas (ej: "r", "c", "c, r", "j").
+   - "ogText": Objetivos Generales vinculados (ej: "s", "c", "k, s").
+   - "horasEstimadas": Horas de aula/taller en centro (FFCE).
+   - "horasFfeoe": Horas en empresa si aplica (0 para docencia en centro).
+   - "pesoPorcentaje": Porcentaje de ponderación de la UD (la suma total debe dar 100%).
+   - "fasePedagogicaId": "fase_1", "fase_2", "fase_3" o "fase_4".
+   - "fasePedagogicaNombre": Nombre descriptivo de la fase didáctica.
 5. Devuelve ÚNICAMENTE un JSON válido con la siguiente estructura:
 
 \`\`\`json
@@ -202,24 +212,42 @@ ${sizingRule}
       "id": "UD01",
       "number": 1,
       "bcCode": "BC7",
+      "bcText": "7",
       "title": "Prevención de riesgos laborales y protección ambiental",
       "fullCode": "UD01. Prevención de riesgos laborales y protección ambiental",
       "horasEstimadas": ${Math.round(horasTotales / (targetUdsCount || 8))},
       "sesionesEstimadas": ${Math.round(Math.round(horasTotales / (targetUdsCount || 8)) / horasPorSesion)},
+      "horasFfce": ${Math.round(horasTotales / (targetUdsCount || 8))},
+      "horasFfeoe": 0,
+      "pesoPorcentaje": 12.5,
       "isPrl": true,
-      "rasAssociated": ["RA1", "RA7"],
+      "fasePedagogicaId": "fase_1",
+      "fasePedagogicaNombre": "Fase I: Planificación y Seguridad (UD 1-4)",
+      "raCeText": "RA 7: a, b, c, d, e",
+      "cppsText": "r",
+      "ogText": "s",
+      "rasAssociated": ["RA7"],
       "crevsAssociated": ["a)", "b)", "c)"]
     },
     {
       "id": "UD02",
       "number": 2,
       "bcCode": "BC1",
+      "bcText": "1",
       "title": "Fundamentos y principios del sistema",
       "fullCode": "UD02. Fundamentos y principios del sistema",
       "horasEstimadas": ${Math.round(horasTotales / (targetUdsCount || 8))},
       "sesionesEstimadas": ${Math.round(Math.round(horasTotales / (targetUdsCount || 8)) / horasPorSesion)},
+      "horasFfce": ${Math.round(horasTotales / (targetUdsCount || 8))},
+      "horasFfeoe": 0,
+      "pesoPorcentaje": 12.5,
       "isPrl": false,
-      "rasAssociated": ["RA1", "RA2"],
+      "fasePedagogicaId": "fase_1",
+      "fasePedagogicaNombre": "Fase I: Planificación y Seguridad (UD 1-4)",
+      "raCeText": "RA 1: a, b, c, d",
+      "cppsText": "c",
+      "ogText": "c",
+      "rasAssociated": ["RA1"],
       "crevsAssociated": ["a)", "d)", "e)"]
     }
   ]
@@ -2652,30 +2680,44 @@ export function cleanSigreCurricularData(data?: SigreUDCurricularData): SigreUDC
 }
 
 /**
- * Builds prompt to generate the full 19-point Curricular Unit (Ficha / Matriz Curricular Oficial).
+ * Builds prompt to generate the full 19-point Curricular Unit (Ficha / Matriz Curricular Oficial),
+ * ensuring bidirectional coherence and strict alignment with the 7.1 Curricular Matrix.
  */
 export function buildSigreUDCurricularPrompt(
   targetUd: SigreUDItem,
   config: SigreCurricularConfig,
   ragContext?: string
 ): string {
-  const calculatedHours = targetUd.horasEstimadas || Math.round((config.horasTotales || 160) / 10);
-  const calculatedSessions = targetUd.sesionesEstimadas || Math.max(1, Math.round(calculatedHours / 2));
+  const horasFfce = targetUd.horasFfce ?? targetUd.horasEstimadas ?? Math.round((config.horasTotales || 160) / (config.numUnidadesDidacticas || 8));
+  const horasFfeoe = targetUd.horasFfeoe || 0;
+  const totalHoras = horasFfce + horasFfeoe;
+  const calculatedSessions = targetUd.sesionesEstimadas || Math.max(1, Math.round(horasFfce / 2));
+  const pesoPorc = targetUd.pesoPorcentaje !== undefined ? targetUd.pesoPorcentaje : (100 / (config.numUnidadesDidacticas || 8));
 
-  // Determine approximate trimester based on UD number
-  const trimester = targetUd.number <= 4 ? "1º" : targetUd.number <= 8 ? "2º" : "3º";
+  // Determine approximate trimester based on UD number or explicit trimester
+  const trimester = targetUd.trimestre ? `${targetUd.trimestre}º` : (targetUd.number <= 4 ? "1º" : targetUd.number <= 8 ? "2º" : "3º");
   const months = ["Septiembre", "Octubre", "Noviembre", "Diciembre", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio"];
   const estimatedMonth = months[Math.min(months.length - 1, Math.max(0, targetUd.number - 1))];
 
-  return `ERES UN CATEDRÁTICO DE FORMACIÓN PROFESIONAL Y JEFE DE DEPARTAMENTO DE MÁXIMA EXPERIENCIA EN DISEÑO CURRICULAR Y PROGRAMACIONES DIDÁCTICAS OFICIALES SEGÚN LA LEY ORGÁNICA DE FP Y EL RD 659/2023.
+  return `ERES UN CATEDRÁTICO DE FORMACIÓN PROFESIONAL Y JEFE DE DEPARTAMENTO DE MÁXIMA EXPERIENCIA EN DISEÑO CURRICULAR Y PROGRAMACIONES DIDÁCTICAS OFICIALES SEGÚN LA LEY ORGÁNICA 3/2022 Y EL RD 659/2023.
 
-Tu misión es redactar la UNIDAD DIDÁCTICA CURRICULAR (Ficha / Matriz Curricular Oficial en formato de programación de aula) para la siguiente unidad:
-- CÓDIGO Y TÍTULO: ${targetUd.fullCode} (Nº ${targetUd.number})
-- BLOQUE DE CONTENIDOS: ${targetUd.bcCode}
+Tu misión es redactar la UNIDAD DIDÁCTICA CURRICULAR (Ficha / Matriz Curricular Oficial en formato de programación de aula de 19 Puntos) para la siguiente unidad, GARANTIZANDO ALINEACIÓN BIDIRECCIONAL ABSOLUTA CON LA TABLA 7.1 DEL CURRÍCULO:
+
+=======================================================
+DATOS DE ALINEACIÓN CURRICULAR (TABLA PATRÓN 7.1):
+=======================================================
+- CÓDIGO Y TÍTULO: ${targetUd.fullCode} (Nº ${targetUd.number}: ${targetUd.title})
+- FASE PEDAGÓGICA (7.1): ${targetUd.fasePedagogicaNombre || "Fase Ordinaria"}
+- RESULTADOS DE APRENDIZAJE Y CRITERIOS (7.1): ${targetUd.raCeText || "Resultados de Aprendizaje y Criterios oficiales del módulo"}
+- BLOQUE DE CONTENIDOS (BC): ${targetUd.bcText || targetUd.bcCode}
+- COMPETENCIAS PROFESIONALES, PERSONALES Y SOCIALES CPPS (7.1): ${targetUd.cppsText || "Competencias profesionales del título"}
+- OBJETIVOS GENERALES OG (7.1): ${targetUd.ogText || "Objetivos generales del ciclo formativo"}
+- CARGA HORARIA TOTAL: ${totalHoras} horas (${horasFfce}h en Centro Educativo FFCE${horasFfeoe > 0 ? ` + ${horasFfeoe}h en Empresa FFEOE / FP Dual RD 659/2023` : ""})
+- SESIONES ESTIMADAS: ${calculatedSessions} sesiones lectivas de ~2-3 horas
+- PONDERACIÓN CURRICULAR OFICIAL: ${pesoPorc.toFixed(2)}% sobre la calificación final del módulo
 - MÓDULO FORMATIVO: ${config.moduloFormativo} (Código: ${config.codigo || "Cód. Oficial"})
 - CURSO Y CICLO: ${config.curso || "1º curso"} - ${config.cicloFormativo} (${config.familiaProfesional})
-- HORAS TOTALES MÓDULO: ${config.horasTotales || 160}h | Horas Semanales: ${config.horasSemanales || 5}h/sem
-- TEMPORALIZACIÓN ESTIMADA PARA ESTA UD: ${calculatedHours} horas (${calculatedSessions} sesiones lectivas) | ${estimatedMonth} | Trimestre: ${trimester}
+- CALENDARIO / TRIMESTRE: ${estimatedMonth} | Trimestre: ${trimester}
 - CONTEXTO EDUCATIVO Y TERRITORIAL: ${config.contextoAplicacion || "Centro de FP en entorno industrial y comarcal"}
 
 ${ragContext ? `DOCUMENTACIÓN CURRICULAR DE REFERENCIA (RAG):\n${ragContext.slice(0, 5000)}\n` : ""}
@@ -2685,7 +2727,7 @@ ESTRUCTURA OBLIGATORIA DE LOS 19 PUNTOS CURRICULARES (Ficha Oficial de 2 Página
    Lista con los 19 puntos de la unidad didáctica curricular.
 
 2. TEMPORALIZACIÓN:
-   - Horas: ${calculatedHours} horas (${calculatedSessions} sesiones de ~2-3h).
+   - Horas: ${horasFfce} horas en centro educativo (${calculatedSessions} sesiones de ~2-3h)${horasFfeoe > 0 ? ` + ${horasFfeoe} horas en empresa (FP Dual)` : ""}.
    - Fecha de realización: ${estimatedMonth} (ej. "${estimatedMonth} (Semanas ${((targetUd.number - 1) * 3) + 1}-${targetUd.number * 3})").
    - Trimestre: ${trimester}.
    - Horas semanales: ${config.horasSemanales || 4} horas semanales.
@@ -2697,22 +2739,22 @@ ESTRUCTURA OBLIGATORIA DE LOS 19 PUNTOS CURRICULARES (Ficha Oficial de 2 Página
    Fundamentación legal y técnica de por qué es imprescindible esta unidad (habilitación profesional, responsabilidad civil, seguridad, normativa sectorial aplicable ej. RD 659/2023, Orden de currículo autonómico, Ley 31/1995 de PRL, CTE, RITE, REBT, UNE-EN según aplique).
 
 5. CONTRIBUCIÓN A LOS OBJETIVOS GENERALES DEL MÓDULO / CICLO:
-   Objetivos generales formulados con letra y verbo en infinitivo (ej. "s) Tomar decisiones de forma fundamentada y afrontar contingencias.").
+   Objetivos generales vinculados en la Matriz 7.1 (${targetUd.ogText || "Objetivos generales"}), formulados con letra oficial y verbo en infinitivo (ej. "s) Tomar decisiones de forma fundamentada y afrontar contingencias.").
 
 6. COMPETENCIAS BÁSICAS:
    2 a 3 competencias clave implicadas (ej. "Comunicación técnica y normativa profesional", "Competencia digital en búsqueda de materiales", "Visión geométrica y precisión métrica").
 
 7. RESULTADOS DE APRENDIZAJE:
-   Redacción oficial del RA o RAs asociados a este bloque (ej. "RA ${targetUd.number > 0 ? (targetUd.number % 6 || 1) : 1}: Identifica los materiales y sus tratamientos...").
+   Redacción oficial del RA o RAs vinculados en la Matriz 7.1 (${targetUd.raCeText || "RA del bloque"}), explicitando el texto íntegro del RA.
 
 8. CONTRIBUCIÓN A LAS COMPETENCIAS PROFESIONALES, PERSONALES Y SOCIALES:
-   Competencias profesionales del título con sus letras oficiales (ej. "r) Organizar y coordinar equipos de trabajo con responsabilidad.").
+   Competencias profesionales vinculadas en la Matriz 7.1 (${targetUd.cppsText || "CPPS del título"}) con sus letras oficiales (ej. "r) Organizar y coordinar equipos de trabajo con responsabilidad.").
 
 9. OBJETIVOS DE APRENDIZAJE:
    4 objetivos operativos redactados con verbo en infinitivo (1, 2, 3, 4) medibles y contextualizados al contenido específico de la UD.
 
 10. CONTENIDOS INTEGRADOS:
-    Desglose en 5 columnas/bloques:
+    Desglose en 5 columnas/bloques alineado con el Bloque de Contenidos ${targetUd.bcText || targetUd.bcCode}:
     - Conceptuales (Saber): 3-4 conceptos clave teóricos y normativos.
     - Procedimentales (Saber Hacer): 3-4 habilidades prácticas, protocolos y montajes en taller.
     - Actitudinales (Saber Ser): 3-4 actitudes de rigor, pulcritud, orden y prevención.
@@ -2737,9 +2779,9 @@ ESTRUCTURA OBLIGATORIA DE LOS 19 PUNTOS CURRICULARES (Ficha Oficial de 2 Página
     - Accesibilidad: Diseño ergonómico de puestos de trabajo y rutas de evacuación.
 
 14. TEMPORALIZACIÓN Y SECUENCIACIÓN DE ACTIVIDADES:
-    - De Iniciación (I) / Desarrollo (D) (${Math.round(calculatedHours * 0.55)}h): Códigos I1 (dinámica inicial), D1 (taller/práctica), D2 (laboratorio/simulación).
-    - Repaso (R) / Refuerzo (Rf) (${Math.round(calculatedHours * 0.25)}h): Códigos R1 (juegos de identificación / role-playing), Rf1 (cuestionario habilitador en Moodle).
-    - Ampliación (A) / Evaluación (E) (${Math.round(calculatedHours * 0.20)}h): Códigos A1 (informe de profundización), E1 (prueba práctica / reto final).
+    - De Iniciación (I) / Desarrollo (D) (${Math.round(horasFfce * 0.55)}h): Códigos I1 (dinámica inicial), D1 (taller/práctica), D2 (laboratorio/simulación).
+    - Repaso (R) / Refuerzo (Rf) (${Math.round(horasFfce * 0.25)}h): Códigos R1 (juegos de identificación / role-playing), Rf1 (cuestionario habilitador en Moodle).
+    - Ampliación (A) / Evaluación (E) (${Math.round(horasFfce * 0.20)}h): Códigos A1 (informe de profundización), E1 (prueba práctica / reto final).
 
 15. EVALUACIÓN (¿QUÉ EVALUAR?, ¿CÓMO EVALUAR?, ¿CUÁNDO EVALUAR?):
     - Evaluación Inicial: Sondeo de ideas previas y nivel inicial (Semana 1).
@@ -2750,8 +2792,8 @@ ESTRUCTURA OBLIGATORIA DE LOS 19 PUNTOS CURRICULARES (Ficha Oficial de 2 Página
     Lista de 3 a 4 instrumentos concretos (ej. "Rúbrica de ejecución en taller", "Lista de cotejo de EPIs", "Cuestionario en Moodle Centros", "Memoria de montaje").
 
 17. RESULTADOS DE APRENDIZAJE Y SUS CRITERIOS DE EVALUACIÓN:
-    - Ponderación global del RA (ej. "RA 1 (${(100 / (config.numUnidadesDidacticas || 8)).toFixed(2)}% global)").
-    - Desglose ponderado de criterios de evaluación con porcentaje individual (ej. a) ID materiales (20%), b) Propiedades físico-químicas (20%), c) Tratamientos (15%), d) Procesos (20%), e) Técnicas (25%)).
+    - Ponderación global obligatoria según Matriz 7.1: "${targetUd.raCeText || "RA del módulo"} (${pesoPorc.toFixed(2)}% global)".
+    - Desglose ponderado de criterios de evaluación de la Matriz 7.1 con porcentaje individual que sume exactamente el 100% de la UD (ej. si aplica criterios a, b, c, d: a) 25%, b) 30%, c) 25%, d) 20%).
 
 18. MATERIALES Y RECURSOS DIDÁCTICOS:
     Componentes reales, kits de taller, calibres, simuladores, aula virtual Moodle Centros, manuales técnicos de editorial (Paraninfo/Marcombo), señalética reglamentaria.
@@ -2788,18 +2830,18 @@ Devuelve ÚNICAMENTE un objeto JSON con este esquema exacto:
     "19. BIBLIOGRAFÍA Y WEBGRAFÍA"
   ],
   "temporalizacion": {
-    "horas": ${calculatedHours},
+    "horas": ${horasFfce},
     "sesiones": ${calculatedSessions},
     "fechaRealizacion": "${estimatedMonth}",
     "trimestre": "${trimester}",
-    "horasSemanalesTexto": "${calculatedHours} horas (${calculatedSessions} sesiones)"
+    "horasSemanalesTexto": "${horasFfce} horas (${calculatedSessions} sesiones)${horasFfeoe > 0 ? ` + ${horasFfeoe}h FP Dual` : ""}"
   },
   "contextualizacion": "Texto de contextualización...",
   "justificacionNormativa": "Texto de justificación y marco legal...",
-  "contribucionObjetivosGenerales": "s) Tomar decisiones de forma fundamentada y afrontar contingencias.",
+  "contribucionObjetivosGenerales": "${targetUd.ogText ? `${targetUd.ogText}) Contribución directa a los objetivos generales del ciclo...` : "s) Tomar decisiones de forma fundamentada y afrontar contingencias."}",
   "competenciasBasicas": ["Competencia 1", "Competencia 2"],
-  "resultadosAprendizaje": ["RA X: Texto completo del RA..."],
-  "contribucionCompetenciasProfesionales": "r) Organizar y coordinar equipos de trabajo con responsabilidad.",
+  "resultadosAprendizaje": ["${targetUd.raCeText ? `Resultados de Aprendizaje: ${targetUd.raCeText}` : "RA X: Texto completo del RA..."}"],
+  "contribucionCompetenciasProfesionales": "${targetUd.cppsText ? `${targetUd.cppsText}) Aplicación de competencias profesionales del título...` : "r) Organizar y coordinar equipos de trabajo con responsabilidad."}",
   "objetivosAprendizaje": [
     "1. Primer objetivo operativo...",
     "2. Segundo objetivo operativo...",
@@ -2830,7 +2872,7 @@ Devuelve ÚNICAMENTE un objeto JSON con este esquema exacto:
   },
   "secuenciacionActividades": {
     "iniciacionDesarrollo": {
-      "horas": "(${Math.round(calculatedHours * 0.25)}h+${Math.round(calculatedHours * 0.30)}h)",
+      "horas": "(${Math.round(horasFfce * 0.25)}h+${Math.round(horasFfce * 0.30)}h)",
       "actividades": [
         { "codigo": "I1", "nombre": "Nombre actividad iniciación", "descripcion": "Descripción breve" },
         { "codigo": "D1", "nombre": "Nombre actividad desarrollo 1", "descripcion": "Descripción breve" },
@@ -2838,14 +2880,14 @@ Devuelve ÚNICAMENTE un objeto JSON con este esquema exacto:
       ]
     },
     "repasoRefuerzo": {
-      "horas": "(${Math.round(calculatedHours * 0.25)}h)",
+      "horas": "(${Math.round(horasFfce * 0.25)}h)",
       "actividades": [
         { "codigo": "R1", "nombre": "Nombre actividad repaso", "descripcion": "Descripción breve" },
         { "codigo": "Rf1", "nombre": "Cuestionario Moodle habilitador", "descripcion": "Descripción breve" }
       ]
     },
     "ampliacionEvaluacion": {
-      "horas": "(${Math.round(calculatedHours * 0.20)}h)",
+      "horas": "(${Math.round(horasFfce * 0.20)}h)",
       "actividades": [
         { "codigo": "A1", "nombre": "Nombre actividad ampliación", "descripcion": "Descripción breve" },
         { "codigo": "E1", "nombre": "Prueba o reto final de evaluación", "descripcion": "Descripción breve" }
@@ -2863,14 +2905,14 @@ Devuelve ÚNICAMENTE un objeto JSON con este esquema exacto:
     "Cuestionario interactivo en Moodle Centros"
   ],
   "criteriosEvaluacionPonderados": {
-    "raGlobal": "RA X (${(100 / (config.numUnidadesDidacticas || 8)).toFixed(2)}% global)",
+    "raGlobal": "${targetUd.raCeText || "RA del bloque"} (${pesoPorc.toFixed(2)}% global)",
     "criterios": [
-      { "criterio": "a)", "descripcion": "Identificación de riesgos y parámetros", "peso": "20%" },
+      { "criterio": "a)", "descripcion": "Identificación de riesgos y parámetros", "peso": "25%" },
       { "criterio": "b)", "descripcion": "Ejecución técnica y cumplimiento de tolerancias", "peso": "30%" },
       { "criterio": "c)", "descripcion": "Aplicación de medidas de seguridad y EPIs", "peso": "25%" },
-      { "criterio": "d)", "descripcion": "Gestión de residuos y orden en el puesto", "peso": "25%" }
+      { "criterio": "d)", "descripcion": "Gestión de residuos y orden en el puesto", "peso": "20%" }
     ],
-    "criteriosTexto": "RA X. a) Identificación (20%), b) Ejecución (30%), c) Seguridad (25%), d) Residuos (25%)."
+    "criteriosTexto": "${targetUd.raCeText || "RA"} (${pesoPorc.toFixed(2)}% global): a) Identificación (25%), b) Ejecución (30%), c) Seguridad (25%), d) Residuos (20%)."
   },
   "materialesRecursos": [
     "Equipos reales de taller y kits de montaje",

@@ -1010,7 +1010,19 @@ export function isDayLectivo(dateStr: string, calendar: SigreAcademicCalendar): 
 }
 
 // Calculate total school days and stats
-export function calculateAcademicCalendarStats(calendar: SigreAcademicCalendar) {
+export function calculateAcademicCalendarStats(calendar?: SigreAcademicCalendar | null) {
+  if (!calendar) {
+    return {
+      totalSchoolDays: 0,
+      totalHolidays: 0,
+      totalVacationDays: 0,
+      totalDualDays: 0,
+      totalEvalDays: 0,
+      totalRecuperacionDays: 0,
+      minimumRequiredFp: 175,
+      minimumRequiredPrimaria: 178,
+    };
+  }
   const months = getAcademicMonthsList(calendar.academicYear);
   let totalSchoolDays = 0;
   let totalHolidays = 0;
@@ -1577,7 +1589,49 @@ export function autoDistributeUdsToCalendar(
   uds: SigreUDItem[],
   moduloCodigo: string = "TEMINS 0037"
 ): SigreAcademicCalendar {
-  if (!uds || uds.length === 0) return calendar;
+  if (!calendar) return calendar;
+
+  // Strict compliance: If no UDs exist or list is empty, remove all UD legend items and UD day allocations
+  if (!uds || uds.length === 0) {
+    const cleanedLegends = (calendar.legendItems || []).filter(
+      (l) =>
+        l.type !== "ud_ra" &&
+        !l.id.startsWith("leg_ud_") &&
+        !l.id.startsWith("ist_ud_") &&
+        !l.id.startsWith("cit_ud_") &&
+        !l.id.startsWith("dig_ud_") &&
+        !l.id.startsWith("leg25_ra")
+    );
+    const cleanedOverrides = { ...(calendar.dayOverrides || {}) };
+    Object.keys(cleanedOverrides).forEach((dateKey) => {
+      const ov = cleanedOverrides[dateKey];
+      if (
+        ov?.assignedUdId ||
+        (ov?.legendItemId &&
+          (ov.legendItemId.startsWith("leg_ud_") ||
+            ov.legendItemId.startsWith("ist_ud_") ||
+            ov.legendItemId.startsWith("cit_ud_") ||
+            ov.legendItemId.startsWith("dig_ud_") ||
+            ov.legendItemId.startsWith("leg25_ra")))
+      ) {
+        if (ov.type === "lectivo") {
+          delete cleanedOverrides[dateKey];
+        } else {
+          cleanedOverrides[dateKey] = {
+            ...ov,
+            assignedUdId: undefined,
+            assignedUdCode: undefined,
+          };
+        }
+      }
+    });
+
+    return sanitizeAcademicCalendar({
+      ...calendar,
+      legendItems: cleanedLegends,
+      dayOverrides: cleanedOverrides,
+    });
+  }
 
   // Helper to extract clean numeric UD index for strict ordering
   const extractUdNumber = (ud: SigreUDItem, idx: number): number => {
@@ -2222,7 +2276,10 @@ export function formatOfficialLegendChip(item: MonthLateralTag): string {
 }
 
 // Render official printable HTML matching the 2-column by 5-row A4 landscape layout of Andalusian official bulletin / Consejería resolution
-export function renderOfficialSchoolCalendarA4Html(calendar: SigreAcademicCalendar): string {
+export function renderOfficialSchoolCalendarA4Html(calendar?: SigreAcademicCalendar | null): string {
+  if (!calendar) {
+    return `<div style="padding: 40px; text-align: center; font-family: sans-serif; color: #64748b;">No hay calendario escolar cargado para imprimir.</div>`;
+  }
   const months = getAcademicMonthsList(calendar.academicYear);
   const stats = calculateAcademicCalendarStats(calendar);
 

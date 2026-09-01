@@ -89,7 +89,7 @@ interface SigreMultiLevelTimelineProps {
   onSelectModule?: (moduleId: string) => void;
   onOpenModuleCurriculum?: (
     cal: SigreAcademicCalendar,
-    targetView?: "unidades" | "parametros" | "cronogramas"
+    targetView?: "unidades" | "parametros" | "planificacion" | "calendario" | "cronogramas"
   ) => void;
   initialLevel?: TimelineLevel;
   theme?: "dark" | "light";
@@ -101,7 +101,7 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
   config = { moduloFormativo: "Módulo Profesional", horasTotales: 160, semanasCurso: 32, horasSemanales: 5 },
   selectedUdId,
   onSelectUd,
-  modulesList = ALL_PRESET_ACADEMIC_CALENDARS,
+  modulesList = [],
   activeModuleId,
   onSelectModule,
   onOpenModuleCurriculum,
@@ -109,14 +109,14 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
   theme = "dark",
   onClose,
 }) => {
-  // Determine available modules list
+  // Determine available modules list (empty by default until created or generated)
   const allModules = useMemo(() => {
-    return modulesList && modulesList.length > 0 ? modulesList : ALL_PRESET_ACADEMIC_CALENDARS;
+    return modulesList || [];
   }, [modulesList]);
 
   const [currentModuleId, setCurrentModuleId] = useState<string>(() => {
     if (activeModuleId) return activeModuleId;
-    return allModules[0]?.id || "cal_2026_2027_malaga_andalucia";
+    return allModules[0]?.id || "";
   });
 
   // Sync currentModuleId if activeModuleId changes
@@ -127,7 +127,7 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
   }, [activeModuleId]);
 
   const currentModule = useMemo(() => {
-    return allModules.find((m) => m.id === currentModuleId) || allModules[0];
+    return allModules.find((m) => m.id === currentModuleId) || allModules[0] || null;
   }, [allModules, currentModuleId]);
 
   // Global multi-level timeline state stored in localStorage
@@ -154,7 +154,11 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
           cursoEvents: initialActiveCursoItem?.events || parsed.cursoEvents || getDefaultCursoTimelineEvents(2026),
           cursoCronogramas: parsedCursoCronos,
           profesorEvents: parsed.profesorEvents || getDefaultProfesorTimelineEvents(2026),
-          moduloEvents: parsed.moduloEvents || (currentModule ? generateModuleTimelineFromCalendar(currentModule) : getDefaultModuloTimelineEvents(2026, config.moduloFormativo, config.horasTotales)),
+          moduloEvents:
+            parsed.moduloEvents ||
+            (uds && uds.length > 0
+              ? generateModuleTimelineFromUds(uds, config, currentModule?.academicYear || "2026-2027")
+              : []),
           moduloEventsByModule: parsed.moduloEventsByModule || {},
           unidadEvents: parsed.unidadEvents || {
             UD01: getDefaultUnidadTimelineEvents(2026, "UD01", "Instalaciones y Mantenimiento"),
@@ -166,7 +170,7 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
     }
 
     const defaultCursoCronos = getDefaultCursoCronogramas(2026);
-    const initModEvents = currentModule ? generateModuleTimelineFromCalendar(currentModule) : getDefaultModuloTimelineEvents(2026, config.moduloFormativo, config.horasTotales);
+    const initModEvents = uds && uds.length > 0 ? generateModuleTimelineFromUds(uds, config, currentModule?.academicYear || "2026-2027") : [];
 
     return {
       schoolYear: currentModule?.academicYear || "2026-2027",
@@ -177,9 +181,11 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
       cursoCronogramas: defaultCursoCronos,
       profesorEvents: getDefaultProfesorTimelineEvents(2026),
       moduloEvents: initModEvents,
-      moduloEventsByModule: {
-        [currentModuleId]: initModEvents,
-      },
+      moduloEventsByModule: currentModuleId
+        ? {
+            [currentModuleId]: initModEvents,
+          }
+        : {},
       unidadEvents: {
         UD01: getDefaultUnidadTimelineEvents(2026, "UD01", "Instalaciones y Mantenimiento"),
       },
@@ -212,9 +218,26 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
     }
   }, [selectedUdId, uds]);
 
+  // Synchronize modulo events in real-time with approved UDs from the Plan
+  useEffect(() => {
+    if (uds !== undefined) {
+      const generated = uds.length > 0
+        ? generateModuleTimelineFromUds(uds, config, timelineData.schoolYear)
+        : [];
+      setTimelineData((prev) => ({
+        ...prev,
+        moduloEvents: generated,
+        moduloEventsByModule: {
+          ...(prev.moduloEventsByModule || {}),
+          [currentModuleId]: generated,
+        },
+      }));
+    }
+  }, [uds, config, currentModuleId, timelineData.schoolYear]);
+
   // When switching current module, ensure its events exist
   useEffect(() => {
-    if (currentModule) {
+    if (currentModule && (!uds || uds.length === 0)) {
       setTimelineData((prev) => {
         const byModule = prev.moduloEventsByModule || {};
         let modEvents = byModule[currentModule.id];
@@ -233,7 +256,7 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
         };
       });
     }
-  }, [currentModuleId, currentModule]);
+  }, [currentModuleId, currentModule, uds]);
 
   // Currently active course cronograma item
   const activeCursoItem = useMemo(() => {
@@ -1074,13 +1097,19 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
   const handleSyncWithSigre = () => {
     if (activeLevel === "modulo") {
       let generated: TimelineEvent[] = [];
-      if (currentModule) {
+      if (uds !== undefined) {
+        generated = uds.length > 0 ? generateModuleTimelineFromUds(uds, config, timelineData.schoolYear) : [];
+      } else if (currentModule) {
         generated = generateModuleTimelineFromCalendar(currentModule);
       } else {
         generated = generateModuleTimelineFromUds(uds, config, timelineData.schoolYear);
       }
       setCurrentEvents(generated);
-      setSaveBanner(`¡Sincronizado cronograma del Módulo ${currentModule?.codigoModulo || config.moduloFormativo} (${generated.length} hitos y periodos generados a partir de sus UDs y calendario escolar)!`);
+      setSaveBanner(
+        uds && uds.length > 0
+          ? `¡Sincronizado cronograma del Módulo con las ${uds.length} UDs aprobadas en el Plan!`
+          : "¡Cronograma actualizado: 0 UDs activas (Pendiente de aprobación del Plan de UDs)!"
+      );
       setTimeout(() => setSaveBanner(null), 4000);
     } else if (activeLevel === "unidad") {
       const activeUd = uds.find((u) => u.id === activeUdId) || uds[0];
@@ -2381,6 +2410,25 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
             </div>
           )}
 
+          {/* Empty state overlay when in modulo level without UDs */}
+          {activeLevel === "modulo" && (!uds || uds.length === 0) && currentEvents.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+              <div className="bg-surface/95 backdrop-blur-md border border-amber-500/40 rounded-2xl p-6 shadow-2xl text-center max-w-md pointer-events-auto space-y-3 mx-4">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-text-primary">
+                    Cronograma del Módulo sin UDs
+                  </h4>
+                  <p className="text-xs text-text-muted mt-1 leading-relaxed">
+                    Las Unidades Didácticas se programarán en el cronograma una vez que generes y apruebes la <strong>«Propuesta del Plan de Unidades Didácticas»</strong>.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Date tooltip under cursor */}
           {hoverDateText && !isPanning && !dragState.active && (
             <div
@@ -2532,7 +2580,24 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
-                {filteredTableEvents.map((ev) => {
+                {filteredTableEvents.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-text-muted space-y-2">
+                      <AlertCircle className="w-6 h-6 mx-auto text-amber-500/70 mb-1" />
+                      <p className="text-xs font-bold text-text-primary">
+                        {activeLevel === "modulo" && (!uds || uds.length === 0)
+                          ? "Sin UDs en el Cronograma"
+                          : "No hay eventos o hitos para mostrar"}
+                      </p>
+                      <p className="text-[11px] text-text-muted max-w-xs mx-auto leading-relaxed">
+                        {activeLevel === "modulo" && (!uds || uds.length === 0)
+                          ? "Las Unidades Didácticas no se implementarán en el cronograma hasta la aprobación de la «Propuesta del Plan de Unidades Didácticas»."
+                          : "Añade nuevos hitos o sincroniza con el calendario escolar."}
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTableEvents.map((ev) => {
                   const isPeriod = Boolean(ev.endDate && ev.startDate !== ev.endDate);
                   const isSelected = selectedEventIds.has(ev.id);
                   return (
@@ -2631,7 +2696,7 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>

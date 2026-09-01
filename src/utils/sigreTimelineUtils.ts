@@ -67,6 +67,10 @@ export function generateModuleTimelineFromUds(
   config: Partial<SigreCurricularConfig> = {},
   schoolYear: string
 ): TimelineEvent[] {
+  if (!uds || uds.length === 0) {
+    return [];
+  }
+
   const { startYear, endYear } = getSchoolYearRange(schoolYear);
   const events: TimelineEvent[] = [];
   let nextId = 500;
@@ -84,17 +88,13 @@ export function generateModuleTimelineFromUds(
     borderColor: "#0891b2",
   });
 
-  if (uds.length === 0) {
-    return events;
-  }
-
   // Base calendar schedule: 32 weeks from mid September
   const startDate = new Date(`${startYear}-09-15T00:00:00`);
   let currentDate = new Date(startDate.getTime());
 
   // Distribute UDs across weeks
   uds.forEach((ud, index) => {
-    const hours = ud.horasEstimadas || 16;
+    const hours = ud.horasEstimadas || ud.horasFfce || 16;
     const weeklyHours = config.horasSemanales || 5;
     const weeksDuration = Math.max(1, Math.round(hours / weeklyHours));
     const udStartIso = formatDateToIso(currentDate);
@@ -113,9 +113,15 @@ export function generateModuleTimelineFromUds(
       ? { bg: "#10b981", text: "#000000", border: "#059669" }
       : { bg: "#a855f7", text: "#ffffff", border: "#9333ea" };
 
+    const udTitle = ud.title || "Unidad Didáctica";
+    const udId = ud.id || `UD${String(index + 1).padStart(2, "0")}`;
+    const udCode = ud.fullCode || `${udId}. ${udTitle}`;
+    const displayLabel = udCode.includes(udTitle) ? udCode : `${udId}. ${udTitle}`;
+    const sessions = ud.sesionesEstimadas || Math.max(1, Math.round(hours / 2));
+
     events.push({
       id: nextId++,
-      description: `${ud.fullCode || ud.id || `UD${index + 1}`}: ${ud.title || "Unidad Didáctica"} (${hours}h • ${ud.sesionesEstimadas || Math.round(hours / 2)} ses.)`,
+      description: `${displayLabel} (${hours}h • ${sessions} ses.)`,
       startDate: udStartIso,
       endDate: udEndIso,
       category: isPrl ? "otro" : "lectivo",

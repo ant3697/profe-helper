@@ -93,6 +93,11 @@ import {
   sanitizeAcademicCalendar,
   buildUdLegendTitleAndCode,
 } from "../../utils/sigreCalendarUtils";
+import {
+  getModuleCurriculum,
+  getAllSavedModuleCurricula,
+  hasGeneratedUdsForModule,
+} from "../../utils/sigreModuleCurriculumStore";
 import { preparePrintableHtmlDocument } from "../../utils/topicPromptGenerator";
 import { SigreMultiLevelTimeline } from "./SigreMultiLevelTimeline";
 
@@ -105,7 +110,7 @@ interface SigreAcademicCalendarManagerProps {
   onCalendarChange?: (cal: SigreAcademicCalendar) => void;
   onOpenModuleCurriculum?: (
     cal: SigreAcademicCalendar,
-    targetView?: "unidades" | "parametros" | "cronogramas"
+    targetView?: "unidades" | "parametros" | "planificacion" | "calendario" | "cronogramas"
   ) => void;
   theme?: "dark" | "light";
 }
@@ -158,7 +163,8 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     } catch (e) {
       console.error("Error loading calendars from storage:", e);
     }
-    return ALL_PRESET_ACADEMIC_CALENDARS.map(sanitizeAcademicCalendar);
+    // Default is clean: no school calendar or module dates pre-loaded until generated/created
+    return [];
   });
 
   const [activeCalendarId, setActiveCalendarId] = useState<string>(() => {
@@ -166,7 +172,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
       const savedId = localStorage.getItem(STORAGE_KEY_ACTIVE_ID);
       if (savedId) return savedId;
     } catch (e) {}
-    return ALL_PRESET_ACADEMIC_CALENDARS[0]?.id || "cal_2026_2027_malaga_andalucia";
+    return "";
   });
 
   // Auto-persist calendars and active ID
@@ -184,7 +190,8 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     } catch (e) {}
   }, [activeCalendarId]);
 
-  const calendar = calendarsList.find((c) => c.id === activeCalendarId) || calendarsList[0] || PRESET_CALENDAR_2026_2027;
+  const calendar: SigreAcademicCalendar | null =
+    calendarsList.find((c) => c.id === activeCalendarId) || calendarsList[0] || null;
 
   // View Mode: Traditional Monthly Grid vs Module Timeline vs Global Portfolio Timeline
   const [calendarViewMode, setCalendarViewMode] = useState<"calendario" | "cronograma_modulo" | "cronograma_global">("calendario");
@@ -340,6 +347,15 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     keepUds: boolean;
   } | null>(null);
 
+  // Dedicated Delete Module Confirmation Modal
+  const [deleteModuleConfirmModal, setDeleteModuleConfirmModal] = useState<{
+    calendarId: string;
+    codigoModulo: string;
+    moduloFormativo: string;
+    academicYear: string;
+    udsCount: number;
+  } | null>(null);
+
   // Context Menu State for Calendar Grid Cells
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [contextMenuTab, setContextMenuTab] = useState<"uds" | "evals" | "festivos" | "especiales">("uds");
@@ -403,8 +419,54 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
   const portfolioFileInputRef = useRef<HTMLInputElement>(null);
 
   const stats = calculateAcademicCalendarStats(calendar);
-  const academicMonths = getAcademicMonthsList(calendar.academicYear);
-  const trimestersStructure = getAcademicTrimestersStructure(calendar.academicYear);
+  const academicMonths = getAcademicMonthsList(calendar?.academicYear || "2026-2027");
+  const trimestersStructure = getAcademicTrimestersStructure(calendar?.academicYear || "2026-2027");
+
+  // Dynamic Synchronization with Curriculum Store:
+  // Strictly enforces:
+  // 1. Calendars dynamically update when UDs are generated / modified.
+  // 2. NO UD entries can exist on a module calendar unless generated in the curriculum.
+  useEffect(() => {
+    if (!calendar) return;
+
+    try {
+      const curriculumPkg = getModuleCurriculum(calendar);
+      const generatedUds = curriculumPkg?.uds || [];
+      const currentCalUdLegends = (calendar.legendItems || []).filter((l) => l.type === "ud_ra");
+
+      if (generatedUds.length > 0) {
+        // Module has generated UDs: Check if calendar needs synchronization
+        const udsDifferent =
+          currentCalUdLegends.length !== generatedUds.length ||
+          !generatedUds.every((u) =>
+            currentCalUdLegends.some((l) => l.udId === u.id || l.title?.includes(u.title) || l.code?.includes(u.id))
+          );
+
+        if (udsDifferent) {
+          const syncedCalendar = autoDistributeUdsToCalendar(
+            calendar,
+            generatedUds,
+            calendar.codigoModulo || curriculumPkg.config?.codigo
+          );
+          setCalendarsList((prev) =>
+            prev.map((c) => (c.id === calendar.id ? syncedCalendar : c))
+          );
+          if (onCalendarChange) onCalendarChange(syncedCalendar);
+        }
+      } else {
+        // Module has NO generated UDs: Purge any stale/phantom UD entries from this calendar
+        if (currentCalUdLegends.length > 0) {
+          const cleanedCalendar = autoDistributeUdsToCalendar(calendar, []);
+          setCalendarsList((prev) =>
+            prev.map((c) => (c.id === calendar.id ? cleanedCalendar : c))
+          );
+          if (onCalendarChange) onCalendarChange(cleanedCalendar);
+        }
+      }
+    } catch (err) {
+      console.error("Error in calendar curriculum sync:", err);
+    }
+  }, [calendar?.id, calendar?.codigoModulo, calendar?.moduloFormativo]);
 
   const showToast = (msg: string) => {
     setNotification(msg);
@@ -438,7 +500,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
   };
 
   const expandAllLegends = () => {
-    setExpandedLegendIds(new Set(calendar.legendItems.map((l) => l.id)));
+    setExpandedLegendIds(new Set(calendar?.legendItems.map((l) => l.id) || []));
     showToast("Todas las tarjetas de la leyenda expandidas");
   };
 
@@ -591,6 +653,9 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
         if (duplicateModuleModal) {
           setDuplicateModuleModal(null);
         }
+        if (deleteModuleConfirmModal) {
+          setDeleteModuleConfirmModal(null);
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -606,6 +671,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     addCourseModal,
     editingModuleModal,
     duplicateModuleModal,
+    deleteModuleConfirmModal,
     history,
     future,
     calendar,
@@ -1190,50 +1256,122 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
     e.target.value = "";
   };
 
-  // Delete Current Course
-  const handleDeleteCurrentCourse = () => {
-    if (calendarsList.length <= 1) {
-      alert("No se puede eliminar el único módulo disponible.");
-      return;
-    }
+  // Generate Official Andalucia 2026-2027 Calendar for current module
+  const handleGenerateOfficialAndaluciaCalendar = () => {
+    const modCode = moduloCodigo || "MOD_FP";
+    const modNom = moduloNombre || "Módulo Formativo";
+    const cicNom = cicloFormativo || "Ciclo Formativo FP";
+    const docNom = docenteNombre || "Profesorado FP";
 
+    const newCal: SigreAcademicCalendar = {
+      ...PRESET_CALENDAR_2026_2027,
+      id: `cal_2026_2027_${modCode.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_${Date.now()}`,
+      academicYear: "2026-2027",
+      moduloFormativo: modNom,
+      codigoModulo: modCode,
+      cicloFormativo: cicNom,
+      docente: docNom,
+      province: "Málaga",
+      legendItems:
+        currentUds && currentUds.length > 0
+          ? [
+              ...PRESET_CALENDAR_2026_2027.legendItems.filter((l) => l.type !== "ud_ra"),
+              ...currentUds.map((u, i) => ({
+                id: `leg_${u.id}`,
+                code: u.fullCode || `${u.id}. ${u.title}`,
+                title: u.title || `Unidad ${i + 1}`,
+                type: "ud_ra" as const,
+                color: "#fcd5b4",
+                textColor: "#431407",
+                monthTarget: 9 + (i % 9),
+                udId: u.id,
+              })),
+            ]
+          : PRESET_CALENDAR_2026_2027.legendItems.filter((l) => l.type !== "ud_ra"),
+      dayOverrides:
+        currentUds && currentUds.length > 0
+          ? PRESET_CALENDAR_2026_2027.dayOverrides
+          : Object.fromEntries(
+              Object.entries(PRESET_CALENDAR_2026_2027.dayOverrides).filter(
+                ([_, ov]) => ov.type !== "lectivo" && !ov.assignedUdId
+              )
+            ),
+    };
+
+    const updatedList = [newCal];
+    setCalendarsList(updatedList);
+    setActiveCalendarId(newCal.id);
+    if (onCalendarChange) onCalendarChange(newCal);
+    showToast(`¡Calendario escolar oficial 2026-2027 generado con éxito para ${newCal.codigoModulo}!`);
+  };
+
+  // Load demo portfolio
+  const handleLoadDefaultPortfolio = () => {
+    const list = ALL_PRESET_ACADEMIC_CALENDARS.map(sanitizeAcademicCalendar);
+    setCalendarsList(list);
+    setActiveCalendarId(list[0]?.id || "");
+    if (onCalendarChange && list[0]) onCalendarChange(list[0]);
+    showToast(`Cartera de referencia cargada (${list.length} módulos de ejemplo).`);
+  };
+
+  // Clear all portfolio calendars
+  const handleClearPortfolio = () => {
     if (
       !confirm(
-        `¿Estás seguro de que deseas eliminar la planificación de "${calendar.codigoModulo || calendar.moduloFormativo}" (${calendar.academicYear})? Esta acción no se puede deshacer.`
+        "¿Deseas vaciar la cartera de calendarios y módulos? Quedará en estado inicial sin fechas ni módulos hasta que decidas generarlo."
       )
     ) {
       return;
     }
+    setCalendarsList([]);
+    setActiveCalendarId("");
+    if (onCalendarChange) onCalendarChange(undefined as any);
+    showToast("Cartera de calendarios y módulos vaciada.");
+  };
 
-    const updatedList = calendarsList.filter((c) => c.id !== calendar.id);
-    setCalendarsList(updatedList);
-    const nextCal = updatedList[0];
-    setActiveCalendarId(nextCal.id);
-    if (onCalendarChange) onCalendarChange(nextCal);
-    showToast(`Módulo "${calendar.codigoModulo || calendar.moduloFormativo}" eliminado`);
+  // Delete Current Course
+  const handleDeleteCurrentCourse = () => {
+    if (!calendar) return;
+    const udsCount = calendar.legendItems.filter((leg) => leg.type === "ud_ra").length;
+    setDeleteModuleConfirmModal({
+      calendarId: calendar.id,
+      codigoModulo: calendar.codigoModulo || "MÓDULO",
+      moduloFormativo: calendar.moduloFormativo || "Planificación del Módulo",
+      academicYear: calendar.academicYear || "2026-2027",
+      udsCount,
+    });
   };
 
   const handleDeleteSpecificCalendar = (calId: string) => {
-    if (calendarsList.length <= 1) {
-      alert("No se puede eliminar el único módulo disponible.");
-      return;
-    }
     const calToDelete = calendarsList.find((c) => c.id === calId);
+    if (!calToDelete) return;
+    const udsCount = calToDelete.legendItems.filter((leg) => leg.type === "ud_ra").length;
+    setDeleteModuleConfirmModal({
+      calendarId: calToDelete.id,
+      codigoModulo: calToDelete.codigoModulo || "MÓDULO",
+      moduloFormativo: calToDelete.moduloFormativo || "Planificación del Módulo",
+      academicYear: calToDelete.academicYear || "2026-2027",
+      udsCount,
+    });
+  };
+
+  const handleExecuteDeleteModule = (calId: string) => {
+    const calToDelete = calendarsList.find((c) => c.id === calId);
+    const modLabel = calToDelete?.codigoModulo || calToDelete?.moduloFormativo || "Módulo";
     const updatedList = calendarsList.filter((c) => c.id !== calId);
     setCalendarsList(updatedList);
     if (activeCalendarId === calId) {
-      const nextCal = updatedList[0];
-      setActiveCalendarId(nextCal.id);
-      if (onCalendarChange) onCalendarChange(nextCal);
+      const nextCal = updatedList[0] || null;
+      setActiveCalendarId(nextCal ? nextCal.id : "");
+      if (onCalendarChange) onCalendarChange(nextCal as any);
     }
-    if (calToDelete) {
-      showToast(`Módulo "${calToDelete.codigoModulo || calToDelete.moduloFormativo}" eliminado`);
-    }
+    setDeleteModuleConfirmModal(null);
+    showToast(`🗑️ Módulo "${modLabel}" eliminado correctamente de la cartera.`);
   };
 
   // Save Resolution Reference & Link
   const handleSaveResolution = () => {
-    if (!editingResolutionModal) return;
+    if (!editingResolutionModal || !calendar) return;
     const updated = {
       ...calendar,
       resolutionRef: editingResolutionModal.resolutionRef,
@@ -1249,25 +1387,16 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
 
   // Auto-distribute current UDs of the module
   const handleAutoDistributeUds = () => {
+    if (!calendar) return;
     if (!currentUds || currentUds.length === 0) {
-      const demoUds: SigreUDItem[] = [
-        { id: "UD01", number: 1, bcCode: "RA08", title: "Prevención de riesgos laborales y PA", fullCode: "UD01. RA08", isPrl: true, status: "completed" },
-        { id: "UD02", number: 2, bcCode: "RA01", title: "Procesos de mecanizado y unión", fullCode: "UD02. RA01", isPrl: false, status: "completed" },
-        { id: "UD03", number: 3, bcCode: "RA02", title: "Dibujo técnico y trazado de tuberías", fullCode: "UD03. RA02", isPrl: false, status: "completed" },
-        { id: "UD04", number: 4, bcCode: "RA03", title: "Técnicas anticorrosión y aislamiento", fullCode: "UD04. RA03", isPrl: false, status: "completed" },
-        { id: "UD05", number: 5, bcCode: "RA04", title: "Montaje de equipos térmicos", fullCode: "UD05. RA04", isPrl: false, status: "completed" },
-        { id: "UD06", number: 6, bcCode: "RA05", title: "Instalaciones de bombeo y redes de agua", fullCode: "UD06. RA05", isPrl: false, status: "completed" },
-        { id: "UD07", number: 7, bcCode: "RA06", title: "Pruebas de estanqueidad y puesta en marcha", fullCode: "UD07. RA06", isPrl: false, status: "completed" },
-        { id: "UD08", number: 8, bcCode: "RA07", title: "Mantenimiento preventivo e higienización", fullCode: "UD08. RA07", isPrl: false, status: "completed" },
-      ];
-      const updated = autoDistributeUdsToCalendar(calendar, demoUds, moduloCodigo);
-      updateCurrentCalendar(updated);
-      showToast("Distribución completada: UDs asignadas de Septiembre a Mayo. Semanas 1-3 de Junio reservadas para Recuperaciones y Semana 4 para Evaluación Extraordinaria y Planificación.");
-    } else {
-      const updated = autoDistributeUdsToCalendar(calendar, currentUds, moduloCodigo);
-      updateCurrentCalendar(updated);
-      showToast(`Distribuidas ${currentUds.length} UDs (Sep-May). Semanas 1-3 de Junio reservadas para Recuperaciones de aprendizajes no adquiridos y semana 4 para Evaluación Extraordinaria/Planificación.`);
+      showToast("No hay Unidades Didácticas creadas en el módulo. Primero genera y aprueba la «Propuesta del Plan de UDs».");
+      return;
     }
+    const updated = autoDistributeUdsToCalendar(calendar, currentUds, moduloCodigo);
+    updateCurrentCalendar(updated);
+    showToast(
+      `Distribuidas ${currentUds.length} UDs (Sep-May). Semanas 1-3 de Junio reservadas para Recuperaciones y semana 4 para Evaluación Extraordinaria.`
+    );
   };
 
   // Export JSON
@@ -2524,8 +2653,11 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] uppercase font-black tracking-widest px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  Nivel 3: Aterrizaje en el Tiempo
+                </span>
                 <h3 className="font-black text-text-primary text-base">
-                  Calendario Escolar y Planificador Temporal de UDs
+                  Calendario Escolar Oficial y Fechas de Módulos
                 </h3>
 
                 {/* DIRECT INTERACTIVE ACADEMIC YEAR SELECTOR */}
@@ -2536,9 +2668,10 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                   </span>
                   <select
                     id="academic-year-quick-select"
-                    value={calendar.academicYear}
+                    value={calendar?.academicYear || "2026-2027"}
                     onChange={(e) => handleQuickChangeAcademicYear(e.target.value)}
-                    className="bg-surface text-emerald-950 dark:text-emerald-200 font-black text-[11px] px-2 py-0.5 rounded-lg border border-emerald-500/40 cursor-pointer hover:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                    disabled={!calendar}
+                    className="bg-surface text-emerald-950 dark:text-emerald-200 font-black text-[11px] px-2 py-0.5 rounded-lg border border-emerald-500/40 cursor-pointer hover:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
                     title="Cambiar rápidamente el curso escolar de este calendario"
                   >
                     <option value="2026-2027">2026-2027 (Oficial Activo)</option>
@@ -2546,7 +2679,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                     <option value="2024-2025">2024-2025</option>
                     <option value="2027-2028">2027-2028</option>
                     <option value="2028-2029">2028-2029</option>
-                    {calendar.academicYear &&
+                    {calendar?.academicYear &&
                       !["2026-2027", "2025-2026", "2024-2025", "2027-2028", "2028-2029"].includes(calendar.academicYear) && (
                         <option value={calendar.academicYear}>{calendar.academicYear} (Personalizado)</option>
                       )}
@@ -2554,12 +2687,13 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                   </select>
                   <button
                     type="button"
+                    disabled={!calendar}
                     onClick={() => {
-                      setTargetAcademicYear(calendar.academicYear || "2026-2027");
-                      setCustomAcademicYearInput(calendar.academicYear || "2026-2027");
+                      setTargetAcademicYear(calendar?.academicYear || "2026-2027");
+                      setCustomAcademicYearInput(calendar?.academicYear || "2026-2027");
                       setIsChangeYearModalOpen(true);
                     }}
-                    className="px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                    className="px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
                     title="Abrir asistente para cambiar el curso escolar, migrar fechas o cargar marco oficial"
                   >
                     <Edit2 className="w-2.5 h-2.5" />
@@ -2572,10 +2706,10 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                   Andalucía
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-alt text-text-secondary border border-border-default">
-                  {calendar.province || "Málaga"}
+                  {calendar?.province || "Málaga"}
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/40">
-                  {calendarsList.length} Asignatura{calendarsList.length > 1 ? "s" : ""} en Cartera
+                  {calendarsList.length} Asignatura{calendarsList.length !== 1 ? "s" : ""} en Cartera
                 </span>
               </div>
               <p className="text-text-muted text-[11px] mt-0.5">
@@ -2603,16 +2737,17 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               </button>
               <button
                 type="button"
+                disabled={!calendar}
                 onClick={() => setCalendarViewMode("cronograma_modulo")}
-                className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                   calendarViewMode === "cronograma_modulo"
                     ? "bg-amber-500 text-black shadow-xs font-black"
                     : "text-text-secondary hover:text-text-primary hover:bg-hover"
                 }`}
-                title={`Ver y gestionar el cronograma temporal interactivo del módulo ${calendar.codigoModulo || "MOD"}`}
+                title={calendar ? `Ver y gestionar el cronograma temporal interactivo del módulo ${calendar.codigoModulo || "MOD"}` : "Requiere un módulo activo"}
               >
                 <Clock className="w-3.5 h-3.5" />
-                <span>Cronograma del Módulo ({calendar.codigoModulo || "MOD"})</span>
+                <span>Cronograma del Módulo {calendar?.codigoModulo ? `(${calendar.codigoModulo})` : ""}</span>
               </button>
               <button
                 type="button"
@@ -2664,8 +2799,9 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             {/* Auto-distribute UDs button */}
             <button
               type="button"
+              disabled={!calendar}
               onClick={handleAutoDistributeUds}
-              className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
+              className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-black rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20"
               title="Distribuir automáticamente las UDs creadas en el plan curricular a lo largo de las semanas lectivas respetando festivos"
             >
               <Sparkles className="w-3.5 h-3.5 text-slate-950" />
@@ -2675,9 +2811,10 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             {/* Format Painter / Copiar Formato Button */}
             <button
               type="button"
+              disabled={!calendar}
               onClick={handleFormatPainterClick}
               onDoubleClick={handleFormatPainterDoubleClick}
-              className={`px-3 py-1.5 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer border ${
+              className={`px-3 py-1.5 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer border disabled:opacity-50 disabled:cursor-not-allowed ${
                 isFormatPainterActive
                   ? isFormatPainterLocked
                     ? "bg-amber-500 text-slate-950 border-amber-300 shadow-md shadow-amber-500/40 ring-2 ring-amber-300 animate-pulse"
@@ -2701,15 +2838,17 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             {/* Range Assignment Button */}
             <button
               type="button"
-              onClick={() =>
+              disabled={!calendar}
+              onClick={() => {
+                if (!calendar) return;
                 setRangeAssignModal({
                   startDate: `${calendar.startDate}`,
                   endDate: `${calendar.startDate}`,
                   legendItemId: calendar.legendItems[0]?.id || "",
                   preserveSpecialEvents: true,
-                })
-              }
-              className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-1 cursor-pointer border border-indigo-500/40"
+                });
+              }}
+              className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-1 cursor-pointer border border-indigo-500/40"
               title="Asignar una UD o Periodo Dual a un rango continuo de fechas con prevalencia de festivos"
             >
               <CalendarRange className="w-3.5 h-3.5" />
@@ -2719,8 +2858,9 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             {/* Preview Official A4 */}
             <button
               type="button"
+              disabled={!calendar}
               onClick={() => setIsPreviewA4Open(true)}
-              className="px-2.5 py-1.5 bg-alt hover:bg-hover text-text-primary font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer border border-border-default"
+              className="px-2.5 py-1.5 bg-alt hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed text-text-primary font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer border border-border-default"
               title="Previsualizar en pantalla la hoja oficial A4 con la cuadrícula de 2 columnas x 5 filas"
             >
               <Eye className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
@@ -2730,8 +2870,9 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             {/* Print Official A4 */}
             <button
               type="button"
+              disabled={!calendar}
               onClick={handlePrintOfficialA4}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/20"
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/20"
               title="Imprimir Calendario Escolar Oficial A4 con formato de la Junta de Andalucía"
             >
               <Printer className="w-3.5 h-3.5" />
@@ -2753,34 +2894,47 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               </span>
             </div>
 
-            {/* Portfolio Actions: Add, Duplicate, Edit, Change Year, Sync, Export/Import */}
+            {/* Portfolio Actions: Add, Duplicate, Edit, Change Year, Sync, Export/Import, Generate, Clear */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              {/* Change Academic Year button */}
+              {/* Quick Generate Official Calendar if empty or additional */}
               <button
                 type="button"
-                onClick={() => {
-                  setTargetAcademicYear(calendar.academicYear || "2026-2027");
-                  setCustomAcademicYearInput(calendar.academicYear || "2026-2027");
-                  setIsChangeYearModalOpen(true);
-                }}
-                className="px-2.5 py-1 bg-emerald-700/80 hover:bg-emerald-600 text-white font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-emerald-500/40 shadow-xs"
-                title="Cambiar el curso escolar de este calendario (adaptar fechas, cargar marco oficial o crear copia)"
+                onClick={handleGenerateOfficialAndaluciaCalendar}
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
+                title="Generar calendario escolar oficial de la Junta de Andalucía para el curso 2026-2027"
               >
-                <GraduationCap className="w-3.5 h-3.5 text-emerald-300" />
-                <span>Cambiar Curso Escolar</span>
+                <Sparkles className="w-3 h-3" />
+                <span>{calendarsList.length === 0 ? "Generar Calendario Oficial" : "Añadir Calendario Oficial"}</span>
               </button>
+
+              {/* Change Academic Year button */}
+              {calendar && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetAcademicYear(calendar.academicYear || "2026-2027");
+                    setCustomAcademicYearInput(calendar.academicYear || "2026-2027");
+                    setIsChangeYearModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 bg-emerald-700/80 hover:bg-emerald-600 text-white font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-emerald-500/40 shadow-xs"
+                  title="Cambiar el curso escolar de este calendario (adaptar fechas, cargar marco oficial o crear copia)"
+                >
+                  <GraduationCap className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Cambiar Curso Escolar</span>
+                </button>
+              )}
 
               {/* Add New Module / Calendar */}
               <button
                 type="button"
                 onClick={() =>
                   setAddCourseModal({
-                    academicYear: calendar.academicYear || "2026-2027",
-                    province: calendar.province || "Málaga",
+                    academicYear: calendar?.academicYear || "2026-2027",
+                    province: calendar?.province || "Málaga",
                     moduloNombre: "",
                     moduloCodigo: "",
-                    cicloFormativo: calendar.cicloFormativo || cicloFormativo,
-                    docente: calendar.docente || docenteNombre,
+                    cicloFormativo: calendar?.cicloFormativo || cicloFormativo,
+                    docente: calendar?.docente || docenteNombre,
                     baseTemplate: "2026_2027",
                     includeSampleUds: true,
                   })
@@ -2793,61 +2947,79 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
               </button>
 
               {/* Duplicate Current Module */}
-              <button
-                type="button"
-                onClick={() =>
-                  setDuplicateModuleModal({
-                    moduloFormativo: `${calendar.moduloFormativo || "Módulo"} (Grupo B)`,
-                    codigoModulo: `${calendar.codigoModulo || "MOD"}_B`,
-                    cicloFormativo: calendar.cicloFormativo || cicloFormativo,
-                    keepUds: false,
-                  })
-                }
-                className="px-2 py-1 bg-surface hover:bg-hover text-text-primary font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-border-default"
-                title="Duplicar este calendario manteniendo todo el marco escolar oficial para otro grupo o módulo"
-              >
-                <Copy className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
-                <span className="hidden md:inline">Duplicar</span>
-              </button>
+              {calendar && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDuplicateModuleModal({
+                      moduloFormativo: `${calendar.moduloFormativo || "Módulo"} (Grupo B)`,
+                      codigoModulo: `${calendar.codigoModulo || "MOD"}_B`,
+                      cicloFormativo: calendar.cicloFormativo || cicloFormativo,
+                      keepUds: false,
+                    })
+                  }
+                  className="px-2 py-1 bg-surface hover:bg-hover text-text-primary font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-border-default"
+                  title="Duplicar este calendario manteniendo todo el marco escolar oficial para otro grupo o módulo"
+                >
+                  <Copy className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
+                  <span className="hidden md:inline">Duplicar</span>
+                </button>
+              )}
 
               {/* Edit Active Module Info */}
-              <button
-                type="button"
-                onClick={() =>
-                  setEditingModuleModal({
-                    moduloFormativo: calendar.moduloFormativo || moduloNombre,
-                    codigoModulo: calendar.codigoModulo || moduloCodigo,
-                    cicloFormativo: calendar.cicloFormativo || cicloFormativo,
-                    docente: calendar.docente || docenteNombre,
-                    academicYear: calendar.academicYear || "2026-2027",
-                    province: calendar.province || "Málaga",
-                    educationalStage: calendar.educationalStage || "Formación Profesional / Secundaria",
-                    notes: calendar.notes || "",
-                  })
-                }
-                className="px-2 py-1 bg-surface hover:bg-hover text-text-primary font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-border-default"
-                title="Editar datos de la asignatura actual (nombre, código, ciclo, docente)"
-              >
-                <Edit2 className="w-3 h-3 text-amber-500" />
-                <span className="hidden md:inline">Editar Datos</span>
-              </button>
+              {calendar && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditingModuleModal({
+                      moduloFormativo: calendar.moduloFormativo || moduloNombre,
+                      codigoModulo: calendar.codigoModulo || moduloCodigo,
+                      cicloFormativo: calendar.cicloFormativo || cicloFormativo,
+                      docente: calendar.docente || docenteNombre,
+                      academicYear: calendar.academicYear || "2026-2027",
+                      province: calendar.province || "Málaga",
+                      educationalStage: calendar.educationalStage || "Formación Profesional / Secundaria",
+                      notes: calendar.notes || "",
+                    })
+                  }
+                  className="px-2 py-1 bg-surface hover:bg-hover text-text-primary font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-border-default"
+                  title="Editar datos de la asignatura actual (nombre, código, ciclo, docente)"
+                >
+                  <Edit2 className="w-3 h-3 text-amber-500" />
+                  <span className="hidden md:inline">Editar Datos</span>
+                </button>
+              )}
 
               {/* Sync with Active SIGRE */}
+              {calendar && (
+                <button
+                  type="button"
+                  onClick={handleSyncWithActiveSigre}
+                  className="px-2 py-1 bg-surface hover:bg-hover text-text-primary font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-border-default"
+                  title="Sincronizar con el módulo activo de SIGRE"
+                >
+                  <RefreshCw className="w-3 h-3 text-emerald-500" />
+                  <span className="hidden lg:inline">Sincronizar SIGRE</span>
+                </button>
+              )}
+
+              {/* Load Default Portfolio (Demo) */}
               <button
                 type="button"
-                onClick={handleSyncWithActiveSigre}
-                className="px-2 py-1 bg-surface hover:bg-hover text-text-primary font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer border border-border-default"
-                title="Sincronizar con el módulo activo de SIGRE"
+                onClick={handleLoadDefaultPortfolio}
+                className="px-2 py-1 bg-surface hover:bg-hover text-text-secondary hover:text-text-primary rounded-lg text-[11px] transition-colors border border-border-default cursor-pointer flex items-center gap-1"
+                title="Cargar cartera docente predefinida de ejemplo con múltiples módulos"
               >
-                <RefreshCw className="w-3 h-3 text-emerald-500" />
-                <span className="hidden lg:inline">Sincronizar SIGRE</span>
+                <Layers className="w-3 h-3 text-indigo-500" />
+                <span className="hidden xl:inline">Cargar Demo</span>
               </button>
 
               {/* Export Full Portfolio */}
               <button
                 type="button"
                 onClick={handleExportPortfolio}
-                className="p-1 bg-surface hover:bg-hover text-text-secondary rounded-lg transition-colors border border-border-default cursor-pointer"
+                disabled={calendarsList.length === 0}
+                className="p-1 bg-surface hover:bg-hover disabled:opacity-40 disabled:cursor-not-allowed text-text-secondary rounded-lg transition-colors border border-border-default cursor-pointer"
                 title="Exportar cartera completa de asignaturas (JSON)"
               >
                 <Download className="w-3 h-3" />
@@ -2870,13 +3042,13 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                 <Upload className="w-3 h-3" />
               </button>
 
-              {/* Delete Active Module */}
-              {calendarsList.length > 1 && (
+              {/* Clear Portfolio (Vaciar Cartera) */}
+              {calendarsList.length > 0 && (
                 <button
                   type="button"
-                  onClick={handleDeleteCurrentCourse}
-                  className="p-1 bg-red-500/20 hover:bg-red-500 text-red-700 dark:text-red-300 hover:text-white rounded-lg transition-colors cursor-pointer"
-                  title={`Eliminar módulo "${calendar.codigoModulo || calendar.moduloFormativo}"`}
+                  onClick={handleClearPortfolio}
+                  className="p-1 bg-red-500/15 hover:bg-red-500 text-red-600 dark:text-red-300 hover:text-white rounded-lg transition-colors cursor-pointer border border-red-500/30"
+                  title="Vaciar cartera y borrar todos los calendarios escolares"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
@@ -2940,9 +3112,37 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
 
           {/* Scrollable list of Subject Module Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pt-1">
-            {calendarsList
-              .filter((c) => portfolioYearFilter === "all" || c.academicYear === portfolioYearFilter)
-              .map((calItem) => {
+            {calendarsList.length === 0 ? (
+              <div className="col-span-full p-4 bg-surface border border-dashed border-border-default rounded-xl flex flex-col items-center justify-center text-center space-y-2 py-6">
+                <CalendarIcon className="w-8 h-8 text-emerald-500/60" />
+                <div className="font-bold text-text-primary text-xs">
+                  Tu cartera docente está vacía
+                </div>
+                <p className="text-[11px] text-text-muted max-w-md">
+                  Por defecto no se cargan calendarios ni módulos hasta ser generados. Pulsa en <strong>«Generar Calendario Oficial»</strong> para inicializar el curso 2026-2027 o crea una nueva asignatura.
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleGenerateOfficialAndaluciaCalendar}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Generar Calendario Oficial (2026-2027)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLoadDefaultPortfolio}
+                    className="px-3 py-1.5 bg-surface hover:bg-hover text-text-secondary hover:text-text-primary rounded-lg text-xs transition-colors border border-border-default cursor-pointer"
+                  >
+                    Cargar Cartera Demo
+                  </button>
+                </div>
+              </div>
+            ) : (
+              calendarsList
+                .filter((c) => portfolioYearFilter === "all" || c.academicYear === portfolioYearFilter)
+                .map((calItem) => {
                 const isActive = calItem.id === activeCalendarId;
                 const udsCount = calItem.legendItems.filter((leg) => leg.type === "ud_ra").length;
                 return (
@@ -2999,6 +3199,17 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              handleDeleteSpecificCalendar(calItem.id);
+                            }}
+                            className="p-1 text-text-muted hover:text-red-500 rounded-md hover:bg-red-500/10 transition-colors cursor-pointer"
+                            title={`Eliminar módulo "${calItem.codigoModulo || calItem.moduloFormativo}"`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                               setModuleContextMenu({
                                 isOpen: true,
@@ -3024,9 +3235,9 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                     </div>
 
                     <div className="flex items-center justify-between gap-1.5 mt-2.5 pt-1.5 border-t border-border-subtle text-[10px]">
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 shrink-0">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        {udsCount} UDs
+                      <span className={`font-semibold flex items-center gap-1 shrink-0 ${udsCount > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${udsCount > 0 ? "bg-emerald-500" : "bg-amber-500"}`}></span>
+                        {udsCount > 0 ? `${udsCount} UDs sincronizadas` : "0 UDs (Sin generar)"}
                       </span>
                       <div className="flex items-center gap-1">
                         <button
@@ -3058,108 +3269,135 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                     </div>
                   </div>
                 );
-              })}
+              })
+            )}
           </div>
         </div>
 
         {/* Resolution Bar with Editable URL & Links - Fixed 2-Row Consistent Layout */}
-        <div className="flex flex-col justify-between gap-1.5 text-[11px] bg-alt p-2.5 rounded-xl border border-border-default h-[76px] overflow-hidden">
-          {/* Row 1: Marco Normativo Oficial + Link + Edit Button + Add UD Button */}
-          <div className="flex items-center justify-between gap-2.5 min-w-0">
-            <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-              <span className="font-bold text-text-primary flex items-center gap-1 shrink-0">
-                <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                Marco Normativo Oficial:
-              </span>
-              <span
-                className="text-text-muted italic truncate shrink min-w-0"
-                title={calendar.resolutionRef || "Resolución Oficial de Calendario Escolar"}
-              >
-                {calendar.resolutionRef || "Resolución Oficial de Calendario Escolar"}
-              </span>
-
-              {/* Link to Resolution on Junta de Andalucia Portal */}
-              {calendar.resolutionUrl && (
-                <a
-                  href={calendar.resolutionUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline font-semibold transition-colors shrink-0"
-                  title={`Abrir enlace oficial: ${calendar.resolutionUrl}`}
+        {calendar && (
+          <div className="flex flex-col justify-between gap-1.5 text-[11px] bg-alt p-2.5 rounded-xl border border-border-default h-[76px] overflow-hidden">
+            {/* Row 1: Marco Normativo Oficial + Link + Edit Button + Add UD Button */}
+            <div className="flex items-center justify-between gap-2.5 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                <span className="font-bold text-text-primary flex items-center gap-1 shrink-0">
+                  <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  Marco Normativo Oficial:
+                </span>
+                <span
+                  className="text-text-muted italic truncate shrink min-w-0"
+                  title={calendar.resolutionRef || "Resolución Oficial de Calendario Escolar"}
                 >
-                  <span className="hidden md:inline">Ver resolución en Junta de Andalucía</span>
-                  <span className="md:hidden">Ver resolución</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
+                  {calendar.resolutionRef || "Resolución Oficial de Calendario Escolar"}
+                </span>
 
-              {/* Button to edit resolution & link */}
+                {/* Link to Resolution on Junta de Andalucia Portal */}
+                {calendar.resolutionUrl && (
+                  <a
+                    href={calendar.resolutionUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline font-semibold transition-colors shrink-0"
+                    title={`Abrir enlace oficial: ${calendar.resolutionUrl}`}
+                  >
+                    <span className="hidden md:inline">Ver resolución en Junta de Andalucía</span>
+                    <span className="md:hidden">Ver resolución</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+
+                {/* Button to edit resolution & link */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditingResolutionModal({
+                      resolutionRef: calendar.resolutionRef || "",
+                      resolutionUrl: calendar.resolutionUrl || "",
+                      province: calendar.province || "Málaga",
+                      educationalStage: calendar.educationalStage || "Formación Profesional / Secundaria",
+                      notes: calendar.notes || "",
+                    })
+                  }
+                  className="px-2 py-0.5 bg-surface hover:bg-hover text-text-secondary hover:text-text-primary rounded text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer border border-border-default shrink-0"
+                  title="Modificar texto de resolución, enlace web y provincia"
+                >
+                  <Edit2 className="w-2.5 h-2.5" />
+                  <span>Editar Enlace / Resolución</span>
+                </button>
+              </div>
+
+              {/* Button to add a new UD / Legend Item (Pinned cleanly on the right) */}
               <button
                 type="button"
-                onClick={() =>
-                  setEditingResolutionModal({
-                    resolutionRef: calendar.resolutionRef || "",
-                    resolutionUrl: calendar.resolutionUrl || "",
-                    province: calendar.province || "Málaga",
-                    educationalStage: calendar.educationalStage || "Formación Profesional / Secundaria",
-                    notes: calendar.notes || "",
-                  })
-                }
-                className="px-2 py-0.5 bg-surface hover:bg-hover text-text-secondary hover:text-text-primary rounded text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer border border-border-default shrink-0"
-                title="Modificar texto de resolución, enlace web y provincia"
+                onClick={() => {
+                  const nextNum = calendar.legendItems.filter((l) => l.type === "ud_ra").length + 1;
+                  const { code: nextCode, title: nextTitle } = buildUdLegendTitleAndCode({
+                    udNumber: nextNum,
+                    title: `Nueva Unidad Didáctica ${nextNum}`,
+                  });
+                  const nextColor = getDistinctUdColor(nextNum - 1);
+                  setEditingLegendModal({
+                    item: {
+                      code: nextCode,
+                      title: nextTitle,
+                      type: "ud_ra",
+                      color: nextColor.bg,
+                      textColor: nextColor.text,
+                      monthTarget: 9,
+                      sidePosition: "right",
+                    },
+                    isNew: true,
+                  });
+                }}
+                className="px-2.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer border border-emerald-500/50 shadow-xs shrink-0 whitespace-nowrap"
+                title="Añadir una nueva Unidad Didáctica a la planificación de este módulo"
               >
-                <Edit2 className="w-2.5 h-2.5" />
-                <span>Editar Enlace / Resolución</span>
+                <Plus className="w-2.5 h-2.5" />
+                <span>+ Añadir UD</span>
               </button>
             </div>
 
-            {/* Button to add a new UD / Legend Item (Pinned cleanly on the right) */}
-            <button
-              type="button"
-              onClick={() => {
-                const nextNum = calendar.legendItems.filter((l) => l.type === "ud_ra").length + 1;
-                const { code: nextCode, title: nextTitle } = buildUdLegendTitleAndCode({
-                  udNumber: nextNum,
-                  title: `Nueva Unidad Didáctica ${nextNum}`,
-                });
-                const nextColor = getDistinctUdColor(nextNum - 1);
-                setEditingLegendModal({
-                  item: {
-                    code: nextCode,
-                    title: nextTitle,
-                    type: "ud_ra",
-                    color: nextColor.bg,
-                    textColor: nextColor.text,
-                    monthTarget: 9,
-                    sidePosition: "right",
-                  },
-                  isNew: true,
-                });
-              }}
-              className="px-2.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer border border-emerald-500/50 shadow-xs shrink-0 whitespace-nowrap"
-              title="Añadir una nueva Unidad Didáctica a la planificación de este módulo"
-            >
-              <Plus className="w-2.5 h-2.5" />
-              <span>+ Añadir UD</span>
-            </button>
-          </div>
+            {/* Row 2: Quick Context Menu Tip & Calendar Indicators */}
+            <div className="flex flex-wrap items-center justify-between gap-2 min-w-0">
+              <div className="text-[10px] text-amber-700 dark:text-amber-300 font-medium flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 shrink-0">
+                <Info className="w-3 h-3 text-amber-500 shrink-0" />
+                <span>Haz <strong>clic derecho</strong> en cualquier día para abrir el menú contextual rápido.</span>
+              </div>
+              <div className="text-[10px] text-text-muted flex items-center gap-2 shrink-0">
+                <span className={calendar.legendItems.filter((l) => l.type === "ud_ra").length > 0 ? "text-emerald-600 dark:text-emerald-400 font-bold" : "text-amber-600 dark:text-amber-400 font-bold"}>
+                  {calendar.legendItems.filter((l) => l.type === "ud_ra").length > 0
+                    ? `✓ ${calendar.legendItems.filter((l) => l.type === "ud_ra").length} UDs generadas y sincronizadas`
+                    : "⚪ 0 UDs (Sin generar)"}
+                </span>
+                <span>•</span>
+                <span>{calendar.totalLectivosEstimated || 158} días lectivos</span>
+              </div>
+            </div>
 
-          {/* Row 2: Quick Context Menu Tip & Calendar Indicators */}
-          <div className="flex items-center justify-between gap-2 min-w-0">
-            <div className="text-[10px] text-amber-700 dark:text-amber-300 font-medium flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 shrink-0">
-              <Info className="w-3 h-3 text-amber-500 shrink-0" />
-              <span>Haz <strong>clic derecho</strong> en cualquier día para abrir el menú contextual rápido.</span>
-            </div>
-            <div className="text-[10px] text-text-muted hidden sm:flex items-center gap-2 shrink-0">
-              <span>{calendar.legendItems.filter((l) => l.type === "ud_ra").length} UDs planificadas</span>
-              <span>•</span>
-              <span>{calendar.totalLectivosEstimated || 158} días lectivos</span>
-            </div>
+            {/* Zero UDs Pedagogical Dynamic Notice */}
+            {calendar.legendItems.filter((l) => l.type === "ud_ra").length === 0 && (
+              <div className="mt-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <BookOpen className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span className="text-amber-900 dark:text-amber-200 text-[11px] leading-snug">
+                    Este módulo formativo aún no tiene Unidades Didácticas (UDs) generadas. El calendario escolar mantiene las fechas lectivas y festivos oficiales sin entradas ficticias.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenCurricularDesigner(calendar, "unidades")}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-[10.5px] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap shrink-0"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Diseñar / Generar UDs del Módulo</span>
+                </button>
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
         {/* Multi-Selection / Format Painter Active Notice Banner */}
-        {selectedDates.size > 0 && (
+        {calendar && selectedDates.size > 0 && (
           <div className="bg-emerald-950/80 border border-emerald-500/60 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-3 text-xs shadow-lg animate-in fade-in">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
@@ -3195,67 +3433,69 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
         )}
 
         {/* Stats Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
-          <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
-              {stats.totalSchoolDays}
+        {calendar && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
+            <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                {stats.totalSchoolDays}
+              </div>
+              <div>
+                <div className="text-[10px] text-text-muted uppercase font-bold">Días Lectivos FP</div>
+                <div className="text-[11px] font-bold text-text-primary">Mínimo 175 días</div>
+              </div>
             </div>
-            <div>
-              <div className="text-[10px] text-text-muted uppercase font-bold">Días Lectivos FP</div>
-              <div className="text-[11px] font-bold text-text-primary">Mínimo 175 días</div>
-            </div>
-          </div>
 
-          <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-red-500/20 text-red-600 dark:text-red-400 flex items-center justify-center font-bold">
-              {stats.totalHolidays}
+            <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-red-500/20 text-red-600 dark:text-red-400 flex items-center justify-center font-bold">
+                {stats.totalHolidays}
+              </div>
+              <div>
+                <div className="text-[10px] text-text-muted uppercase font-bold">Festivos</div>
+                <div className="text-[11px] font-bold text-text-primary">Nac. / Aut. / Locales</div>
+              </div>
             </div>
-            <div>
-              <div className="text-[10px] text-text-muted uppercase font-bold">Festivos</div>
-              <div className="text-[11px] font-bold text-text-primary">Nac. / Aut. / Locales</div>
-            </div>
-          </div>
 
-          <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-orange-500/20 text-orange-600 dark:text-orange-400 flex items-center justify-center font-bold">
-              {stats.totalVacationDays}
+            <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-orange-500/20 text-orange-600 dark:text-orange-400 flex items-center justify-center font-bold">
+                {stats.totalVacationDays}
+              </div>
+              <div>
+                <div className="text-[10px] text-text-muted uppercase font-bold">Vacaciones</div>
+                <div className="text-[11px] font-bold text-text-primary">Navidad, S. Santa, S. Blanca</div>
+              </div>
             </div>
-            <div>
-              <div className="text-[10px] text-text-muted uppercase font-bold">Vacaciones</div>
-              <div className="text-[11px] font-bold text-text-primary">Navidad, S. Santa, S. Blanca</div>
-            </div>
-          </div>
 
-          <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold">
-              {stats.totalEvalDays}
+            <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold">
+                {stats.totalEvalDays}
+              </div>
+              <div>
+                <div className="text-[10px] text-text-muted uppercase font-bold">Evaluaciones</div>
+                <div className="text-[11px] font-bold text-text-primary">1T, 2T, 1ª Final, 2ª Final</div>
+              </div>
             </div>
-            <div>
-              <div className="text-[10px] text-text-muted uppercase font-bold">Evaluaciones</div>
-              <div className="text-[11px] font-bold text-text-primary">1T, 2T, 1ª Final, 2ª Final</div>
-            </div>
-          </div>
 
-          <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 flex items-center justify-center font-bold">
-              {stats.totalDualDays}
+            <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 flex items-center justify-center font-bold">
+                {stats.totalDualDays}
+              </div>
+              <div>
+                <div className="text-[10px] text-text-muted uppercase font-bold">FP Dual (FFEoE)</div>
+                <div className="text-[11px] font-bold text-text-primary">120h Empresa</div>
+              </div>
             </div>
-            <div>
-              <div className="text-[10px] text-text-muted uppercase font-bold">FP Dual (FFEoE)</div>
-              <div className="text-[11px] font-bold text-text-primary">120h Empresa</div>
-            </div>
-          </div>
 
-          <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
-              {calendar.legendItems.filter((l) => l.type === "ud_ra").length}
-            </div>
-            <div>
-              <div className="text-[10px] text-text-muted uppercase font-bold">UDs / RAs</div>
-              <div className="text-[11px] font-bold text-text-primary">Temporalizadas</div>
+            <div className="bg-alt p-2 rounded-xl border border-border-default flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+                {calendar.legendItems.filter((l) => l.type === "ud_ra").length}
+              </div>
+              <div>
+                <div className="text-[10px] text-text-muted uppercase font-bold">UDs / RAs</div>
+                <div className="text-[11px] font-bold text-text-primary">Temporalizadas</div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Notification Toast */}
@@ -3331,7 +3571,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-black text-text-primary text-xs sm:text-sm">
                     {calendarViewMode === "cronograma_modulo"
-                      ? `Cronograma Temporal del Módulo: [${calendar.codigoModulo || "MOD"}] ${calendar.moduloFormativo || "Módulo"}`
+                      ? `Cronograma Temporal del Módulo: [${calendar?.codigoModulo || "MOD"}] ${calendar?.moduloFormativo || "Módulo"}`
                       : `Cartera de Cronogramas Multimódulo (${calendarsList.length} Módulos Docentes)`}
                   </span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40">
@@ -3361,6 +3601,35 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             initialLevel="modulo"
             onClose={() => setCalendarViewMode("calendario")}
           />
+        </div>
+      ) : !calendar ? (
+        <div className="p-8 bg-surface border border-dashed border-border-default rounded-2xl flex flex-col items-center justify-center text-center space-y-3 py-12">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+            <CalendarIcon className="w-6 h-6" />
+          </div>
+          <div className="font-black text-text-primary text-base">
+            No hay calendario escolar activo cargado
+          </div>
+          <p className="text-xs text-text-muted max-w-lg">
+            Por defecto no existen calendarios ni módulos activos hasta ser generados. Pulsa en <strong>«Generar Calendario Oficial Andalucía»</strong> para inicializar la matriz del curso 2026-2027 con toda la normativa, festivos y estructura oficial.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={handleGenerateOfficialAndaluciaCalendar}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-md"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Generar Calendario Oficial Andalucía (2026-2027)</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleLoadDefaultPortfolio}
+              className="px-4 py-2 bg-surface hover:bg-hover text-text-secondary hover:text-text-primary rounded-xl text-xs transition-colors border border-border-default cursor-pointer"
+            >
+              Cargar Cartera Demo
+            </button>
+          </div>
         </div>
       ) : (
         <>
@@ -4719,22 +4988,18 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
           </button>
 
           {/* Action: Delete Module */}
-          {calendarsList.length > 1 && (
-            <button
-              type="button"
-              onClick={() => {
-                const calToDelete = moduleContextMenu.calendar;
-                setModuleContextMenu(null);
-                if (window.confirm(`¿Estás seguro de que deseas eliminar el módulo "${calToDelete.moduloFormativo}" (${calToDelete.codigoModulo}) de tu cartera?`)) {
-                  handleDeleteSpecificCalendar(calToDelete.id);
-                }
-              }}
-              className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-red-950/50 text-red-400 hover:text-red-300 flex items-center gap-2 transition-colors cursor-pointer border border-transparent hover:border-red-500/30"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
-              <span className="text-[11px]">Eliminar Módulo de la Cartera</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              const calToDelete = moduleContextMenu.calendar;
+              setModuleContextMenu(null);
+              handleDeleteSpecificCalendar(calToDelete.id);
+            }}
+            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-red-950/50 text-red-400 hover:text-red-300 flex items-center gap-2 transition-colors cursor-pointer border border-transparent hover:border-red-500/30"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
+            <span className="text-[11px]">Eliminar Módulo de la Cartera</span>
+          </button>
         </div>
       )}
 
@@ -5110,7 +5375,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                 <div>
                   <h3 className="font-bold text-white text-sm">Cambiar Curso Escolar</h3>
                   <p className="text-[11px] text-slate-400">
-                    Módulo actual: <span className="text-emerald-400 font-bold font-mono">{calendar.codigoModulo || "MÓDULO"}</span> · Curso activo: <span className="text-white font-mono font-bold">{calendar.academicYear}</span>
+                    Módulo actual: <span className="text-emerald-400 font-bold font-mono">{calendar?.codigoModulo || "MÓDULO"}</span> · Curso activo: <span className="text-white font-mono font-bold">{calendar?.academicYear || "2026-2027"}</span>
                   </p>
                 </div>
               </div>
@@ -5261,7 +5526,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                     className="rounded accent-emerald-500 w-4 h-4"
                   />
                   <span className="text-[11px] text-slate-300 font-medium">
-                    Crear como nueva asignatura en mi cartera (conservar el curso actual {calendar.academicYear} intacto)
+                    Crear como nueva asignatura en mi cartera (conservar el curso actual {calendar?.academicYear || "2026-2027"} intacto)
                   </span>
                 </label>
               </div>
@@ -5308,7 +5573,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
             </div>
 
             <p className="text-slate-400 text-[11px]">
-              Se duplicará todo el calendario oficial ({calendar.academicYear}, festivos autonómicos y locales, vacaciones de Navidad, Semana Santa y Semana Blanca, periodos de evaluación).
+              Se duplicará todo el calendario oficial ({calendar?.academicYear || "2026-2027"}, festivos autonómicos y locales, vacaciones de Navidad, Semana Santa y Semana Blanca, periodos de evaluación).
             </p>
 
             <div className="space-y-3">
@@ -5560,7 +5825,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                   }
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
-                  {calendar.legendItems.map((leg) => (
+                  {(calendar?.legendItems || []).map((leg) => (
                     <option key={leg.id} value={leg.id}>
                       {leg.code} — {leg.title}
                     </option>
@@ -5648,7 +5913,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
       {/* MODAL 4: ADVANCED DAY EDIT (With Visual Color Swatches & Live Preview) */}
       {editingDayModal && (() => {
         const currentType = editingDayModal.override.type || "lectivo";
-        const selectedLegend = calendar.legendItems.find((l) => l.id === editingDayModal.override.legendItemId);
+        const selectedLegend = (calendar?.legendItems || []).find((l) => l.id === editingDayModal.override.legendItemId);
         
         // Compute effective preview colors
         let previewBg = "#0f172a";
@@ -5913,7 +6178,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                       <span className="text-[10.5px] text-slate-300 font-medium">Ninguna UD específica</span>
                     </button>
 
-                    {calendar.legendItems.map((leg) => {
+                    {(calendar?.legendItems || []).map((leg) => {
                       const isSelected = editingDayModal.override.legendItemId === leg.id;
                       return (
                         <button
@@ -6221,6 +6486,10 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                 <button
                   type="button"
                   onClick={() => {
+                    if (!calendar) {
+                      setEditingDayModal(null);
+                      return;
+                    }
                     const newOverrides = { ...calendar.dayOverrides };
                     delete newOverrides[editingDayModal.dateStr];
                     updateCurrentCalendar({
@@ -6257,6 +6526,90 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
           </div>
         );
       })()}
+
+      {/* MODAL 4B: DELETE MODULE CONFIRMATION VALIDATION */}
+      {deleteModuleConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-red-500/40 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-fade-in text-xs">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-sm">Eliminar Módulo de la Cartera</h3>
+                  <p className="text-[11px] text-slate-400">Confirmación de borrado permanente</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteModuleConfirmModal(null)}
+                className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-slate-300 text-xs leading-relaxed">
+                ¿Estás seguro de que deseas eliminar este módulo formativo y su programación temporal de la cartera del docente?
+              </p>
+
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-slate-400 font-medium">Código del Módulo:</span>
+                  <span className="font-mono font-bold text-white bg-slate-800 px-2 py-0.5 rounded text-[11px]">
+                    {deleteModuleConfirmModal.codigoModulo}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-slate-400 font-medium">Nombre / Materia:</span>
+                  <span className="font-bold text-emerald-400 text-[11px] text-right line-clamp-1 max-w-[220px]">
+                    {deleteModuleConfirmModal.moduloFormativo}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-slate-400 font-medium">Curso Escolar:</span>
+                  <span className="font-mono text-amber-400 text-[11px]">
+                    🎓 {deleteModuleConfirmModal.academicYear}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
+                  <span className="text-[11px] text-slate-400 font-medium">Unidades Didácticas (RAs):</span>
+                  <span className="text-white font-bold text-[11px]">
+                    {deleteModuleConfirmModal.udsCount} UDs vinculadas
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] leading-snug">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+                <span>
+                  Esta acción eliminará el módulo de tu cartera de trabajo. Si es el módulo activo actual, se seleccionará automáticamente el siguiente módulo disponible.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setDeleteModuleConfirmModal(null)}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExecuteDeleteModule(deleteModuleConfirmModal.calendarId)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs cursor-pointer flex items-center gap-1.5 transition-colors shadow-sm"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Sí, Eliminar Módulo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL 5: LEGEND ITEM CREATE / EDIT */}
       {editingLegendModal && (
@@ -6556,7 +6909,7 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
                     </span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Resolución oficial de la Delegación Territorial de la Junta de Andalucía &bull; Curso {calendar.academicYear} (Formato Apaisado / Landscape)
+                    Resolución oficial de la Delegación Territorial de la Junta de Andalucía &bull; Curso {calendar?.academicYear || "2026-2027"} (Formato Apaisado / Landscape)
                   </p>
                 </div>
               </div>

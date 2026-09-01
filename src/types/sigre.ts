@@ -57,21 +57,102 @@ export interface SigreCurricularConfig {
   horasSemanales?: number; // Horas lectivas semanales (ej. 4h, 5h, 6h)
   numUnidadesDidacticas?: number; // Número de UDs objetivo (0 o undefined = automático por bloques)
   semanasCurso?: number; // Total de semanas lectivas del curso (defecto 32 semanas: incluye FFEOE práctica y FCE práctica UDs)
-  duracionSesionMinutos?: number; // Duración media de la sesión lectiva en minutos (ej. 50, 55, 60, 120 min para taller)
-  horasPorSesion?: number; // Horas por sesión lectiva (defecto 1h, o 2h para bloques taller)
+  duracionSesionMinutos?: number; // Duración media de la sesión lectiva en minutos (ej. 60, 120, 180, 240 min)
+  horasPorSesion?: number; // Horas por sesión lectiva (1h estándar, 2h taller, 3h taller-lab, 4h intensivo/proyecto)
+  diasSemanaImparticion?: ("L" | "M" | "X" | "J" | "V")[]; // Días lectivos de la semana (Lunes a Viernes)
+  distribucionSemanalDias?: { dia: "L" | "M" | "X" | "J" | "V"; nombre: string; horas: number; activo: boolean }[]; // Reparto específico por día (1, 2, 3 o 4 horas por sesión)
   totalSesionesPrevistas?: number; // Número total de sesiones lectivas previstas para el módulo
   incluyePeriodoRecuperacionJunio?: boolean; // Periodo de recuperación de aprendizajes no adquiridos tras la última sesión de evaluación ordinaria en junio
   incluyePlanificacionSiguienteCursoJunio?: boolean; // Periodo de planificación del siguiente curso lectivo en junio
   // Formación Profesional Dual (LO 3/2022 y RD 659/2023)
+  cursoModulo?: 1 | 2; // Curso al que pertenece el módulo: 1 (1º Curso) o 2 (2º Curso)
   etapaCiclo?: "basico" | "medio" | "superior" | "especializacion"; // Grado D Básico, Medio, Superior o Grado E Especialización
   regimenDual?: "general" | "intensivo"; // Régimen General (20-35% empresa) vs Intensivo (>35-50% empresa)
-  porcentajeDual?: number; // % del ciclo formativo en empresa (ej. 20%, 25%, 35%, 50%)
-  horasFceModulo?: number; // Horas en Centro Educativo (FCE) para el módulo (ej. 130h)
-  horasFfeoeModulo?: number; // Horas en Empresa / Organismo Equiparado (FFEOE) para el módulo (ej. 30h)
+  porcentajeDual?: number; // % efectivo aplicado al módulo (ej. 12.1%, 25%, etc.)
+  porcentajeDualPrimerCurso?: number; // % del total de horas de 1º curso en empresa (FFEOE) según normativa (ej. 10%-20%, def. 12.1%)
+  porcentajeDualSegundoCurso?: number; // % del total de horas de 2º curso en empresa (FFEOE) según normativa (ej. 20%-35%, def. 25.0%)
+  horasPrimerCurso?: number; // Horas totales de 1º curso del ciclo (ej. 995 o 1000h)
+  horasSegundoCurso?: number; // Horas totales de 2º curso del ciclo (ej. 1005 o 1000h)
+  horasFfeoePrimerCurso?: number; // Horas totales en empresa (FFEOE) para 1º curso (ej. 120h)
+  horasFfeoeSegundoCurso?: number; // Horas totales en empresa (FFEOE) para 2º curso (ej. 410h o 251h)
+  fechaInicioDualPrimerCurso?: string; // Fecha de inicio del periodo Dual en 1º curso (ej. "17 de marzo" o "2025-03-17")
+  fechaInicioDualSegundoCurso?: string; // Fecha de inicio del periodo Dual en 2º curso (ej. "24 de marzo" o "2025-03-24")
+  horasSemanalesDualPrimerCurso?: number; // Horas semanales de estancia en empresa para 1º curso (ej. 30h o 35h)
+  horasSemanalesDualSegundoCurso?: number; // Horas semanales de estancia en empresa para 2º curso (ej. 30h o 35h)
+  fechaInicioDual?: string; // Fecha efectiva de inicio del periodo dual para el módulo
+  horasSemanalesDual?: number; // Horas semanales efectivas de dual en empresa para el módulo
+  horasFceModulo?: number; // Horas en Centro Educativo (FCE) para el módulo (ej. 140h)
+  horasFfeoeModulo?: number; // Horas en Empresa / Organismo Equiparado (FFEOE) para el módulo (ej. 20h)
   // Configuración de Evaluaciones y Parciales
   numParciales?: number; // Número de evaluaciones parciales / trimestres por curso (por defecto 3)
+  // Organización del ciclo (Orden EFD/659/2024) y alternancia Dual
+  cyclePlanData?: SigreCyclePlanData;
+  pedagogicalPhases?: SigrePedagogicalPhaseGroup[];
   // Gestor de Horarios y Guardias
   scheduleConfig?: SigreScheduleConfig;
+}
+
+export interface SigreCycleModuleEntry {
+  codigo: string; // "1580", "1576"...
+  nombre: string; // "Técnicas de montaje en instalaciones de agua", "Sistemas eléctricos en instalaciones de agua"...
+  abreviatura?: string; // "TMIAG", "SEIAG"...
+  bilingue: boolean;
+  bilingueNota?: string; // "Sí (*)"
+  horasTotales: number; // 160, 100, 130, 200, 35, 70...
+  curso: 1 | 2;
+  horasSemanales: number; // 5, 3, 4, 6, 1, 2...
+  horasSemFfce?: number; // 0 (si las 4 semanas son en empresa)
+  horasSemFfeoe?: number; // 5
+  horasTotFfce?: number; // 140
+  horasTotFfeoe?: number; // 20
+  porcentajeFfeoe?: number; // 12.1%
+}
+
+export interface SigreCyclePlanData {
+  ordenReferencia: string; // "Orden EFD/659/2024, de 25 de junio que modifica a la Orden de 2 de noviembre de 2011"
+  nombreCiclo: string;
+  totalHorasCiclo: number; // 2000
+  horasPrimerCurso: number; // 995
+  horasSegundoCurso: number; // 1005
+  horasSemanalesPrimerCurso: number; // 30
+  horasSemanalesSegundoCurso: number; // 30
+  bilingueTexto: string;
+  modulos: SigreCycleModuleEntry[];
+  // Parámetros de alternancia FFEOE
+  totalSemanasAcademicas: number; // 32
+  semanasFfeoe: number; // 4
+  semanasFfce: number; // 28
+  diasSemanaFfce: number; // 0
+  diasSemanaFfeoe: number; // 5
+  totalHorasFfeoeCurso: number; // 120
+  porcentajeFfeoeCurso: number; // 12.1%
+  horasFfeoePrimerCurso?: number; // 120
+  horasFfeoeSegundoCurso?: number; // 410
+  fechaInicioDualPrimerCurso?: string; // "17 de marzo"
+  fechaInicioDualSegundoCurso?: string; // "24 de marzo"
+  horasSemanalesDualPrimerCurso?: number; // 30
+  horasSemanalesDualSegundoCurso?: number; // 30
+  // Parciales / Evaluaciones
+  parciales: SigreEvaluationPeriodData[];
+}
+
+export interface SigreEvaluationPeriodData {
+  id: string; // "p1", "p2", "p3", "recup"
+  nombre: string; // "Primer Parcial", "Segundo Parcial", "Tercer Parcial", "Periodo de recuperación"
+  fechas: string; // "15 de septiembre al 19 de diciembre", "7 de enero al 20 de marzo", "23 de marzo al 29 de mayo", "1 de junio al 30 de junio"
+  horasFfce: number; // 65, 20, 40, 15
+  horasFfeoe: number; // 0, 20, 0, 0
+  totalHoras: number; // 65, 40, 40, 15
+  udsAsociadas?: string[]; // ["UD01", "UD02", "UD03", "UD04", "UD05", "UD06"]
+}
+
+export interface SigrePedagogicalPhaseGroup {
+  id: string; // "fase_1", "fase_2", "fase_3", "fase_4", "fase_r"
+  numero: number;
+  nombre: string; // "Fase I: Planificación (UD 1-4)", "Fase II: Fabricación (UD 5-6)"...
+  justificacionSecuencial: string; // "Se establece la base normativa (Seguridad), técnica (Materiales) y de diseño (Interpretación y Simulación)."
+  colorTheme: "green" | "yellow" | "blue" | "purple" | "slate";
+  udsIds: string[];
 }
 
 export type SigreTeacherReductionType =
@@ -272,6 +353,19 @@ export interface SigreUDItem {
   trimestre?: number; // 1: 1º Trimestre (P1), 2: 2º Trimestre (P2), 3: 3º Trimestre (P3), 4: 4º Parcial
   horasFce?: number; // Horas lectivas en Centro Educativo
   horasFfeoe?: number; // Horas estimadas en Empresa / Organismo Equiparado
+  // Matriz Curricular 7.1 y Normativa LO 3/2022 / RD 659/2023
+  fasePedagogicaId?: string; // "fase_1", "fase_2", "fase_3", "fase_4", "fase_r"
+  fasePedagogicaNombre?: string; // "Fase I: Planificación (UD 1-4)"
+  fasePedagogicaDescripcion?: string; // Justificación pedagógica de orden
+  raCeText?: string; // "RA 6: a, b, c, d, e, f, g", "RA 5: a, b; RA 4: b"
+  bcText?: string; // "6", "1", "4, 5", "3"
+  cppsText?: string; // "r", "c", "c, r", "j"
+  ogText?: string; // "s", "c", "c, s", "g, k"
+  horasFfce?: number; // Horas de aula/taller en Centro Educativo (FFCE)
+  pesoPorcentaje?: number; // % Ponderación sobre nota final del módulo (ej. 11.13%)
+  isDualEmpresa?: boolean; // Deriva horas a empresa en FP Dual (UD07, UD08)
+  dualNotaEmpresa?: string; // Explicación de estancia en empresa
+  isPeriodoRecuperacion?: boolean; // Fila 'R'
   status: "pending" | "generating" | "completed" | "error";
   error?: string;
   // Entregables generados
