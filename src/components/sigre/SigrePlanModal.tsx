@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   X,
   Check,
@@ -25,9 +25,18 @@ import {
   GraduationCap,
   ShieldCheck,
   Percent,
+  CheckCircle2,
+  Sliders,
 } from "lucide-react";
 import { SigreUDItem, SigreCurricularConfig, SigrePedagogicalPhaseGroup } from "../../types/sigre";
 import { DEFAULT_PEDAGOGICAL_PHASES } from "../../data/sigreCurricularModelPreset";
+import {
+  getDualRegulationParams,
+  auditDualRegulationCompliance,
+  autoDistributeDualHoursAndRAs,
+  EducationalStageType,
+  DualRegimeType,
+} from "../../utils/sigreDualRegulations";
 
 interface SigrePlanModalProps {
   isOpen: boolean;
@@ -69,12 +78,12 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
   });
 
   // Stage & Dual regime
-  const [etapaCiclo, setEtapaCiclo] = useState<"basico" | "medio" | "superior" | "especializacion">(() => {
-    return config?.etapaCiclo || "superior";
+  const [etapaCiclo, setEtapaCiclo] = useState<EducationalStageType>(() => {
+    return (config?.etapaCiclo as EducationalStageType) || "superior";
   });
 
-  const [regimenDual, setRegimenDual] = useState<"general" | "intensivo">(() => {
-    return config?.regimenDual || "general";
+  const [regimenDual, setRegimenDual] = useState<DualRegimeType>(() => {
+    return (config?.regimenDual as DualRegimeType) || "general";
   });
 
   // Course-specific Dual percentages (%) & Direct Dual Hours (h)
@@ -132,7 +141,90 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
   const activeFechaInicioDual = cursoModulo === 1 ? fechaInicioDualPrimerCurso : fechaInicioDualSegundoCurso;
   const activeHorasSemanalesDual = cursoModulo === 1 ? horasSemanalesDualPrimerCurso : horasSemanalesDualSegundoCurso;
 
-  // Handlers for bidirectional synchronization between % and Hours
+  // Module-specific Dual state (repercussion on this individual module)
+  const [porcentajeDualModulo, setPorcentajeDualModulo] = useState<number>(() => {
+    if (config?.porcentajeDual !== undefined) return config.porcentajeDual;
+    return cursoModulo === 1 ? 12.1 : 25.0;
+  });
+
+  const [targetFfeoeModulo, setTargetFfeoeModulo] = useState<number>(() => {
+    if (config?.horasFfeoeModulo !== undefined) return config.horasFfeoeModulo;
+    const initialPct = config?.porcentajeDual !== undefined ? config.porcentajeDual : (cursoModulo === 1 ? 12.1 : 25.0);
+    return Math.round((horasTotales * initialPct) / 100);
+  });
+
+  // Handlers for stage and regime switching with regulatory presets
+  const handleSelectEtapa = (newStage: EducationalStageType) => {
+    setEtapaCiclo(newStage);
+    const p = getDualRegulationParams(newStage, regimenDual);
+    if (newStage === "especializacion") {
+      setHorasPrimerCurso(p.totalCycleHours);
+      setHorasSegundoCurso(0);
+      setHorasFfeoePrimerCurso(p.typicalCourse1.recommendedHours);
+      setPorcentajeDualPrimerCurso(p.typicalCourse1.recommendedPct);
+      setHorasFfeoeSegundoCurso(0);
+      setPorcentajeDualSegundoCurso(0);
+      setPorcentajeDualModulo(p.typicalCourse1.recommendedPct);
+      setTargetFfeoeModulo(Math.round((horasModulo * p.typicalCourse1.recommendedPct) / 100));
+    } else if (newStage === "basico") {
+      setHorasPrimerCurso(1000);
+      setHorasSegundoCurso(1000);
+      setHorasFfeoePrimerCurso(0);
+      setPorcentajeDualPrimerCurso(0);
+      setHorasFfeoeSegundoCurso(400);
+      setPorcentajeDualSegundoCurso(40.0);
+      const modPct = cursoModulo === 1 ? 0 : 20.0;
+      setPorcentajeDualModulo(modPct);
+      setTargetFfeoeModulo(Math.round((horasModulo * modPct) / 100));
+    } else {
+      // Medio / Superior
+      setHorasPrimerCurso(995);
+      setHorasSegundoCurso(1005);
+      setHorasFfeoePrimerCurso(120);
+      setPorcentajeDualPrimerCurso(12.1);
+      setHorasFfeoeSegundoCurso(410);
+      setPorcentajeDualSegundoCurso(40.8);
+      const modPct = cursoModulo === 1 ? 12.1 : 25.0;
+      setPorcentajeDualModulo(modPct);
+      setTargetFfeoeModulo(Math.round((horasModulo * modPct) / 100));
+    }
+  };
+
+  const handleSelectRegimen = (newRegime: DualRegimeType) => {
+    setRegimenDual(newRegime);
+    const p = getDualRegulationParams(etapaCiclo, newRegime);
+    if (newRegime === "no_dual") {
+      setHorasFfeoePrimerCurso(0);
+      setPorcentajeDualPrimerCurso(0);
+      setHorasFfeoeSegundoCurso(0);
+      setPorcentajeDualSegundoCurso(0);
+      setTargetFfeoeModulo(0);
+      setPorcentajeDualModulo(0);
+    } else if (newRegime === "intensivo") {
+      const h1 = etapaCiclo === "especializacion" ? 0 : 250;
+      const h2 = etapaCiclo === "especializacion" ? 250 : 550;
+      setHorasFfeoePrimerCurso(h1);
+      setPorcentajeDualPrimerCurso(h1 > 0 ? parseFloat(((h1 / (horasPrimerCurso || 1000)) * 100).toFixed(1)) : 0);
+      setHorasFfeoeSegundoCurso(h2);
+      setPorcentajeDualSegundoCurso(h2 > 0 ? parseFloat(((h2 / (horasSegundoCurso || 1000)) * 100).toFixed(1)) : 0);
+      const modPct = 40.0;
+      setPorcentajeDualModulo(modPct);
+      setTargetFfeoeModulo(Math.round((horasModulo * modPct) / 100));
+    } else {
+      // General
+      const h1 = p.typicalCourse1.recommendedHours;
+      const h2 = p.typicalCourse2.recommendedHours;
+      setHorasFfeoePrimerCurso(h1);
+      setPorcentajeDualPrimerCurso(p.typicalCourse1.recommendedPct);
+      setHorasFfeoeSegundoCurso(h2);
+      setPorcentajeDualSegundoCurso(p.typicalCourse2.recommendedPct);
+      const modPct = cursoModulo === 1 ? p.typicalCourse1.recommendedPct : (etapaCiclo === "especializacion" ? 20 : 25);
+      setPorcentajeDualModulo(modPct);
+      setTargetFfeoeModulo(Math.round((horasModulo * modPct) / 100));
+    }
+  };
+
+  // Handlers for bidirectional synchronization between % and Hours (1º and 2º Curso del Ciclo)
   const handleUpdatePrimerCursoFfeoeHours = (newHours: number) => {
     const safeH = Math.max(0, newHours);
     setHorasFfeoePrimerCurso(safeH);
@@ -161,10 +253,28 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
     setHorasFfeoeSegundoCurso(newHours);
   };
 
+  // Handlers for bidirectional synchronization of Module Repercussion (FFEOE en este Módulo)
+  const handleUpdateModuloFfeoeHours = (newHours: number) => {
+    const safeH = Math.max(0, Math.min(horasModulo, newHours));
+    setTargetFfeoeModulo(safeH);
+    const newPct = parseFloat(((safeH / (horasModulo || 1)) * 100).toFixed(1));
+    setPorcentajeDualModulo(newPct);
+  };
+
+  const handleUpdateModuloDualPct = (newPct: number) => {
+    const safePct = Math.max(0, Math.min(100, newPct));
+    setPorcentajeDualModulo(safePct);
+    const newHours = Math.round(((horasModulo || 1) * safePct) / 100);
+    setTargetFfeoeModulo(newHours);
+  };
+
   // Total module hours breakdown between FCE (Centro) and FFEOE (Empresa)
   const [horasModulo, setHorasModulo] = useState<number>(horasTotales);
   const [isDualConfigOpen, setIsDualConfigOpen] = useState(false);
   const [isTemporalConfigOpen, setIsTemporalConfigOpen] = useState(false);
+
+  // Target hours in FFEOE (Empresa) vs FCE (Centro) for the current module
+  const targetFceModulo = Math.max(0, horasModulo - targetFfeoeModulo);
 
   // Total teaching weeks (standard: 32 weeks) and session settings
   const [semanasCurso, setSemanasCurso] = useState<number>(() => {
@@ -207,10 +317,6 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
   const totalSesionesPrevistas = Math.round(horasModulo / (horasPorSesion || 1));
   const sesionesSemanalesPrevistas = Math.max(1, Math.round(calculatedHorasSemanales / (horasPorSesion || 1)));
 
-  // Target hours in FFEOE (Empresa) vs FCE (Centro) for the current module
-  const targetFfeoeModulo = Math.round((horasModulo * activeDualPct) / 100);
-  const targetFceModulo = horasModulo - targetFfeoeModulo;
-
   // Total dual hours for the whole cycle (1º + 2º)
   const totalHorasFfeoe1 = Math.round((horasPrimerCurso * porcentajeDualPrimerCurso) / 100);
   const totalHorasFfeoe2 = Math.round((horasSegundoCurso * porcentajeDualSegundoCurso) / 100);
@@ -218,17 +324,31 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
   const totalHorasCiclo = horasPrimerCurso + horasSegundoCurso;
   const porcentajeDualCicloGlobal = parseFloat(((totalHorasFfeoeCiclo / (totalHorasCiclo || 2000)) * 100).toFixed(1));
 
+  // Dual Regulation Parameters & Live Compliance Audit (LO 3/2022 y RD 659/2023)
+  const dualRegulationParams = getDualRegulationParams(
+    etapaCiclo,
+    regimenDual,
+    totalHorasCiclo
+  );
+
   const [uds, setUds] = useState<SigreUDItem[]>(() => {
     const defaultHoursPerUd = Math.round(horasTotales / (initialUds.length || 8));
     const defaultWeight = parseFloat((100 / (initialUds.length || 8)).toFixed(2));
+    const activeNumParciales = numParciales || 3;
+    const hasDiverseTrimesters = initialUds.some((u) => u.trimestre && u.trimestre > 1);
+    const perParcial = Math.ceil((initialUds.length || 8) / activeNumParciales);
+
     return initialUds.map((u, idx) => {
-      const defaultTrimestre = u.trimestre || Math.min(numParciales, Math.floor((idx / (initialUds.length || 8)) * numParciales) + 1);
+      const defaultTrimestre = (hasDiverseTrimesters && u.trimestre)
+        ? Math.min(activeNumParciales, u.trimestre)
+        : Math.min(activeNumParciales, Math.floor(idx / perParcial) + 1);
       const h = u.horasEstimadas || defaultHoursPerUd;
       return {
         ...u,
         horasEstimadas: h,
         horasFfce: u.horasFfce ?? h,
         horasFfeoe: u.horasFfeoe ?? 0,
+        isRaFfeoe: u.isRaFfeoe ?? ((u.horasFfeoe ?? 0) > 0),
         pesoPorcentaje: u.pesoPorcentaje ?? defaultWeight,
         sesionesEstimadas: u.sesionesEstimadas || Math.max(1, Math.round(h / (config?.horasPorSesion || 1))),
         trimestre: defaultTrimestre,
@@ -238,8 +358,26 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
     });
   });
 
+  const dualAudit = auditDualRegulationCompliance(
+    {
+      ...config,
+      etapaCiclo,
+      regimenDual,
+      horasTotales: horasModulo,
+      horasPrimerCurso,
+      horasSegundoCurso,
+      horasFfeoePrimerCurso,
+      horasFfeoeSegundoCurso,
+      horasFfeoeModulo: targetFfeoeModulo,
+      porcentajeDual: porcentajeDualModulo,
+    },
+    uds
+  );
+
+  const prevIsOpenRef = useRef<boolean>(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       const activeNumParciales = config?.numParciales || 3;
       const activeSemanas = config?.semanasCurso || 32;
       const activeHorasPorSesion = config?.horasPorSesion || 1;
@@ -274,11 +412,20 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
       setHorasPorSesion(activeHorasPorSesion);
       setDuracionSesionMinutos(config?.duracionSesionMinutos || 60);
 
+      const initPctModulo = config?.porcentajeDual !== undefined ? config.porcentajeDual : (curMod === 1 ? pct1 : pct2);
+      const initHoursModulo = config?.horasFfeoeModulo !== undefined ? config.horasFfeoeModulo : Math.round((horasTotales * initPctModulo) / 100);
+      setPorcentajeDualModulo(initPctModulo);
+      setTargetFfeoeModulo(initHoursModulo);
+
       const defaultHoursPerUd = Math.round(horasTotales / (initialUds.length || 8));
       const defaultWeight = parseFloat((100 / (initialUds.length || 8)).toFixed(2));
+      const hasDiverseTrimesters = initialUds.some((u) => u.trimestre && u.trimestre > 1);
+      const perParcial = Math.ceil((initialUds.length || 8) / activeNumParciales);
       setUds(
         initialUds.map((u, idx) => {
-          const defaultTrimestre = u.trimestre || Math.min(activeNumParciales, Math.floor((idx / (initialUds.length || 8)) * activeNumParciales) + 1);
+          const defaultTrimestre = (hasDiverseTrimesters && u.trimestre)
+            ? Math.min(activeNumParciales, u.trimestre)
+            : Math.min(activeNumParciales, Math.floor(idx / perParcial) + 1);
           const h = u.horasEstimadas || defaultHoursPerUd;
           return {
             ...u,
@@ -294,6 +441,7 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
         })
       );
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, initialUds, horasTotales, config]);
 
   if (!isOpen) return null;
@@ -572,55 +720,32 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
     return `${pNum}º Trimestre (P${pNum})`;
   };
 
-  // Handle auto-distribution of FFEOE (Empresa) target hours across UDs
+  // Handle auto-distribution of FFEOE (Empresa) target hours & RAs across UDs with regulatory compliance (10%-20% RA)
   const handleAutoDistributeFfeoe = () => {
     if (uds.length === 0) return;
     const targetFfeoe = targetFfeoeModulo;
-    let remainingFfeoe = targetFfeoe;
-    const updated = [...uds];
-
-    // Reset all UDs to full FFCE first
-    for (let i = 0; i < updated.length; i++) {
-      const hTot = updated[i].horasEstimadas || 20;
-      updated[i] = {
-        ...updated[i],
-        horasFfce: hTot,
-        horasFfeoe: 0,
-      };
-    }
-
-    if (targetFfeoe > 0) {
-      // Allocate into the later practical UDs (from last to first)
-      for (let i = updated.length - 1; i >= 0; i--) {
-        if (remainingFfeoe <= 0) break;
-        const hTot = updated[i].horasEstimadas || 20;
-        // Allocate up to 80% of the UD to enterprise (keep at least some center hours unless single UD)
-        const maxAllocForUd = updated.length === 1 ? remainingFfeoe : Math.min(remainingFfeoe, Math.max(1, Math.round(hTot * 0.8)));
-        const alloc = Math.min(remainingFfeoe, maxAllocForUd);
-        const ffce = Math.max(0, hTot - alloc);
-        updated[i] = {
-          ...updated[i],
-          horasFfeoe: alloc,
-          horasFfce: ffce,
-        };
-        remainingFfeoe -= alloc;
-      }
-
-      // If any remainder, add to last UD
-      if (remainingFfeoe > 0 && updated.length > 0) {
-        const lastIdx = updated.length - 1;
-        const curFfeoe = updated[lastIdx].horasFfeoe || 0;
-        const newFfeoe = curFfeoe + remainingFfeoe;
-        const hTot = updated[lastIdx].horasEstimadas || 20;
-        updated[lastIdx] = {
-          ...updated[lastIdx],
-          horasFfeoe: newFfeoe,
-          horasFfce: Math.max(0, hTot - newFfeoe),
-        };
-      }
-    }
-
+    const updated = autoDistributeDualHoursAndRAs(
+      uds,
+      targetFfeoe,
+      horasModulo,
+      15 // Target 15% of RAs in dual within [10%-20%]
+    );
     setUds(updated);
+  };
+
+  // Toggle isRaFfeoe for an individual UD
+  const handleToggleUdRaFfeoe = (udId: string) => {
+    setUds((prev) =>
+      prev.map((u) => {
+        if (u.id === udId) {
+          return {
+            ...u,
+            isRaFfeoe: !u.isRaFfeoe,
+          };
+        }
+        return u;
+      })
+    );
   };
 
   const handleSave = () => {
@@ -653,6 +778,10 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
       porcentajeDual: activeDualPct,
       porcentajeDualPrimerCurso,
       porcentajeDualSegundoCurso,
+      porcentajeRaFfeoe: dualAudit.pctRaFfeoe,
+      porcentajeRaFfeoeModulo: dualAudit.pctRaFfeoe,
+      totalRasModulo: dualAudit.totalRasModulo,
+      rasFfeoeModulo: dualAudit.rasInFfeoeCount,
       horasPrimerCurso,
       horasSegundoCurso,
       horasFfeoePrimerCurso,
@@ -716,36 +845,36 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
         </div>
 
         {/* Tab Navigation Strip */}
-        <div className="px-4 sm:px-6 pt-3 bg-surface border-b border-border-default flex items-center justify-between gap-3 overflow-x-auto">
-          <div className="flex items-center gap-2">
+        <div className="px-4 sm:px-6 py-2.5 bg-surface border-b border-border-default flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 p-1 bg-alt/60 rounded-xl border border-border-default/60 shadow-inner">
             <button
               type="button"
               onClick={() => setActivePlanTab("matriz_planificacion")}
-              className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all flex items-center gap-2 border-b-2 cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                 activePlanTab === "matriz_planificacion"
-                  ? "border-cyan-500 text-cyan-400 bg-cyan-500/10"
-                  : "border-transparent text-text-muted hover:text-text-primary hover:bg-alt/50"
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-xs"
+                  : "text-text-muted hover:text-text-primary hover:bg-alt/80 border border-transparent"
               }`}
             >
-              <FileSpreadsheet className="w-4 h-4" />
+              <FileSpreadsheet className="w-4 h-4 text-cyan-400" />
               <span>1. Planificación Curricular Integral (Tabla 7.1 + RA/CE + FP Dual)</span>
             </button>
             <button
               type="button"
               onClick={() => setActivePlanTab("unidades")}
-              className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all flex items-center gap-2 border-b-2 cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                 activePlanTab === "unidades"
-                  ? "border-amber-500 text-amber-400 bg-amber-500/10"
-                  : "border-transparent text-text-muted hover:text-text-primary hover:bg-alt/50"
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-xs"
+                  : "text-text-muted hover:text-text-primary hover:bg-alt/80 border border-transparent"
               }`}
             >
-              <ListOrdered className="w-4 h-4" />
+              <ListOrdered className="w-4 h-4 text-amber-400" />
               <span>2. Secuencia Rápida de UDs ({uds.length})</span>
             </button>
           </div>
 
           <div className="flex items-center gap-2 shrink-0 text-xs font-mono">
-            <span className={`px-2.5 py-1 rounded-lg border font-bold flex items-center gap-1.5 ${
+            <span className={`px-2.5 py-1 rounded-lg border font-bold flex items-center gap-1.5 shadow-2xs ${
               totalAssignedHours === horasModulo
                 ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
                 : "bg-amber-500/15 border-amber-500/40 text-amber-400"
@@ -753,7 +882,7 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
               <Clock className="w-3.5 h-3.5" />
               {totalAssignedHours}h / {horasModulo}h
             </span>
-            <span className={`px-2.5 py-1 rounded-lg border font-bold flex items-center gap-1.5 ${
+            <span className={`px-2.5 py-1 rounded-lg border font-bold flex items-center gap-1.5 shadow-2xs ${
               Math.abs(totalPesoCalculated - 100) < 0.1
                 ? "bg-purple-500/15 border-purple-500/40 text-purple-400"
                 : "bg-amber-500/15 border-amber-500/40 text-amber-400"
@@ -766,103 +895,265 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
 
         {/* Content Body */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
-          {/* Macro Configuration Controls: Parciales & Formación Dual */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Parciales Selector Card */}
-            <div className="p-3.5 bg-background border border-border-default rounded-xl space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-bold text-text-primary">
-                  <Calendar className="w-4 h-4 text-amber-500" />
-                  <span>Número de Parciales / Evaluaciones:</span>
+          {/* TAB 1: FULL CURRICULAR PLANNING (TABLA 7.1 + RA/CE + FP DUAL + MARCO LECTIVO) */}
+          {activePlanTab === "matriz_planificacion" && (
+            <div className="space-y-4">
+              {/* Parciales Selector Card */}
+              <div className="p-3.5 bg-background border border-border-default rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-text-primary">
+                    <Calendar className="w-4 h-4 text-amber-500" />
+                    <span>Número de Parciales / Evaluaciones:</span>
+                  </div>
+                  <div className="flex items-center gap-1 bg-surface p-1 rounded-lg border border-border-default">
+                    {[1, 2, 3, 4].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => {
+                          setNumParciales(n);
+                          setUds((prev) =>
+                            prev.map((u) => ({
+                              ...u,
+                              trimestre: Math.min(n, u.trimestre || 1),
+                            }))
+                          );
+                        }}
+                        className={`px-2.5 py-1 text-xs font-mono font-bold rounded transition-all cursor-pointer ${
+                          numParciales === n
+                            ? "bg-amber-500 text-black shadow-sm"
+                            : "text-text-muted hover:text-text-primary hover:bg-alt"
+                        }`}
+                      >
+                        {n} {n === 3 ? "Trim." : n === 2 ? "Sem." : n === 1 ? "Anual" : "P"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 bg-surface p-1 rounded-lg border border-border-default">
-                  {[1, 2, 3, 4].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => {
-                        setNumParciales(n);
-                        setUds((prev) =>
-                          prev.map((u) => ({
-                            ...u,
-                            trimestre: Math.min(n, u.trimestre || 1),
-                          }))
-                        );
-                      }}
-                      className={`px-2.5 py-1 text-xs font-mono font-bold rounded transition-all cursor-pointer ${
-                        numParciales === n
-                          ? "bg-amber-500 text-black shadow-sm"
-                          : "text-text-muted hover:text-text-primary hover:bg-alt"
-                      }`}
-                    >
-                      {n} {n === 3 ? "Trim." : n === 2 ? "Sem." : n === 1 ? "Anual" : "P"}
-                    </button>
-                  ))}
+
+                {/* Live breakdown per partial */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1">
+                  {Array.from({ length: numParciales }, (_, i) => i + 1).map((pNum) => {
+                    const stat = getParcialSummary(pNum);
+                    return (
+                      <div
+                        key={pNum}
+                        className="p-2 rounded-lg bg-surface border border-border-default text-center text-[11px]"
+                      >
+                        <span className="font-bold text-amber-400 block truncate">{getParcialLabel(pNum)}</span>
+                        <span className="text-text-muted font-mono font-semibold">
+                          {stat.count} UDs • <strong className="text-text-primary">{stat.hours}h</strong> • <span className="text-purple-400 font-bold">{stat.sessions} ses.</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex justify-end pt-0.5">
+                  <button
+                    type="button"
+                    onClick={handleAutoDistributeTrimesters}
+                    className="text-[10px] font-bold text-amber-400 hover:text-amber-300 inline-flex items-center gap-1 hover:underline cursor-pointer"
+                  >
+                    <Sparkles className="w-3 h-3" /> Auto-repartir UDs en los {numParciales} parciales
+                  </button>
                 </div>
               </div>
-
-              {/* Live breakdown per partial */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1">
-                {Array.from({ length: numParciales }, (_, i) => i + 1).map((pNum) => {
-                  const stat = getParcialSummary(pNum);
-                  return (
-                    <div
-                      key={pNum}
-                      className="p-2 rounded-lg bg-surface border border-border-default text-center text-[11px]"
-                    >
-                      <span className="font-bold text-amber-400 block truncate">{getParcialLabel(pNum)}</span>
-                      <span className="text-text-muted font-mono font-semibold">
-                        {stat.count} UDs • <strong className="text-text-primary">{stat.hours}h</strong> • <span className="text-purple-400 font-bold">{stat.sessions} ses.</span>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="flex justify-end pt-0.5">
-                <button
-                  type="button"
-                  onClick={handleAutoDistributeTrimesters}
-                  className="text-[10px] font-bold text-amber-400 hover:text-amber-300 inline-flex items-center gap-1 hover:underline cursor-pointer"
-                >
-                  <Sparkles className="w-3 h-3" /> Auto-repartir UDs en los {numParciales} parciales
-                </button>
-              </div>
-            </div>
 
             {/* Formación Dual Card (LO 3/2022 y RD 659/2023) */}
             <div className="p-3.5 bg-background border border-cyan-500/30 rounded-xl space-y-3 shadow-2xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              {/* Card Header & Stage / Regime Switchers */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pb-2 border-b border-border-subtle">
                 <div className="flex items-center gap-2 text-xs font-bold text-text-primary">
                   <Building2 className="w-4 h-4 text-cyan-400" />
                   <span>Formación Profesional Dual (LO 3/2022 · RD 659/2023):</span>
                 </div>
 
-                {/* Course Switcher for the module */}
-                <div className="flex items-center gap-1.5 bg-surface p-1 rounded-xl border border-border-default">
-                  <span className="text-[10px] font-bold text-text-muted px-1">Curso del Módulo:</span>
+                {/* Stage (Etapa) and Regime (Régimen) Selectors */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Etapa Educativa */}
+                  <div className="flex items-center gap-1 bg-surface p-1 rounded-lg border border-border-default text-[10px]">
+                    <span className="font-bold text-text-muted px-1">Etapa:</span>
+                    {(
+                      [
+                        { id: "medio", label: "Grado Medio" },
+                        { id: "superior", label: "Grado Superior" },
+                        { id: "basico", label: "Grado Básico (CFGB)" },
+                        { id: "especializacion", label: "Especialización" },
+                      ] as const
+                    ).map((st) => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => handleSelectEtapa(st.id)}
+                        className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                          etapaCiclo === st.id
+                            ? "bg-purple-500 text-white shadow-xs font-black"
+                            : "text-text-muted hover:text-text-primary hover:bg-alt"
+                        }`}
+                      >
+                        {st.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Régimen Dual */}
+                  <div className="flex items-center gap-1 bg-surface p-1 rounded-lg border border-border-default text-[10px]">
+                    <span className="font-bold text-text-muted px-1">Régimen:</span>
+                    {(
+                      [
+                        { id: "general", label: "Dual General (10-20% RA · 500-700h)" },
+                        { id: "intensivo", label: "Dual Intensivo (>30% RA)" },
+                        { id: "no_dual", label: "No Dual (0h)" },
+                      ] as const
+                    ).map((rg) => (
+                      <button
+                        key={rg.id}
+                        type="button"
+                        onClick={() => handleSelectRegimen(rg.id)}
+                        className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                          regimenDual === rg.id
+                            ? "bg-cyan-500 text-black shadow-xs font-black"
+                            : "text-text-muted hover:text-text-primary hover:bg-alt"
+                        }`}
+                      >
+                        {rg.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Course Switcher for the module */}
+                  <div className="flex items-center gap-1 bg-surface p-1 rounded-lg border border-border-default text-[10px]">
+                    <span className="font-bold text-text-muted px-1">Curso Módulo:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCursoModulo(1);
+                        const targetPct = porcentajeDualPrimerCurso;
+                        setPorcentajeDualModulo(targetPct);
+                        setTargetFfeoeModulo(Math.round((horasModulo * targetPct) / 100));
+                      }}
+                      className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                        cursoModulo === 1
+                          ? "bg-cyan-500 text-black shadow-xs font-black"
+                          : "text-text-muted hover:text-text-primary hover:bg-alt"
+                      }`}
+                    >
+                      1º Curso
+                    </button>
+                    {etapaCiclo !== "especializacion" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCursoModulo(2);
+                          const targetPct = porcentajeDualSegundoCurso;
+                          setPorcentajeDualModulo(targetPct);
+                          setTargetFfeoeModulo(Math.round((horasModulo * targetPct) / 100));
+                        }}
+                        className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                          cursoModulo === 2
+                            ? "bg-cyan-500 text-black shadow-xs font-black"
+                            : "text-text-muted hover:text-text-primary hover:bg-alt"
+                        }`}
+                      >
+                        2º Curso
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* LIVE REGULATORY COMPLIANCE BANNER & AUDIT */}
+              <div
+                className={`p-3 rounded-xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs transition-all ${
+                  dualAudit.summaryBadgeColor === "emerald"
+                    ? "bg-emerald-950/30 border-emerald-500/40 text-emerald-200"
+                    : dualAudit.summaryBadgeColor === "amber"
+                    ? "bg-amber-950/30 border-amber-500/40 text-amber-200"
+                    : dualAudit.summaryBadgeColor === "cyan" || dualAudit.summaryBadgeColor === "blue"
+                    ? "bg-cyan-950/30 border-cyan-500/40 text-cyan-200"
+                    : "bg-red-950/30 border-red-500/40 text-red-200"
+                }`}
+              >
+                <div className="space-y-1.5 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide border flex items-center gap-1 ${
+                        dualAudit.summaryBadgeColor === "emerald"
+                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                          : dualAudit.summaryBadgeColor === "amber"
+                          ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                          : dualAudit.summaryBadgeColor === "cyan" || dualAudit.summaryBadgeColor === "blue"
+                          ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+                          : "bg-red-500/20 text-red-300 border-red-500/40"
+                      }`}
+                    >
+                      {dualAudit.isFullyCompliant ? (
+                        <CheckCircle2 className="w-3 h-3" />
+                      ) : (
+                        <AlertCircle className="w-3 h-3" />
+                      )}
+                      {dualAudit.summaryBadgeText}
+                    </span>
+                    <span className="font-bold text-[11px] opacity-90">
+                      {dualRegulationParams.legalReference}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-0.5">
+                    {/* Horas Empresa vs Legal Range */}
+                    <div className="bg-black/20 p-2 rounded-lg border border-white/5 space-y-0.5">
+                      <div className="flex items-center justify-between font-mono">
+                        <span className="text-[10px] opacity-80">Horas FFEOE Ciclo:</span>
+                        <span className="font-bold">
+                          {totalHorasFfeoeCiclo}h de {totalHorasCiclo}h ({porcentajeDualCicloGlobal}%)
+                        </span>
+                      </div>
+                      <div className="text-[10px] opacity-75 font-mono">
+                        Rango legal: [{dualRegulationParams.minHoursFfeoe}h - {dualRegulationParams.maxHoursFfeoe}h] ({dualRegulationParams.minPctFfeoe}% - {dualRegulationParams.maxPctFfeoe}%)
+                      </div>
+                    </div>
+
+                    {/* RAs en FFEOE vs Legal Range (10%-20%) */}
+                    <div className="bg-black/20 p-2 rounded-lg border border-white/5 space-y-0.5">
+                      <div className="flex items-center justify-between font-mono">
+                        <span className="text-[10px] opacity-80">RAs en Dual (FFEOE):</span>
+                        <span className="font-bold">
+                          {dualAudit.rasInFfeoeCount} de {dualAudit.totalRasModulo} RAs ({dualAudit.pctRaFfeoe.toFixed(1)}%)
+                        </span>
+                      </div>
+                      <div className="text-[10px] opacity-75 font-mono">
+                        Rango curricular legal: [{dualRegulationParams.minPctRaFfeoe}% - {dualRegulationParams.maxPctRaFfeoe}% de los RAs]
+                      </div>
+                    </div>
+                  </div>
+
+                  {dualAudit.recommendations.length > 0 && (
+                    <div className="text-[10px] pt-1 space-y-0.5 opacity-90">
+                      {dualAudit.recommendations.map((rec, i) => (
+                        <p key={i} className="flex items-center gap-1.5 font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                          {rec}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Auto-Distribute Action Button */}
+                <div className="shrink-0 flex flex-col items-end gap-1">
                   <button
                     type="button"
-                    onClick={() => setCursoModulo(1)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      cursoModulo === 1
-                        ? "bg-cyan-500 text-black shadow-xs font-black"
-                        : "text-text-muted hover:text-text-primary hover:bg-alt"
-                    }`}
+                    onClick={handleAutoDistributeFfeoe}
+                    className="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-black font-black rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    title="Auto-distribuir horas y marcar el rango legal del 10%-20% de RAs en UDs"
                   >
-                    1º Curso
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Auto-repartir Horas y RAs</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setCursoModulo(2)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      cursoModulo === 2
-                        ? "bg-cyan-500 text-black shadow-xs font-black"
-                        : "text-text-muted hover:text-text-primary hover:bg-alt"
-                    }`}
-                  >
-                    2º Curso
-                  </button>
+                  <span className="text-[9px] opacity-70 font-mono">
+                    Ajusta horas + 10%-20% RAs
+                  </span>
                 </div>
               </div>
 
@@ -892,7 +1183,7 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                         </span>
                       )}
                       <span className="text-[10px] font-mono text-text-muted">
-                        Total Curso: {horasPrimerCurso}h
+                        Total 1º Curso: {horasPrimerCurso}h
                       </span>
                     </div>
                   </div>
@@ -902,7 +1193,7 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="text-[10px] text-text-muted font-bold block mb-0.5">
-                          Horas Empresa (FFEOE 1º):
+                          Horas Empresa Ciclo (FFEOE 1º):
                         </label>
                         <div className="relative">
                           <input
@@ -919,7 +1210,7 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
 
                       <div>
                         <label className="text-[10px] text-text-muted font-bold block mb-0.5">
-                          % Empresa (FFEOE 1º):
+                          % Empresa s/ 1º Curso:
                         </label>
                         <div className="relative">
                           <input
@@ -936,16 +1227,37 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                       </div>
                     </div>
 
+                    {/* Repercussion on whole cycle label */}
+                    <div className="flex items-center justify-between text-[10px] px-1 text-text-muted">
+                      <span>Repercusión s/ Ciclo Total ({totalHorasCiclo}h):</span>
+                      <span className="font-mono font-bold text-cyan-400">
+                        {((horasFfeoePrimerCurso / (totalHorasCiclo || 2000)) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+
                     {/* Quick percentage shortcuts */}
                     <div className="flex items-center justify-between gap-1 pt-0.5">
-                      <span className="text-[10px] text-text-muted">Preajustes:</span>
-                      <div className="flex items-center gap-1">
-                        {[
-                          { label: "10% (100h)", pct: 10, h: 100 },
-                          { label: "12,1% (120h)", pct: 12.1, h: 120 },
-                          { label: "15% (149h)", pct: 15, h: 149 },
-                          { label: "20% (199h)", pct: 20, h: 199 },
-                        ].map((preset) => (
+                      <span className="text-[10px] text-text-muted">Preajustes 1º:</span>
+                      <div className="flex items-center gap-1 flex-wrap justify-end">
+                        {(etapaCiclo === "especializacion"
+                          ? [
+                              { label: "15% (90h)", pct: 15, h: 90 },
+                              { label: "20% (120h)", pct: 20, h: 120 },
+                              { label: "25% (150h)", pct: 25, h: 150 },
+                            ]
+                          : etapaCiclo === "basico"
+                          ? [
+                              { label: "0h (100% 2º)", pct: 0, h: 0 },
+                              { label: "10% (100h)", pct: 10, h: 100 },
+                              { label: "15% (150h)", pct: 15, h: 150 },
+                            ]
+                          : [
+                              { label: "10% (100h)", pct: 10, h: 100 },
+                              { label: "12.1% (120h)", pct: 12.1, h: 120 },
+                              { label: "15% (149h)", pct: 15, h: 149 },
+                              { label: "20% (199h)", pct: 20, h: 199 },
+                            ]
+                        ).map((preset) => (
                           <button
                             key={preset.pct}
                             type="button"
@@ -1031,7 +1343,7 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
 
                   {/* Calculated Stay Footer */}
                   <div className="pt-1 flex items-center justify-between text-[10px] text-text-muted font-mono bg-alt/30 px-2 py-1 rounded-md border border-border-subtle">
-                    <span>Estancia en Empresa:</span>
+                    <span>Estancia 1º en Empresa:</span>
                     <span className="font-bold text-cyan-400">
                       ~{(horasFfeoePrimerCurso / (horasSemanalesDualPrimerCurso || 30)).toFixed(1)} sem. ({Math.round(horasFfeoePrimerCurso / (horasSemanalesDualPrimerCurso || 30))} semanas)
                     </span>
@@ -1062,7 +1374,7 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                         </span>
                       )}
                       <span className="text-[10px] font-mono text-text-muted">
-                        Total Curso: {horasSegundoCurso}h
+                        Total 2º Curso: {horasSegundoCurso}h
                       </span>
                     </div>
                   </div>
@@ -1072,7 +1384,7 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="text-[10px] text-text-muted font-bold block mb-0.5">
-                          Horas Empresa (FFEOE 2º):
+                          Horas Empresa Ciclo (FFEOE 2º):
                         </label>
                         <div className="relative">
                           <input
@@ -1089,7 +1401,7 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
 
                       <div>
                         <label className="text-[10px] text-text-muted font-bold block mb-0.5">
-                          % Empresa (FFEOE 2º):
+                          % Empresa s/ 2º Curso:
                         </label>
                         <div className="relative">
                           <input
@@ -1106,16 +1418,31 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                       </div>
                     </div>
 
+                    {/* Repercussion on whole cycle label */}
+                    <div className="flex items-center justify-between text-[10px] px-1 text-text-muted">
+                      <span>Repercusión s/ Ciclo Total ({totalHorasCiclo}h):</span>
+                      <span className="font-mono font-bold text-cyan-400">
+                        {((horasFfeoeSegundoCurso / (totalHorasCiclo || 2000)) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+
                     {/* Quick percentage shortcuts */}
                     <div className="flex items-center justify-between gap-1 pt-0.5">
-                      <span className="text-[10px] text-text-muted">Preajustes:</span>
-                      <div className="flex items-center gap-1">
-                        {[
-                          { label: "20% (201h)", pct: 20, h: 201 },
-                          { label: "25% (251h)", pct: 25, h: 251 },
-                          { label: "35% (352h)", pct: 35, h: 352 },
-                          { label: "40.8% (410h)", pct: 40.8, h: 410 },
-                        ].map((preset) => (
+                      <span className="text-[10px] text-text-muted">Preajustes 2º:</span>
+                      <div className="flex items-center gap-1 flex-wrap justify-end">
+                        {(etapaCiclo === "basico"
+                          ? [
+                              { label: "35% (350h)", pct: 35, h: 350 },
+                              { label: "40% (400h)", pct: 40, h: 400 },
+                              { label: "44% (440h)", pct: 44, h: 440 },
+                            ]
+                          : [
+                              { label: "20% (201h)", pct: 20, h: 201 },
+                              { label: "25% (251h)", pct: 25, h: 251 },
+                              { label: "35% (352h)", pct: 35, h: 352 },
+                              { label: "40.8% (410h)", pct: 40.8, h: 410 },
+                            ]
+                        ).map((preset) => (
                           <button
                             key={preset.h}
                             type="button"
@@ -1201,7 +1528,7 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
 
                   {/* Calculated Stay Footer */}
                   <div className="pt-1 flex items-center justify-between text-[10px] text-text-muted font-mono bg-alt/30 px-2 py-1 rounded-md border border-border-subtle">
-                    <span>Estancia en Empresa:</span>
+                    <span>Estancia 2º en Empresa:</span>
                     <span className="font-bold text-cyan-400">
                       ~{(horasFfeoeSegundoCurso / (horasSemanalesDualSegundoCurso || 30)).toFixed(1)} sem. ({Math.round(horasFfeoeSegundoCurso / (horasSemanalesDualSegundoCurso || 30))} semanas)
                     </span>
@@ -1209,65 +1536,180 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                 </div>
               </div>
 
-              {/* Module Dual Distribution & Global Compliance Banner */}
-              <div className="p-3 bg-surface/80 border border-border-default rounded-xl space-y-2 text-xs">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-text-primary">
-                      Reparto Normativo del Módulo ({cursoModulo}º Curso · {horasModulo}h):
+              {/* Module Dual Repercussion & Distribution Card */}
+              <div className="p-3.5 bg-surface/90 border border-cyan-500/40 rounded-xl space-y-3 text-xs shadow-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle/80 pb-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-black text-text-primary text-sm flex items-center gap-1.5">
+                      <GraduationCap className="w-4 h-4 text-cyan-400" />
+                      Repercusión en este Módulo Formativo ({cursoModulo}º Curso · {horasModulo}h totales):
                     </span>
-                    <span className="px-2 py-0.5 rounded font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[11px]">
-                      {activeDualPct}% FFEOE = {targetFfeoeModulo}h en Empresa
+                    <span className="px-2 py-0.5 rounded font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs">
+                      {porcentajeDualModulo.toFixed(1)}% FFEOE = {targetFfeoeModulo}h en Empresa
                     </span>
                   </div>
 
                   <button
                     type="button"
                     onClick={handleAutoDistributeFfeoe}
-                    className="px-2.5 py-1 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-bold rounded-lg text-[11px] flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                    title="Repartir automáticamente las horas de empresa en las UDs prácticas"
+                    className="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    title="Repartir automáticamente las horas de empresa y el 10%-20% de RAs en las UDs prácticas"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Auto-repartir {targetFfeoeModulo}h FFEOE en UDs</span>
+                    <span>Auto-repartir {targetFfeoeModulo}h FFEOE + RAs en UDs</span>
                   </button>
                 </div>
 
+                {/* Module-Specific Controls & Repercussion Presets */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-background/60 p-2.5 rounded-xl border border-border-subtle">
+                  {/* Direct Inputs for Module Repercussion */}
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-bold text-text-primary block">
+                      Ajuste Directo de Horas / Porcentaje para este Módulo:
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-text-muted font-bold block mb-0.5">
+                          Horas Empresa en Módulo (FFEOE):
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            max={horasModulo}
+                            value={targetFfeoeModulo}
+                            onChange={(e) => handleUpdateModuloFfeoeHours(Number(e.target.value))}
+                            className="w-full px-2.5 py-1.5 bg-surface border border-border-default rounded-lg text-xs font-mono font-black text-cyan-300 focus:border-cyan-500 focus:outline-none"
+                          />
+                          <span className="absolute right-2.5 top-1.5 text-xs text-text-muted font-bold font-mono">h</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-text-muted font-bold block mb-0.5">
+                          % Empresa en este Módulo:
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={porcentajeDualModulo}
+                            onChange={(e) => handleUpdateModuloDualPct(Number(e.target.value))}
+                            className="w-full px-2.5 py-1.5 bg-surface border border-border-default rounded-lg text-xs font-mono font-black text-cyan-300 focus:border-cyan-500 focus:outline-none"
+                          />
+                          <span className="absolute right-2.5 top-1.5 text-xs text-text-muted font-bold font-mono">%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Repercussion Shortcuts / Presets */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-bold text-text-muted block">
+                      Repercusión Proporcional Rápida en Módulo:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateModuloDualPct(porcentajeDualCicloGlobal)}
+                        className={`px-2 py-1 rounded-md text-[11px] font-mono font-bold cursor-pointer transition-all border ${
+                          Math.abs(porcentajeDualModulo - porcentajeDualCicloGlobal) < 0.2
+                            ? "bg-cyan-500 text-black border-cyan-400 font-black"
+                            : "bg-alt hover:bg-hover text-text-muted border-border-subtle"
+                        }`}
+                        title="Aplica la media ponderada del ciclo completo"
+                      >
+                        % Ciclo ({porcentajeDualCicloGlobal}% · {Math.round((horasModulo * porcentajeDualCicloGlobal) / 100)}h)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateModuloDualPct(activeDualPct)}
+                        className={`px-2 py-1 rounded-md text-[11px] font-mono font-bold cursor-pointer transition-all border ${
+                          Math.abs(porcentajeDualModulo - activeDualPct) < 0.2
+                            ? "bg-cyan-500 text-black border-cyan-400 font-black"
+                            : "bg-alt hover:bg-hover text-text-muted border-border-subtle"
+                        }`}
+                        title="Aplica el porcentaje establecido para este curso"
+                      >
+                        % Curso ({activeDualPct}% · {Math.round((horasModulo * activeDualPct) / 100)}h)
+                      </button>
+
+                      {[
+                        { label: "10%", pct: 10 },
+                        { label: "15%", pct: 15 },
+                        { label: "20%", pct: 20 },
+                        { label: "25%", pct: 25 },
+                        { label: "0h (Centro)", pct: 0 },
+                      ].map((p) => (
+                        <button
+                          key={p.pct}
+                          type="button"
+                          onClick={() => handleUpdateModuloDualPct(p.pct)}
+                          className={`px-2 py-1 rounded-md text-[11px] font-mono font-bold cursor-pointer transition-all border ${
+                            Math.abs(porcentajeDualModulo - p.pct) < 0.1
+                              ? "bg-cyan-500 text-black border-cyan-400 font-black"
+                              : "bg-alt hover:bg-hover text-text-muted border-border-subtle"
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status and target compliance cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
-                  <div className="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex flex-col justify-between">
+                  <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex flex-col justify-between">
                     <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                      <School className="w-3 h-3" /> FCE (Centro):
+                      <School className="w-3.5 h-3.5" /> FCE (Centro):
                     </span>
                     <span className="font-mono font-black text-emerald-300 text-sm mt-0.5">
                       {totalAssignedFfce}h / {targetFceModulo}h target
                     </span>
+                    <span className="text-[9px] text-emerald-400/80 font-mono">
+                      {((targetFceModulo / (horasModulo || 1)) * 100).toFixed(1)}% del módulo
+                    </span>
                   </div>
 
-                  <div className="p-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg flex flex-col justify-between">
+                  <div className="p-2.5 bg-cyan-500/10 border border-cyan-500/30 rounded-lg flex flex-col justify-between">
                     <span className="text-[10px] text-cyan-400 font-bold flex items-center gap-1">
-                      <Building2 className="w-3 h-3" /> FFEOE (Empresa):
+                      <Building2 className="w-3.5 h-3.5" /> FFEOE (Empresa):
                     </span>
                     <span className="font-mono font-black text-cyan-300 text-sm mt-0.5">
                       {totalAssignedFfeoe}h / {targetFfeoeModulo}h target
                     </span>
+                    <span className="text-[9px] text-cyan-400/80 font-mono">
+                      {porcentajeDualModulo.toFixed(1)}% del módulo
+                    </span>
                   </div>
 
-                  <div className="p-2 bg-purple-500/10 border border-purple-500/30 rounded-lg flex flex-col justify-between col-span-2">
+                  <div className="p-2.5 bg-purple-500/10 border border-purple-500/30 rounded-lg flex flex-col justify-between col-span-2">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] text-purple-300 font-bold flex items-center gap-1">
-                        <Award className="w-3 h-3" /> Total FP Dual Ciclo ({totalHorasCiclo}h):
+                        <Award className="w-3.5 h-3.5" /> Total FP Dual Ciclo ({totalHorasCiclo}h):
                       </span>
                       <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                        {regimenDual === "general" ? "Régimen General (20-35%)" : "Régimen Intensivo (35-50%)"}
+                        {regimenDual === "general"
+                          ? "Régimen General (25-35% · 500-700h)"
+                          : regimenDual === "intensivo"
+                          ? "Régimen Intensivo (>35-50% · >700h)"
+                          : "No Dual (100% Centro)"}
                       </span>
                     </div>
                     <span className="font-mono font-black text-purple-200 text-sm mt-0.5">
-                      {horasFfeoePrimerCurso + horasFfeoeSegundoCurso}h totales ({porcentajeDualCicloGlobal}%) = {horasFfeoePrimerCurso}h (1º · {fechaInicioDualPrimerCurso}) + {horasFfeoeSegundoCurso}h (2º · {fechaInicioDualSegundoCurso})
+                      {totalHorasFfeoeCiclo}h totales ({porcentajeDualCicloGlobal}%) = {horasFfeoePrimerCurso}h (1º) + {horasFfeoeSegundoCurso}h (2º)
+                    </span>
+                    <span className="text-[9px] text-purple-300/80 font-mono">
+                      LO 3/2022 · RD 659/2023 · RAs en Dual: {dualAudit.rasInFfeoeCount}/{dualAudit.totalRasModulo} ({dualAudit.pctRaFfeoe.toFixed(1)}%)
                     </span>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
           {/* Temporal & Session Planning (32 Weeks Standard) */}
           <div className="p-3.5 bg-background border border-border-default rounded-xl space-y-3">
@@ -1543,39 +1985,55 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                                 className={`p-1.5 rounded-lg border transition-all flex flex-col justify-between ${
                                   info.activo && info.horas > 0
                                     ? "bg-purple-500/15 border-purple-500/40"
-                                    : "bg-surface/40 border-border-default/40 opacity-60"
+                                    : "bg-surface/40 border-border-default/40 opacity-60 hover:opacity-100"
                                 }`}
                               >
                                 <div className="flex items-center justify-between mb-1">
-                                  <label className="flex items-center gap-1 cursor-pointer text-[11px] font-bold">
-                                    <input
-                                      type="checkbox"
-                                      checked={info.activo && info.horas > 0}
-                                      onChange={(e) => updateDay(d.dia, e.target.checked ? (info.horas || horasPorSesion || 1) : 0, e.target.checked)}
-                                      className="w-3 h-3 text-purple-600 rounded border-border-default cursor-pointer"
+                                  <div className="flex items-center gap-1 select-none text-[11px] font-bold">
+                                    <span
+                                      className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                                        info.activo && info.horas > 0 ? "bg-purple-500" : "bg-text-muted/30"
+                                      }`}
                                     />
-                                    <span>{d.dia}</span>
-                                  </label>
-                                  <span className="text-[10px] font-mono font-bold text-purple-300">
-                                    {info.activo ? `${info.horas}h` : "0h"}
+                                    <span className="text-text-primary">{d.dia}</span>
+                                    <span className="text-[10px] text-text-muted">({d.nombre.slice(0, 3)})</span>
+                                  </div>
+                                  <span className={`text-[10px] font-mono font-bold px-1 rounded transition-colors ${
+                                    info.activo && info.horas > 0 ? "bg-purple-500 text-white" : "text-text-muted"
+                                  }`}>
+                                    {info.activo && info.horas > 0 ? `${info.horas}h` : "0h"}
                                   </span>
                                 </div>
 
                                 <div className="grid grid-cols-4 gap-0.5">
-                                  {[1, 2, 3, 4].map((hVal) => (
-                                    <button
-                                      key={hVal}
-                                      type="button"
-                                      onClick={() => updateDay(d.dia, hVal, true)}
-                                      className={`py-0.5 text-[9px] font-mono font-bold rounded cursor-pointer text-center ${
-                                        info.activo && info.horas === hVal
-                                          ? "bg-purple-600 text-white font-black"
-                                          : "bg-alt/60 hover:bg-purple-500/20 text-text-muted hover:text-purple-300"
-                                      }`}
-                                    >
-                                      {hVal}h
-                                    </button>
-                                  ))}
+                                  {[1, 2, 3, 4].map((hVal) => {
+                                    const isSelected = Boolean(info.activo && info.horas === hVal);
+                                    return (
+                                      <button
+                                        key={hVal}
+                                        type="button"
+                                        onClick={() => {
+                                          if (isSelected) {
+                                            updateDay(d.dia, 0, false);
+                                          } else {
+                                            updateDay(d.dia, hVal, true);
+                                          }
+                                        }}
+                                        title={
+                                          isSelected
+                                            ? `${d.nombre}: Desactivar sesión de ${hVal}h`
+                                            : `${d.nombre}: Activar sesión de ${hVal}h`
+                                        }
+                                        className={`py-0.5 text-[9px] font-mono font-bold rounded cursor-pointer text-center transition-all ${
+                                          isSelected
+                                            ? "bg-purple-600 text-white font-black ring-1 ring-purple-400"
+                                            : "bg-alt/60 hover:bg-purple-500/20 text-text-muted hover:text-purple-300"
+                                        }`}
+                                      >
+                                        {hVal}h
+                                      </button>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             );
@@ -1648,24 +2106,78 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
             )}
           </div>
 
-          {/* TAB 1: FULL MODULE PLANNING TABLE (TABLE 7.1 + RA/CE + FP DUAL) */}
-          {activePlanTab === "matriz_planificacion" && (
+            {/* TAB 1: FULL MODULE PLANNING TABLE (TABLE 7.1 + RA/CE + FP DUAL) */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between pb-1">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between pb-1 flex-wrap gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
                     <FileSpreadsheet className="w-4 h-4 text-cyan-400" />
                     Tabla 7.1: Resultados de Aprendizaje, Criterios, Bloques y Pesos Ponderados
                   </h4>
+                  <span className="text-[11px] font-mono text-cyan-400/80 bg-cyan-500/10 px-2 py-0.5 rounded-md">
+                    ({uds.length} {uds.length === 1 ? "UD" : "UDs"})
+                  </span>
                 </div>
-                <div className="flex items-center gap-2">
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Evaluaciones / Parciales selector in Table 7.1 Header */}
+                  <div className="flex items-center gap-1 bg-surface px-2 py-1 rounded-lg border border-border-default text-xs">
+                    <span className="text-[11px] font-bold text-text-muted flex items-center gap-1 mr-1">
+                      <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                      Evaluación:
+                    </span>
+                    {[1, 2, 3, 4].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => {
+                          setNumParciales(n);
+                          setUds((prev) =>
+                            prev.map((u) => ({
+                              ...u,
+                              trimestre: Math.min(n, u.trimestre || 1),
+                            }))
+                          );
+                        }}
+                        className={`px-2 py-0.5 text-[11px] font-mono font-bold rounded transition-all cursor-pointer ${
+                          numParciales === n
+                            ? "bg-amber-500 text-black shadow-xs"
+                            : "text-text-muted hover:text-text-primary hover:bg-alt"
+                        }`}
+                        title={`Configurar ${n} ${n === 3 ? "trimestres" : n === 2 ? "semestres" : n === 1 ? "evaluación anual" : "parciales"}`}
+                      >
+                        {n} {n === 3 ? "Trim." : n === 2 ? "Sem." : n === 1 ? "Anual" : "P"}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAutoDistributeTrimesters}
+                    className="px-2 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 font-bold rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                    title={`Repartir automáticamente las ${uds.length} UDs entre los ${numParciales} trimestres`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" /> Auto-repartir
+                  </button>
+
                   <button
                     type="button"
                     onClick={handleAddUd}
-                    className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-all"
+                    className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                    title="Añadir nueva fila de Unidad Didáctica"
                   >
                     <Plus className="w-3.5 h-3.5" /> Añadir Fila UD
                   </button>
+                  {uds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearAll}
+                      className="px-2.5 py-1 bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 font-bold rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                      title="Eliminar todas las UDs de la planificación"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Vaciar Todas las UDs
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1674,9 +2186,10 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-alt/80 border-b border-border-default text-[11px] text-text-muted">
-                      <th className="py-2 px-2 text-center font-bold w-12">UD</th>
+                      <th className="py-2 px-2 text-center font-bold w-16">UD / Eliminar</th>
                       <th className="py-2 px-2.5 font-bold min-w-[200px]">Título de la Unidad Didáctica</th>
                       <th className="py-2 px-2 font-bold min-w-[140px]">RA / Criterios de Evaluación</th>
+                      <th className="py-2 px-1 text-center font-bold w-16 text-cyan-400" title="Indica si esta UD aporta Resultados de Aprendizaje evaluados/impartidos en empresa (FFEOE)">RA Dual</th>
                       <th className="py-2 px-1.5 text-center font-bold w-14">BC</th>
                       <th className="py-2 px-1.5 text-center font-bold w-14">CPPS</th>
                       <th className="py-2 px-1.5 text-center font-bold w-14">OG</th>
@@ -1685,13 +2198,13 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                       <th className="py-2 px-2 text-center font-bold w-16 text-emerald-400">FFCE (h)</th>
                       <th className="py-2 px-2 text-center font-bold w-16 text-cyan-400">FFEOE (h)</th>
                       <th className="py-2 px-2 text-center font-bold w-16 text-purple-400">Peso %</th>
-                      <th className="py-2 px-2 text-center font-bold w-12">Acción</th>
+                      <th className="py-2 px-2 text-center font-bold w-14">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-default">
                     {uds.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="py-8 text-center text-text-muted text-xs">
+                        <td colSpan={13} className="py-8 text-center text-text-muted text-xs">
                           No hay unidades configuradas. Pulsa "+ Añadir Fila UD" para comenzar.
                         </td>
                       </tr>
@@ -1699,9 +2212,21 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                       uds.map((ud, idx) => {
                         return (
                           <tr key={ud.id} className="hover:bg-alt/30 transition-colors">
-                            {/* UD Code */}
-                            <td className="py-2 px-2 text-center font-mono font-black text-amber-400">
-                              {ud.id}
+                            {/* UD Code + Quick Delete */}
+                            <td className="py-2 px-2 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(idx)}
+                                  className="p-1 text-text-muted hover:text-red-400 hover:bg-red-500/20 rounded transition-colors cursor-pointer"
+                                  title={`Eliminar fila ${ud.id}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                                <span className="font-mono font-black text-amber-400 text-xs">
+                                  {ud.id}
+                                </span>
+                              </div>
                             </td>
 
                             {/* Title */}
@@ -1723,6 +2248,28 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                                 placeholder="RA 1: a, b, c..."
                                 className="w-full px-2 py-1 text-xs bg-background border border-border-default rounded-lg text-text-primary focus:border-cyan-500 focus:outline-none"
                               />
+                            </td>
+
+                            {/* RA Dual (FFEOE) Toggle */}
+                            <td className="py-2 px-1 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleUdRaFfeoe(ud.id)}
+                                title={
+                                  ud.isRaFfeoe
+                                    ? "Esta UD contiene RAs impartidos en empresa (FFEOE). Clic para desmarcar."
+                                    : "Marcar esta UD como impartida en empresa (FFEOE)."
+                                }
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition-all cursor-pointer border ${
+                                  ud.isRaFfeoe
+                                    ? "bg-cyan-500 text-black border-cyan-400 shadow-xs"
+                                    : (ud.horasFfeoe || 0) > 0
+                                    ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+                                    : "bg-surface/50 text-text-muted hover:text-text-primary border-border-default"
+                                }`}
+                              >
+                                {ud.isRaFfeoe ? "★ Dual" : (ud.horasFfeoe || 0) > 0 ? "Dual h" : "Centro"}
+                              </button>
                             </td>
 
                             {/* BC */}
@@ -1777,10 +2324,21 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                               <select
                                 value={ud.trimestre || 1}
                                 onChange={(e) => handleTrimestreChange(idx, Number(e.target.value))}
-                                className="w-12 px-1 py-1 text-xs font-mono font-bold bg-background border border-border-default rounded-lg text-amber-400 focus:border-amber-500 focus:outline-none text-center"
+                                className={`w-14 px-1 py-1 text-xs font-mono font-bold rounded-lg border focus:outline-none text-center cursor-pointer transition-colors ${
+                                  (ud.trimestre || 1) === 1
+                                    ? "bg-amber-500/15 text-amber-400 border-amber-500/40 focus:border-amber-400"
+                                    : (ud.trimestre || 1) === 2
+                                    ? "bg-cyan-500/15 text-cyan-400 border-cyan-500/40 focus:border-cyan-400"
+                                    : (ud.trimestre || 1) === 3
+                                    ? "bg-purple-500/15 text-purple-400 border-purple-500/40 focus:border-purple-400"
+                                    : "bg-emerald-500/15 text-emerald-400 border-emerald-500/40 focus:border-emerald-400"
+                                }`}
+                                title={`Asignar evaluación a esta UD (Actual: ${ud.trimestre || 1}T)`}
                               >
-                                {Array.from({ length: numParciales }, (_, i) => i + 1).map((p) => (
-                                  <option key={p} value={p}>{p}T</option>
+                                {Array.from({ length: Math.max(numParciales || 3, 3) }, (_, i) => i + 1).map((p) => (
+                                  <option key={p} value={p} className="bg-surface text-text-primary">
+                                    {p}T
+                                  </option>
                                 ))}
                               </select>
                             </td>
@@ -1841,9 +2399,13 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                   {/* Totals Footer */}
                   <tfoot>
                     <tr className="bg-alt/90 font-bold text-xs border-t-2 border-border-default">
-                      <td colSpan={8} className="py-2.5 px-3 text-right text-text-muted">
+                      <td colSpan={3} className="py-2.5 px-3 text-right text-text-muted">
                         Totales Módulo ({uds.length} UDs):
                       </td>
+                      <td className="py-2.5 px-1 text-center font-mono text-[11px] font-black text-cyan-400">
+                        {dualAudit.rasInFfeoeCount}/{dualAudit.totalRasModulo} RAs ({dualAudit.pctRaFfeoe.toFixed(1)}%)
+                      </td>
+                      <td colSpan={5}></td>
                       <td className="py-2.5 px-2 text-center font-mono font-black text-emerald-400">
                         {totalAssignedFfce} h
                       </td>
@@ -1859,11 +2421,79 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                 </table>
               </div>
             </div>
+          </div>
           )}
 
           {/* TAB 2: QUICK UDs LIST & REORDERING */}
           {activePlanTab === "unidades" && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
+              {/* Quick Timing & Parciales Toolbar */}
+              <div className="p-3.5 bg-background border border-amber-500/30 rounded-xl space-y-3 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2 text-xs font-bold text-text-primary">
+                    <Calendar className="w-4 h-4 text-amber-500" />
+                    <span>Evaluaciones / Parciales de la Secuencia:</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1 bg-surface p-1 rounded-lg border border-border-default text-xs">
+                      {[1, 2, 3, 4].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => {
+                            setNumParciales(n);
+                            setUds((prev) =>
+                              prev.map((u) => ({
+                                ...u,
+                                trimestre: Math.min(n, u.trimestre || 1),
+                              }))
+                            );
+                          }}
+                          className={`px-2.5 py-0.5 font-mono font-bold rounded transition-all cursor-pointer ${
+                            numParciales === n
+                              ? "bg-amber-500 text-black shadow-xs font-black"
+                              : "text-text-muted hover:text-text-primary hover:bg-alt"
+                          }`}
+                        >
+                          {n} {n === 3 ? "Trim." : n === 2 ? "Sem." : n === 1 ? "Anual" : "P"}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAutoDistributeTrimesters}
+                      className="px-2.5 py-1 text-[11px] font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer"
+                      title="Distribuir equitativamente las UDs entre los parciales"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" /> Auto-repartir
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick metrics grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                  <div className="p-2 rounded-lg bg-surface border border-border-default flex items-center justify-between">
+                    <span className="text-[11px] text-text-muted font-sans">Carga Módulo:</span>
+                    <span className="font-bold text-amber-400">{horasModulo}h</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-surface border border-border-default flex items-center justify-between">
+                    <span className="text-[11px] text-text-muted font-sans">Horas Asignadas:</span>
+                    <span className={`font-bold ${totalAssignedHours === horasModulo ? "text-emerald-400" : "text-amber-400"}`}>
+                      {totalAssignedHours}h
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-surface border border-border-default flex items-center justify-between">
+                    <span className="text-[11px] text-text-muted font-sans">Semanas Curso:</span>
+                    <span className="font-bold text-cyan-400">{semanasCurso} sem.</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-surface border border-border-default flex items-center justify-between">
+                    <span className="text-[11px] text-text-muted font-sans">Total Sesiones:</span>
+                    <span className="font-bold text-purple-400">{totalSesionesPrevistas} ses.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* PRL Priority Rule banner */}
               <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex items-start gap-2">
                 <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
                 <div>
@@ -1964,14 +2594,20 @@ export const SigrePlanModal: React.FC<SigrePlanModalProps> = ({
                           <div className="flex items-center gap-1 bg-surface border border-border-default px-2 py-1 rounded-lg text-xs">
                             <span className="text-[10px] text-text-muted font-bold mr-0.5">Parcial:</span>
                             <div className="flex items-center gap-0.5">
-                              {Array.from({ length: numParciales }, (_, i) => i + 1).map((pNum) => (
+                              {Array.from({ length: Math.max(numParciales || 3, 3) }, (_, i) => i + 1).map((pNum) => (
                                 <button
                                   key={pNum}
                                   type="button"
                                   onClick={() => handleTrimestreChange(idx, pNum)}
                                   className={`px-1.5 py-0.5 text-[10px] font-mono font-bold rounded transition-colors cursor-pointer ${
                                     currentTrim === pNum
-                                      ? "bg-amber-500 text-black shadow-xs font-black"
+                                      ? pNum === 1
+                                        ? "bg-amber-500 text-black shadow-xs font-black"
+                                        : pNum === 2
+                                        ? "bg-cyan-500 text-black shadow-xs font-black"
+                                        : pNum === 3
+                                        ? "bg-purple-500 text-white shadow-xs font-black"
+                                        : "bg-emerald-500 text-black shadow-xs font-black"
                                       : "text-text-muted hover:text-text-primary hover:bg-alt"
                                   }`}
                                   title={`Asignar a ${getParcialLabel(pNum)}`}

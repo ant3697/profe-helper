@@ -1,5 +1,12 @@
 // ...
-import { SigreCurricularConfig, SigreUDItem, SigreUDData, SigreUDCurricularData, SigrePedagogicalAuditResult } from "../types/sigre";
+import {
+  SigreCurricularConfig,
+  SigreUDItem,
+  SigreUDData,
+  SigreUDCurricularData,
+  SigrePedagogicalAuditResult,
+  SigreEpigrafeItem,
+} from "../types/sigre";
 
 /**
  * Cleans LaTeX math syntax ($...$, $$, \text{}, \times, \Omega, etc.) and converts it to clear plain-text math notation (+, -, *, /, ^, °C, Ω, etc.)
@@ -196,6 +203,7 @@ ${sizingRule}
    - "horasEstimadas": Horas de aula/taller en centro (FFCE).
    - "horasFfeoe": Horas en empresa si aplica (0 para docencia en centro).
    - "pesoPorcentaje": Porcentaje de ponderación de la UD (la suma total debe dar 100%).
+   - "trimestre": Número de trimestre o parcial lectivo (1 para 1T, 2 para 2T, 3 para 3T) asignado secuencialmente.
    - "fasePedagogicaId": "fase_1", "fase_2", "fase_3" o "fase_4".
    - "fasePedagogicaNombre": Nombre descriptivo de la fase didáctica.
 5. Devuelve ÚNICAMENTE un JSON válido con la siguiente estructura:
@@ -351,6 +359,299 @@ BASE DOCUMENTAL:
 <<INICIO DOCUMENTACIÓN>>
 ${fullContext.substring(0, 80000)}
 <<FIN DOCUMENTACIÓN>>`;
+}
+
+/**
+ * Builds prompt for STEP 1 of Editorial Unit: Generates Master Index, Pedagogy, Introduction,
+ * SMART Learning Objectives, and Contents (Conceptuales, Procedimentales, Actitudinales),
+ * plus the explicit breakdown of Technical Epigraphs (5.1, 5.2, 5.3, 5.4, 5.5...).
+ */
+export function buildSigreUDEditorialIndexPrompt(
+  ud: SigreUDItem,
+  config: SigreCurricularConfig,
+  ragContext = ""
+): string {
+  const fullContext = (config.desgloseCurricular + (ragContext ? "\n" + ragContext : "")).trim();
+  const horasUd = ud.horasEstimadas || Math.round((config.horasTotales || 160) / 8);
+  const sesionesUd = ud.sesionesEstimadas || Math.round(horasUd / 2);
+
+  return `Rol: Experto en diseño curricular y arquitectura editorial para Formación Profesional (Sistema SIGRE - 1a. UD Editorial / Paso 1: Índice y Estructura Maestra).
+Tu misión es diseñar la estructura curricular, pedagógica y el índice exhaustivo para la Unidad Didáctica: "${ud.fullCode || ud.title}".
+
+INFORMACIÓN Y CONTEXTO:
+- Módulo Formativo: ${config.moduloFormativo || "Módulo Formativo"} (${config.codigo || ""})
+- Ciclo Formativo: ${config.cicloFormativo || "Ciclo Formativo"} - Familia: ${config.familiaProfesional || "Técnica"} (${config.curso || "1º"})
+- Carga horaria de la UD: ${horasUd} horas (${sesionesUd} sesiones)
+- Bloque de Contenidos: ${ud.bcCode || "Bloque Oficial"}
+- Resultados de Aprendizaje y Criterios vinculados: ${ud.raCeText || "Currículo oficial"}
+- Contexto: ${config.contextoAplicacion || "Material formativo de referencia en IES Al-Baytar."}
+- Nivel de Adhesión Curricular: ${config.adhesion}/5
+
+TAREA ESPECÍFICA (PASO 1 - ÍNDICE Y BASES PEDAGÓGICAS):
+1. Diseñar el ÍNDICE GENERAL DEL TEMA (Apartados 1 a 8) desglosando obligatoriamente entre 4 y 6 sub-epígrafes técnicos para el punto 5 (5.1, 5.2, 5.3, 5.4, 5.5...).
+2. Redactar una INTRODUCCIÓN Y CONTEXTUALIZACIÓN profunda (300-450 palabras) vinculada al sector productivo.
+3. Desglosar los CONTENIDOS ESPECÍFICOS:
+   * Conceptuales (Saber): Principios, magnitudes, unidades, tipologías y normativas.
+   * Procedimentales (Saber hacer): Métodos de cálculo, montaje, calibración, diagnóstico y mantenimiento.
+   * Actitudinales (Saber ser): Seguridad laboral (PRL), sostenibilidad ambiental, rigor técnico y orden.
+4. Redactar 5-8 OBJETIVOS ESPECÍFICOS DE APRENDIZAJE (SMART) con verbos de acción medibles (Taxonomía de Bloom).
+5. Desglosar el array estructurado "epigrafes" con los 4-6 sub-epígrafes técnicos identificados (cada uno con id como "5.1", su título técnico riguroso y una lista de subtemas/aspectos clave a tratar).
+
+REGLA ESTRICTA DE NOTACIÓN:
+- Texto plano limpio. PROHIBIDO LATEX o signos de dólar ($...$). Usa operadores: +, -, *, /, ^, °C, bar, Ω, kW.
+
+DEVUELVE EXCLUSIVAMENTE UN OBJETO JSON VÁLIDO:
+\`\`\`json
+{
+  "titulo": "${(ud.fullCode || ud.title).replace(/"/g, '\\"')}",
+  "cotRazonamiento": "Análisis y delimitación pedagógica sin solapamiento...",
+  "indiceDesarrollo": "1. ÍNDICE GENERAL DEL TEMA\\n2. INTRODUCCIÓN Y CONTEXTUALIZACIÓN\\n3. CONTENIDOS ESPECÍFICOS\\n4. OBJETIVOS ESPECÍFICOS DE APRENDIZAJE (SMART)\\n5. DESARROLLO DEL TEMA\\n  5.1. [Título Sub-epígrafe 1]\\n  5.2. [Título Sub-epígrafe 2]\\n  5.3. [Título Sub-epígrafe 3]\\n  5.4. [Título Sub-epígrafe 4]\\n  5.5. [Título Sub-epígrafe 5]\\n6. REFERENCIAS NORMATIVAS\\n7. BIBLIOGRAFÍA Y WEBGRAFÍA\\n8. CONCLUSIONES Y SÍNTESIS DEL TEMA",
+  "epigrafes": [
+    {
+      "id": "5.1",
+      "titulo": "5.1. [Título completo y técnico]",
+      "subepigrafes": ["Subtema 1...", "Subtema 2...", "Subtema 3..."]
+    },
+    {
+      "id": "5.2",
+      "titulo": "5.2. [Título completo y técnico]",
+      "subepigrafes": ["Subtema 1...", "Subtema 2...", "Subtema 3..."]
+    },
+    {
+      "id": "5.3",
+      "titulo": "5.3. [Título completo y técnico]",
+      "subepigrafes": ["Subtema 1...", "Subtema 2...", "Subtema 3..."]
+    },
+    {
+      "id": "5.4",
+      "titulo": "5.4. [Título completo y técnico]",
+      "subepigrafes": ["Subtema 1...", "Subtema 2...", "Subtema 3..."]
+    }
+  ],
+  "introduccion": "Texto amplio y contextualizado de la introducción...",
+  "contenidos": {
+    "conceptuales": ["Concepto 1...", "Concepto 2...", "Concepto 3...", "Concepto 4..."],
+    "procedimentales": ["Procedimiento 1...", "Procedimiento 2...", "Procedimiento 3...", "Procedimiento 4..."],
+    "actitudinales": ["Actitud 1...", "Actitud 2...", "Actitud 3..."]
+  },
+  "objetivosSmart": [
+    "1. [Objetivo SMART 1]...",
+    "2. [Objetivo SMART 2]...",
+    "3. [Objetivo SMART 3]...",
+    "4. [Objetivo SMART 4]...",
+    "5. [Objetivo SMART 5]..."
+  ]
+}
+\`\`\`
+
+BASE DOCUMENTAL:
+${fullContext.substring(0, 60000)}`;
+}
+
+/**
+ * Builds prompt for STEP 2 of Editorial Unit: Generates a deep, exhaustive technical development
+ * for ONE single epigraph (e.g. 5.1, 5.2, 5.3...), allowing 800-1500 words of technical depth
+ * with plain-text formulas, full HTML parameter tables, step-by-step procedures, and pedagogical boxes.
+ */
+export function buildSigreUDEpigrafePrompt(
+  ud: SigreUDItem,
+  config: SigreCurricularConfig,
+  epigrafe: SigreEpigrafeItem,
+  allEpigrafes?: SigreEpigrafeItem[],
+  editorialContext?: any,
+  ragContext = ""
+): string {
+  const fullContext = (config.desgloseCurricular + (ragContext ? "\n" + ragContext : "")).trim();
+  const subtemasTxt =
+    epigrafe.subepigrafes && epigrafe.subepigrafes.length > 0
+      ? `Subtemas clave a cubrir en este epígrafe:\n${epigrafe.subepigrafes.map((s) => `- ${s}`).join("\n")}`
+      : "";
+
+  return `Rol: Catedrático y redactor técnico experto en Formación Profesional y Tratados Industriales (Sistema SIGRE - Desarrollo Modular de Epígrafe).
+Tu misión es desarrollar EXCLUSIVAMENTE y con MÁXIMA PROFUNDIDAD TÉCNICA (800 a 1500 palabras) el siguiente epígrafe:
+
+EPÍGRAFE A DESARROLLAR:
+- Identificador: "${epigrafe.id}"
+- Título Oficial: "${epigrafe.titulo}"
+${subtemasTxt}
+
+CONTEXTO GENERAL DE LA UNIDAD:
+- Unidad: ${ud.fullCode || ud.title}
+- Módulo: ${config.moduloFormativo || "Módulo Formativo"} (${config.codigo || ""})
+- Ciclo: ${config.cicloFormativo} (${config.curso || "1º"})
+- Otros epígrafes del tema (para evitar solapamientos): ${(allEpigrafes || []).map((e) => e.titulo).join(" | ")}
+
+REQUISITOS OBLIGATORIOS PARA ESTE EPÍGRAFE:
+1. DESARROLLO TEÓRICO Y FÓRMULAS:
+   - Explicación exhaustiva, fundamentada y rigurosa de los principios físicos, esquemas de funcionamiento y tecnologías.
+   - Si incluye fórmulas o cálculos, desarróllalas en TEXTO PLANO LIMPIO con paso a paso detallado y unidades del SI (kW, bar, °C, Ω, V, A, m3/h, etc.).
+2. MATRIZ TÉCNICA DE PARÁMETROS Y TOLERANCIAS:
+   - Incluye obligatoriamente al menos una tabla HTML con clase "sigre-table":
+     <table class="sigre-table"><thead><tr><th>Parámetro / Magnitud</th><th>Criterio Operativo / Rango</th><th>Normativa / Tolerancia</th><th>Método de Verificación</th></tr></thead><tbody>...</tbody></table>
+3. PROCEDIMIENTO PRÁCTICO PASO A PASO DE TALLER / MONTAJE:
+   - Detallar el procedimiento práctico con fases numeradas (Preparación y EPIs, Ejecución técnica de taller/campo, Verificación y control de calidad).
+4. CAJAS PEDAGÓGICAS ACTIVAS (HTML estilizado):
+   - <div class="apuntes-box"><strong>💡 Apuntes del Experto:</strong> [Consejos profesionales avanzados, errores típicos de taller a evitar y buenas prácticas industriales]</div>
+   - <div class="recall-box"><strong>🧠 Autoevaluación Rápida (Active Recall):</strong> [2-3 preguntas clave con respuesta directa para afianzar conceptos]</div>
+   - <div class="mnemo-box"><strong>⚡ Regla Mnemotécnica:</strong> [Acrónimo o regla mnemotécnica para retener parámetros críticos]</div>
+
+REGLA ESTRICTA DE NOTACIÓN:
+- Texto plano limpio. PROHIBIDO LATEX o signos de dólar ($...$).
+
+DEVUELVE EXCLUSIVAMENTE UN OBJETO JSON VÁLIDO:
+\`\`\`json
+{
+  "id": "${epigrafe.id}",
+  "titulo": "${epigrafe.titulo.replace(/"/g, '\\"')}",
+  "contenidoHtml": "<div class=\\"epigrafe-block\\"><h3>${epigrafe.titulo.replace(/"/g, '\\"')}</h3><p>[Fundamentos técnicos detallados...]</p><table class=\\"sigre-table\\">...</table><div class=\\"apuntes-box\\">...</div><div class=\\"recall-box\\">...</div><div class=\\"mnemo-box\\">...</div></div>"
+}
+\`\`\`
+
+BASE DOCUMENTAL:
+${fullContext.substring(0, 60000)}`;
+}
+
+/**
+ * Builds prompt for STEP 3 of Editorial Unit: Generates Normative Matrix, Annotated Bibliography & Webography,
+ * Final Synthesis / Cross-Curricular links, and Technical Glossary.
+ */
+export function buildSigreUDClosingSectionsPrompt(
+  ud: SigreUDItem,
+  config: SigreCurricularConfig,
+  editorialContext?: any,
+  ragContext = ""
+): string {
+  const fullContext = (config.desgloseCurricular + (ragContext ? "\n" + ragContext : "")).trim();
+
+  return `Rol: Experto en normativa técnica, bibliografía y evaluación curricular en Formación Profesional (Sistema SIGRE - Cierre Editorial).
+Tu misión es redactar el bloque de cierre (Referencias Normativas, Bibliografía/Webgrafía, Conclusiones y Glosario) para la Unidad: "${ud.fullCode || ud.title}".
+
+INFORMACIÓN:
+- Módulo: ${config.moduloFormativo || "Módulo"} (${config.codigo || ""})
+- Ciclo: ${config.cicloFormativo}
+- Título UD: ${ud.fullCode || ud.title}
+
+REQUISITOS OBLIGATORIOS:
+1. REFERENCIAS NORMATIVAS:
+   - Tabla HTML con clase "sigre-table" que detalle las normativas aplicables (RITE, CTE, REBT, UNE-EN, Ley 31/1995 de PRL, RD de Gases Fluorados, etc.):
+     <table class="sigre-table"><thead><tr><th>Norma / Código</th><th>Ámbito / Organismo</th><th>Prescripciones Clave</th><th>Aplicación Práctica</th></tr></thead><tbody>...</tbody></table>
+2. BIBLIOGRAFÍA Y WEBGRAFÍA:
+   - Bloque HTML estructurado con Bibliografía comentada, Guías Oficiales (IDAE, INSST) y Webgrafía oficial comentada.
+3. CONCLUSIONES Y SÍNTESIS DEL TEMA:
+   - Texto de conclusiones ejecutivas sobre las competencias profesionales adquiridas.
+4. RELACIÓN INTRADISCIPLINAR:
+   - Conexión con otras unidades del módulo formativo.
+5. GLOSARIO DE TÉRMINOS Y FÓRMULAS:
+   - Bloque HTML <div class="glosario-box"> con definiciones técnicas clave y fórmulas en texto plano.
+
+REGLA ESTRICTA DE NOTACIÓN: Texto plano estricto. PROHIBIDO LATEX.
+
+DEVUELVE EXCLUSIVAMENTE UN OBJETO JSON VÁLIDO:
+\`\`\`json
+{
+  "referenciasNormativasHtml": "<div class=\\"normativa-block\\"><table class=\\"sigre-table\\"><thead><tr><th>Código / Norma</th><th>Ámbito / Organismo</th><th>Prescripciones Clave</th><th>Aplicación Práctica</th></tr></thead><tbody><tr><td>...</td><td>...</td><td>...</td><td>...</td></tr></tbody></table></div>",
+  "bibliografiaWebgrafiaHtml": "<div class=\\"biblio-block\\"><h4>Bibliografía Técnica de Referencia</h4><ul><li>...</li></ul><h4>Guías Técnicas y Documentos Oficiales</h4><ul><li>...</li></ul><h4>Webgrafía y Recursos en Línea</h4><ul><li>...</li></ul></div>",
+  "conclusiones": "Texto de conclusiones y síntesis ejecutiva...",
+  "relacionIntradisciplinar": "Texto de relación intradisciplinar...",
+  "glosarioHtml": "<div class=\\"glosario-box\\"><h4>Glosario de Términos y Fórmulas Relevantes</h4><ul><li><strong>Término:</strong> Definición...</li></ul></div>"
+}
+\`\`\`
+
+BASE DOCUMENTAL:
+${fullContext.substring(0, 60000)}`;
+}
+
+/**
+ * Helper to extract or initialize structured epigraphs from a SigreUDItem
+ */
+export function extractOrInitEpigrafesFromUD(ud: SigreUDItem): SigreEpigrafeItem[] {
+  const m1 = ud.data?.modulo1;
+  if (!m1) return [];
+
+  // If already structured and has elements, return sanitized list
+  if (Array.isArray(m1.epigrafes) && m1.epigrafes.length > 0) {
+    return m1.epigrafes.map((e, idx) => ({
+      id: e.id || `5.${idx + 1}`,
+      titulo: cleanSigreLatexMath(e.titulo || `5.${idx + 1}. Epígrafe`),
+      subepigrafes: Array.isArray(e.subepigrafes) ? e.subepigrafes : [],
+      contenidoHtml: e.contenidoHtml || "",
+      status:
+        e.contenidoHtml && e.contenidoHtml.trim().length > 100
+          ? "completed"
+          : (e.status || "pending"),
+    }));
+  }
+
+  // Parse from indiceDesarrollo or desarrolloEpigrafesHtml
+  const epList: SigreEpigrafeItem[] = [];
+  const rawIndice = m1.indiceDesarrollo || "";
+  const lines = rawIndice.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  // Look for lines matching 5.1, 5.2, 5.3 etc.
+  for (const line of lines) {
+    const match = line.match(/^(\s*5\.\d+)\.?\s*(.+)$/);
+    if (match) {
+      const id = match[1].trim();
+      const cleanTitle = match[2].trim();
+      const titulo = cleanTitle.startsWith("5.") ? cleanTitle : `${id}. ${cleanTitle}`;
+      epList.push({
+        id,
+        titulo: cleanSigreLatexMath(titulo),
+        subepigrafes: [],
+        contenidoHtml: "",
+        status: "pending",
+      });
+    }
+  }
+
+  // If we found epigraphs from the index, check if existing desarrolloEpigrafesHtml has content matching them
+  const fullHtml = m1.desarrolloEpigrafesHtml || "";
+  if (fullHtml && epList.length > 0) {
+    for (const ep of epList) {
+      const idEscaped = ep.id.replace(".", "\\.");
+      const regex = new RegExp(
+        `(<(?:h3|div)[^>]*>\\s*${idEscaped}[\\s\\S]*?)(?=(?:<(?:h3|div)[^>]*>\\s*5\\.\\d+)|$)`,
+        "i"
+      );
+      const blockMatch = fullHtml.match(regex);
+      if (blockMatch && blockMatch[1] && blockMatch[1].trim().length > 50) {
+        ep.contenidoHtml = blockMatch[1].trim();
+        ep.status = "completed";
+      }
+    }
+  }
+
+  // If still empty, construct default 4 epigraphs from UD title & BC
+  if (epList.length === 0) {
+    const defaultTitles = [
+      `5.1. Fundamentos y Principios Técnicos de ${ud.title}`,
+      `5.2. Componentes, Arquitectura y Parámetros Operativos`,
+      `5.3. Procedimientos de Montaje, Verificación y Mantenimiento`,
+      `5.4. Diagnóstico de Averías y Protocolos de Seguridad y Calidad`,
+    ];
+    defaultTitles.forEach((t, i) => {
+      epList.push({
+        id: `5.${i + 1}`,
+        titulo: t,
+        subepigrafes: [],
+        contenidoHtml: fullHtml && i === 0 ? fullHtml : "",
+        status: fullHtml && i === 0 ? "completed" : "pending",
+      });
+    });
+  }
+
+  return epList;
+}
+
+/**
+ * Reassembles all modular epigraph HTML parts into a single unified development HTML
+ */
+export function rebuildDesarrolloEpigrafesHtml(epigrafes: SigreEpigrafeItem[]): string {
+  if (!epigrafes || epigrafes.length === 0) return "";
+  const parts = epigrafes
+    .filter((e) => e.contenidoHtml && e.contenidoHtml.trim().length > 0)
+    .map((e) => e.contenidoHtml!.trim());
+  return parts.join("\n\n");
 }
 
 /**
@@ -1135,13 +1436,13 @@ export function formatSigreIndiceHtml(rawIndice: string): string {
       const indentPx = isMain ? 0 : Math.min(depth * 22, 66);
 
       return `<div style="padding-left: ${indentPx}px; margin-top: ${isMain && idx > 0 ? "10px" : "4px"}; margin-bottom: 4px; display: flex; align-items: baseline; gap: 8px;">
-        <span style="font-weight: ${isMain ? "800" : "600"}; color: ${isMain ? "#d97706" : "#475569"}; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: ${isMain ? "13px" : "12px"}; min-width: ${isMain ? "28px" : "42px"}; flex-shrink: 0;">${num}</span>
-        <span style="font-weight: ${isMain ? "700" : "400"}; color: ${isMain ? "#0f172a" : "#334155"}; font-size: ${isMain ? "13.5px" : "12.5px"}; line-height: 1.5;">${rest}</span>
+        <span style="font-weight: ${isMain ? "800" : "700"}; color: ${isMain ? "#d97706" : "#475569"}; font-size: ${isMain ? "13.5px" : "12.5px"}; min-width: ${isMain ? "28px" : "42px"}; flex-shrink: 0; font-family: inherit;">${num}</span>
+        <span style="font-weight: ${isMain ? "700" : "400"}; color: ${isMain ? "#0f172a" : "#334155"}; font-size: ${isMain ? "13.5px" : "12.5px"}; line-height: 1.5; font-family: inherit;">${rest}</span>
       </div>`;
     }
     
     // Fallback for lines without standard numbering
-    return `<div style="padding-left: 8px; margin-bottom: 4px; color: #334155; font-size: 12.5px; line-height: 1.5;">${line}</div>`;
+    return `<div style="padding-left: 8px; margin-bottom: 4px; color: #334155; font-size: 12.5px; line-height: 1.5; font-family: inherit;">${line}</div>`;
   });
 
   return `<div class="sigre-index-tree" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; font-family: inherit;">
@@ -1150,7 +1451,8 @@ export function formatSigreIndiceHtml(rawIndice: string): string {
 }
 
 /**
- * Converts Markdown tables into HTML tables and enhances styling for all tables in epígrafes
+ * Converts Markdown tables into HTML tables, sanitizes rogue fonts and styles,
+ * and harmonizes typography across all technical epígrafes to match the document body.
  */
 export function formatSigreDesarrolloHtml(rawHtml: string): string {
   if (!rawHtml) return "";
@@ -1158,7 +1460,13 @@ export function formatSigreDesarrolloHtml(rawHtml: string): string {
   // 1. Clean LaTeX math artifacts into clean plain text (+, -, *, /, ^, °C, Ω, etc.)
   let content = cleanSigreLatexMath(rawHtml);
 
-  // 2. Convert Markdown tables to HTML tables if present
+  // 2. Remove legacy <font> tags while preserving content
+  content = content.replace(/<font[^>]*>/gi, "").replace(/<\/font>/gi, "");
+
+  // 3. Strip any rogue inline font-family properties that cause font mismatches
+  content = content.replace(/font-family\s*:\s*[^;'"]+;?/gi, "");
+
+  // 4. Convert Markdown tables to HTML tables if present
   if (content.includes("|")) {
     const tableRegex = /(?:^|\n)(\|.+?\|\r?\n\|[\s\-:|]+\|\r?\n(?:\|.+?\|\r?\n?)+)/g;
     content = content.replace(tableRegex, (_match, tableBlock) => {
@@ -1178,7 +1486,7 @@ export function formatSigreDesarrolloHtml(rawHtml: string): string {
       const theadHtml = `<thead><tr>${headers
         .map(
           (h: string) =>
-            `<th style="background-color: #f1f5f9; color: #0f172a; font-weight: 800; text-align: left; padding: 11px 16px; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; font-size: 12.5px;">${h}</th>`
+            `<th style="background-color: #f1f5f9; color: #0f172a; font-weight: 800; text-align: left; padding: 11px 16px; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; font-size: 12.5px; font-family: inherit;">${h}</th>`
         )
         .join("")}</tr></thead>`;
 
@@ -1188,20 +1496,20 @@ export function formatSigreDesarrolloHtml(rawHtml: string): string {
             `<tr style="background-color: ${idx % 2 === 0 ? "#ffffff" : "#f8fafc"};">${r
               .map(
                 (c: string) =>
-                  `<td style="padding: 10px 16px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; color: #334155; vertical-align: top; font-size: 13px; line-height: 1.55;">${c}</td>`
+                  `<td style="padding: 10px 16px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; color: #334155; vertical-align: top; font-size: 13px; line-height: 1.55; font-family: inherit;">${c}</td>`
               )
               .join("")}</tr>`
         )
         .join("")}</tbody>`;
 
-      return `\n<div style="overflow-x: auto; margin: 18px 0;"><table class="sigre-table" style="width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; font-size: 13px; background: #ffffff;">${theadHtml}${tbodyHtml}</table></div>\n`;
+      return `\n<div style="overflow-x: auto; margin: 18px 0;"><table class="sigre-table" style="width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; font-size: 13px; font-family: inherit; background: #ffffff;">${theadHtml}${tbodyHtml}</table></div>\n`;
     });
   }
 
-  // 2. Enhance existing HTML tables with explicit inline styles for guaranteed crisp rendering
-  content = content.replace(/<table(?!\s+class="sigre-table")/gi, '<table class="sigre-table" style="width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #cbd5e1; border-radius: 8px; margin: 18px 0; overflow: hidden; font-size: 13px; background: #ffffff;"');
-  content = content.replace(/<th(?!\s+style)/gi, '<th style="background-color: #f1f5f9; color: #0f172a; font-weight: 800; text-align: left; padding: 11px 16px; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; font-size: 12.5px;"');
-  content = content.replace(/<td(?!\s+style)/gi, '<td style="padding: 10px 16px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; color: #334155; vertical-align: top; font-size: 13px; line-height: 1.55;"');
+  // 5. Enhance existing HTML tables with explicit inline styles for guaranteed crisp rendering
+  content = content.replace(/<table(?!\s+class="sigre-table")/gi, '<table class="sigre-table" style="width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #cbd5e1; border-radius: 8px; margin: 18px 0; overflow: hidden; font-size: 13px; font-family: inherit; background: #ffffff;"');
+  content = content.replace(/<th(?!\s+style)/gi, '<th style="background-color: #f1f5f9; color: #0f172a; font-weight: 800; text-align: left; padding: 11px 16px; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; font-size: 12.5px; font-family: inherit;"');
+  content = content.replace(/<td(?!\s+style)/gi, '<td style="padding: 10px 16px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; color: #334155; vertical-align: top; font-size: 13px; line-height: 1.55; font-family: inherit;"');
 
   return content;
 }

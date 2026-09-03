@@ -67,8 +67,12 @@ export interface SigreCurricularConfig {
   // Formación Profesional Dual (LO 3/2022 y RD 659/2023)
   cursoModulo?: 1 | 2; // Curso al que pertenece el módulo: 1 (1º Curso) o 2 (2º Curso)
   etapaCiclo?: "basico" | "medio" | "superior" | "especializacion"; // Grado D Básico, Medio, Superior o Grado E Especialización
-  regimenDual?: "general" | "intensivo"; // Régimen General (20-35% empresa) vs Intensivo (>35-50% empresa)
+  regimenDual?: "general" | "intensivo" | "no_dual"; // Régimen General (25-35% empresa, 10-20% RA) vs Intensivo (>35-50% empresa, >30% RA) vs No Dual
   porcentajeDual?: number; // % efectivo aplicado al módulo (ej. 12.1%, 25%, etc.)
+  porcentajeRaFfeoe?: number; // % de Resultados de Aprendizaje en FFEOE (10%-20% para Dual General)
+  porcentajeRaFfeoeModulo?: number; // % de RAs en FFEOE en este módulo
+  totalRasModulo?: number; // Total RAs del módulo (ej. 6)
+  rasFfeoeModulo?: number; // RAs impartidos en empresa (ej. 1 o 2)
   porcentajeDualPrimerCurso?: number; // % del total de horas de 1º curso en empresa (FFEOE) según normativa (ej. 10%-20%, def. 12.1%)
   porcentajeDualSegundoCurso?: number; // % del total de horas de 2º curso en empresa (FFEOE) según normativa (ej. 20%-35%, def. 25.0%)
   horasPrimerCurso?: number; // Horas totales de 1º curso del ciclo (ej. 995 o 1000h)
@@ -85,7 +89,12 @@ export interface SigreCurricularConfig {
   horasFfeoeModulo?: number; // Horas en Empresa / Organismo Equiparado (FFEOE) para el módulo (ej. 20h)
   // Configuración de Evaluaciones y Parciales
   numParciales?: number; // Número de evaluaciones parciales / trimestres por curso (por defecto 3)
-  // Organización del ciclo (Orden EFD/659/2024) y alternancia Dual
+  // Marco Normativo y Concreción Curricular Autonómica (Andalucía)
+  cursoEscolar?: string; // e.g. "2026/2027", "2025/2026", "2027/2028"
+  ordenEstatalReferencia?: string; // "Orden EFD/657/2024, de 25 de junio (Grado Medio)" o "Orden EFD/659/2024, de 25 de junio (Grado Superior)"
+  resolucionInstruccionesAndalucia?: string; // "Resolución de 24 de julio de 2026 de la Dirección General de Formación Profesional y Educación Permanente por la que se dictan Instrucciones..."
+  fechaResolucionAndalucia?: string; // "24 de julio de 2026"
+  // Organización del ciclo (Orden EFD/657/2024 / EFD/659/2024 adaptada en Andalucía) y alternancia Dual
   cyclePlanData?: SigreCyclePlanData;
   pedagogicalPhases?: SigrePedagogicalPhaseGroup[];
   // Gestor de Horarios y Guardias
@@ -109,7 +118,12 @@ export interface SigreCycleModuleEntry {
 }
 
 export interface SigreCyclePlanData {
-  ordenReferencia: string; // "Orden EFD/659/2024, de 25 de junio que modifica a la Orden de 2 de noviembre de 2011"
+  ordenReferencia: string; // Referencia principal combinada
+  ordenEstatalReferencia?: string; // "Orden EFD/657/2024, de 25 de junio (Grado Medio)" / "Orden EFD/659/2024, de 25 de junio (Grado Superior)"
+  resolucionInstruccionesAndalucia?: string; // "Resolución de 24 de julio de 2026 de la Dirección General de Formación Profesional y Educación Permanente..."
+  cursoEscolar?: string; // "2026/2027" (actualizable anualmente)
+  fechaResolucionAndalucia?: string; // "24 de julio de 2026"
+  gradoCiclo?: "medio" | "superior" | "basico" | "especializacion";
   nombreCiclo: string;
   totalHorasCiclo: number; // 2000
   horasPrimerCurso: number; // 995
@@ -364,6 +378,8 @@ export interface SigreUDItem {
   horasFfce?: number; // Horas de aula/taller en Centro Educativo (FFCE)
   pesoPorcentaje?: number; // % Ponderación sobre nota final del módulo (ej. 11.13%)
   isDualEmpresa?: boolean; // Deriva horas a empresa en FP Dual (UD07, UD08)
+  isRaFfeoe?: boolean; // Indica si los RAs asociados a esta UD se imparten/evalúan en FFEOE (10%-20% del currículo)
+  raFfeoeDescripcion?: string; // Detalle pedagógico de los RAs impartidos en empresa
   dualNotaEmpresa?: string; // Explicación de estancia en empresa
   isPeriodoRecuperacion?: boolean; // Fila 'R'
   status: "pending" | "generating" | "completed" | "error";
@@ -458,6 +474,14 @@ export interface SigreUDCurricularData {
   bibliografiaWebgrafia: string[];
 }
 
+export interface SigreEpigrafeItem {
+  id: string; // e.g. "5.1", "5.2", "5.3"
+  titulo: string; // e.g. "5.1. Principios Termodinámicos y Ciclos Frigoríficos"
+  subepigrafes?: string[]; // Bullet topics to develop
+  contenidoHtml?: string;
+  status?: "pending" | "generating" | "completed";
+}
+
 export interface SigreUDData {
   cotRazonamiento?: string;
   glosarioHtml?: string;
@@ -473,16 +497,17 @@ export interface SigreUDData {
     }; // 3. CONTENIDOS ESPECÍFICOS
     objetivosSmart: string[]; // 4. OBJETIVOS ESPECÍFICOS DE APRENDIZAJE (SMART)
     indiceDesarrollo: string; // 1. ÍNDICE / Guion de epígrafes (5.1, 5.2, 5.3...)
+    epigrafes?: SigreEpigrafeItem[]; // Desglose modular de sub-epígrafes 5.1, 5.2, etc.
     desarrolloEpigrafesHtml: string; // 5. DESARROLLO (Epígrafes 5.1, 5.2...)
     referenciasNormativasHtml?: string; // 6. REFERENCIAS NORMATIVAS
     bibliografiaWebgrafiaHtml?: string; // 7. BIBLIOGRAFÍA Y WEBGRAFÍA
     conclusiones: string; // 8. CONCLUSIONES Y SÍNTESIS DEL TEMA
     relacionIntradisciplinar: string; // Intradisciplinaridad y conexión curricular
-    diagramaMermaid: string; // Diagrama de Flujo (Mermaid flowchart TD)
-    mapaMentalOpml: string; // Mapa Mental OPML XML
+    diagramaMermaid?: string; // Diagrama de Flujo (Mermaid flowchart TD)
+    mapaMentalOpml?: string; // Mapa Mental OPML XML
     cotRazonamiento?: string; // Análisis y diseño pedagógico anticolisión
     glosarioHtml?: string; // Glosario y fórmulas Test-Wiseness
-    autoevaluacionHtml: string; // Cuestionario de autoevaluación (20 preguntas)
+    autoevaluacionHtml?: string; // Cuestionario de autoevaluación (20 preguntas)
   };
 
   // Unidad Didáctica Curricular (19 Puntos - Ficha / Matriz Curricular Oficial)

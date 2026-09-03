@@ -6,9 +6,16 @@ import {
 
 export const DEFAULT_CYCLE_PLAN_DATA: SigreCyclePlanData = {
   ordenReferencia:
-    "Resolución de 24 de julio de 2026 de la D.G. de Formación Profesional y Educación Permanente (Junta de Andalucía) - Instrucciones de distribución horaria y concreción curricular para el curso 2026/2027 (Grados D y E)",
+    "Orden EFD/657/2024 (Grado Medio) / EFD/659/2024 (Grado Superior) adaptada en Andalucía por Resolución de 24 de julio de 2026 (Instrucciones curso 2026/2027)",
+  ordenEstatalReferencia:
+    "Orden EFD/657/2024, de 25 de junio, por la que se determina el currículo y se regulan determinados aspectos organizativos para los ciclos formativos de grado medio en el ámbito de gestión del Ministerio de Educación, Formación Profesional y Deportes (y Orden EFD/659/2024 para Grado Superior / RD 659/2023)",
+  resolucionInstruccionesAndalucia:
+    "Resolución de 24 de julio de 2026 de la Dirección General de Formación Profesional y Educación Permanente por la que se dictan Instrucciones para determinar aspectos relativos a la distribución horaria y a la concreción curricular de las enseñanzas correspondientes a los grados D y E del sistema de Formación Profesional para el curso escolar 2026/2027 en la comunidad autónoma de Andalucía",
+  cursoEscolar: "2026/2027",
+  fechaResolucionAndalucia: "24 de julio de 2026",
+  gradoCiclo: "medio",
   nombreCiclo:
-    "Ciclo Formativo de Grado Superior en Gestión del Agua / Mantenimiento Térmico",
+    "Ciclo Formativo de Grado Medio / Grado Superior (Andalucía - Grados D y E)",
   totalHorasCiclo: 2000,
   horasPrimerCurso: 995,
   horasSegundoCurso: 1005,

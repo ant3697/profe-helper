@@ -426,13 +426,22 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
   // Strictly enforces:
   // 1. Calendars dynamically update when UDs are generated / modified.
   // 2. NO UD entries can exist on a module calendar unless generated in the curriculum.
+  const isSyncingRef = useRef<boolean>(false);
+  const lastSyncSignatureRef = useRef<string>("");
+
   useEffect(() => {
-    if (!calendar) return;
+    if (!calendar || isSyncingRef.current) return;
 
     try {
       const curriculumPkg = getModuleCurriculum(calendar);
       const generatedUds = curriculumPkg?.uds || [];
       const currentCalUdLegends = (calendar.legendItems || []).filter((l) => l.type === "ud_ra");
+
+      // Stable signature to prevent re-synchronizing unchanged curricula
+      const currentSignature = `${calendar.id}_${generatedUds.length}_${generatedUds.map((u) => u.id + ":" + (u.horasEstimadas || 0)).join(",")}`;
+      if (lastSyncSignatureRef.current === currentSignature) {
+        return;
+      }
 
       if (generatedUds.length > 0) {
         // Module has generated UDs: Check if calendar needs synchronization
@@ -443,6 +452,8 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
           );
 
         if (udsDifferent) {
+          isSyncingRef.current = true;
+          lastSyncSignatureRef.current = currentSignature;
           const syncedCalendar = autoDistributeUdsToCalendar(
             calendar,
             generatedUds,
@@ -451,20 +462,37 @@ export const SigreAcademicCalendarManager: React.FC<SigreAcademicCalendarManager
           setCalendarsList((prev) =>
             prev.map((c) => (c.id === calendar.id ? syncedCalendar : c))
           );
-          if (onCalendarChange) onCalendarChange(syncedCalendar);
+          if (onCalendarChange) {
+            onCalendarChange(syncedCalendar);
+          }
+          setTimeout(() => {
+            isSyncingRef.current = false;
+          }, 200);
+        } else {
+          lastSyncSignatureRef.current = currentSignature;
         }
       } else {
         // Module has NO generated UDs: Purge any stale/phantom UD entries from this calendar
         if (currentCalUdLegends.length > 0) {
+          isSyncingRef.current = true;
+          lastSyncSignatureRef.current = currentSignature;
           const cleanedCalendar = autoDistributeUdsToCalendar(calendar, []);
           setCalendarsList((prev) =>
             prev.map((c) => (c.id === calendar.id ? cleanedCalendar : c))
           );
-          if (onCalendarChange) onCalendarChange(cleanedCalendar);
+          if (onCalendarChange) {
+            onCalendarChange(cleanedCalendar);
+          }
+          setTimeout(() => {
+            isSyncingRef.current = false;
+          }, 200);
+        } else {
+          lastSyncSignatureRef.current = currentSignature;
         }
       }
     } catch (err) {
       console.error("Error in calendar curriculum sync:", err);
+      isSyncingRef.current = false;
     }
   }, [calendar?.id, calendar?.codigoModulo, calendar?.moduloFormativo]);
 

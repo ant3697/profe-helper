@@ -63,14 +63,14 @@ export const SigreRubricXmlViewer: React.FC<SigreRubricXmlViewerProps> = ({
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 border-b border-border-default pb-2">
+      <div className="flex flex-wrap gap-2 p-1.5 bg-slate-900/80 dark:bg-slate-950/80 border border-slate-700/80 dark:border-slate-800 rounded-xl shadow-inner">
         <button
           type="button"
           onClick={() => setActiveTab("matriz")}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeTab === "matriz"
-              ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
-              : "bg-surface border border-border-default text-text-muted hover:text-text-primary"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-500/30 ring-1 ring-blue-400 font-black scale-[1.02]"
+              : "bg-slate-800/90 dark:bg-slate-800/90 border border-blue-500/30 text-slate-100 hover:text-white hover:border-blue-400 hover:bg-slate-700/90 shadow-xs"
           }`}
         >
           📊 3.2.1. Matriz de Alineación y Pesos
@@ -78,10 +78,10 @@ export const SigreRubricXmlViewer: React.FC<SigreRubricXmlViewerProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab("actividades")}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeTab === "actividades"
-              ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
-              : "bg-surface border border-border-default text-text-muted hover:text-text-primary"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-500/30 ring-1 ring-blue-400 font-black scale-[1.02]"
+              : "bg-slate-800/90 dark:bg-slate-800/90 border border-blue-500/30 text-slate-100 hover:text-white hover:border-blue-400 hover:bg-slate-700/90 shadow-xs"
           }`}
         >
           📋 3.2.2. Tabla de Actividades
@@ -89,10 +89,10 @@ export const SigreRubricXmlViewer: React.FC<SigreRubricXmlViewerProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab("vinculacion")}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeTab === "vinculacion"
-              ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
-              : "bg-surface border border-border-default text-text-muted hover:text-text-primary"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-500/30 ring-1 ring-blue-400 font-black scale-[1.02]"
+              : "bg-slate-800/90 dark:bg-slate-800/90 border border-blue-500/30 text-slate-100 hover:text-white hover:border-blue-400 hover:bg-slate-700/90 shadow-xs"
           }`}
         >
           🎯 3.1. Vinculación Curricular (RA / CrEv)
@@ -100,13 +100,13 @@ export const SigreRubricXmlViewer: React.FC<SigreRubricXmlViewerProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab("rubricas_xml")}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeTab === "rubricas_xml"
-              ? "bg-purple-600 text-white shadow-md shadow-purple-500/20"
-              : "bg-surface border border-border-default text-text-muted hover:text-text-primary"
+              ? "bg-purple-600 text-white shadow-md shadow-purple-500/30 ring-1 ring-purple-400 font-black scale-[1.02]"
+              : "bg-slate-800/90 dark:bg-slate-800/90 border border-purple-500/30 text-slate-100 hover:text-white hover:border-purple-400 hover:bg-slate-700/90 shadow-xs"
           }`}
         >
-          <FileCode2 className="w-3.5 h-3.5 inline mr-1" /> 3.2.3. Rúbricas (XML)
+          <FileCode2 className="w-3.5 h-3.5 inline mr-1 text-purple-400" /> 3.2.3. Rúbricas (XML)
         </button>
       </div>
 

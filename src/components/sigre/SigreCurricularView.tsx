@@ -44,6 +44,10 @@ import {
   Gauge,
   Users,
   X,
+  Trash2,
+  Edit,
+  Plus,
+  FolderArchive,
 } from "lucide-react";
 import {
   SigreCurricularConfig,
@@ -60,6 +64,11 @@ import {
   buildSigrePlanPrompt,
   buildSigreUDModule1Prompt,
   buildSigreUDEditorialPrompt,
+  buildSigreUDEditorialIndexPrompt,
+  buildSigreUDEpigrafePrompt,
+  buildSigreUDClosingSectionsPrompt,
+  extractOrInitEpigrafesFromUD,
+  rebuildDesarrolloEpigrafesHtml,
   buildSigreUDAutoevaluacionPrompt,
   buildSigreUDDiagramaOpmlPrompt,
   buildSigreUDModuleDocentePrompt,
@@ -86,16 +95,21 @@ import { SigreDocumentViewerModal } from "./SigreDocumentViewerModal";
 import { SigrePedagogicalAuditModal } from "./SigrePedagogicalAuditModal";
 import { SigreAutoevaluacionViewer } from "./SigreAutoevaluacionViewer";
 import { SigreCurricularViewer } from "./SigreCurricularViewer";
+import { SigreEditorialViewer } from "./SigreEditorialViewer";
+import { SigreEpigrafeItem } from "../../types/sigre";
 import { SigreScheduleGuardManager } from "./SigreScheduleGuardManager";
 import { SigreMultiLevelTimeline } from "./SigreMultiLevelTimeline";
 import { SigreAcademicCalendarManager } from "./SigreAcademicCalendarManager";
 import { SigreModulePlanningView } from "./SigreModulePlanningView";
 import { SigreTechnicalAuditModal } from "./SigreTechnicalAuditModal";
+import { SigreExportModal } from "./SigreExportModal";
+import { exportSingleUdJson } from "../../utils/sigreCompleteExporter";
 import { getSampleFPModuleUds } from "../../data/sigreSampleModule";
 import { INITIAL_SIGRE_SCHEDULE_CONFIG } from "../../data/sigreSchedulePresets";
 import { extractTextFromFile } from "../../utils/pdfExtractor";
 import { getModuleCurriculum, saveModuleCurriculum } from "../../utils/sigreModuleCurriculumStore";
 import { autoDistributeUdsToCalendar, sanitizeAcademicCalendar } from "../../utils/sigreCalendarUtils";
+import { safeLocalStorageSet } from "../../utils/sigreStorageHelper";
 import { exportHtmlToDocx } from "../../utils/docxExport";
 import { preparePrintableHtmlDocument } from "../../utils/topicPromptGenerator";
 import { downloadBlob } from "../../utils/fileHelpers";
@@ -138,6 +152,7 @@ const DEFAULT_CONFIG: SigreCurricularConfig = {
   contextoAplicacion: "IES Al-Baytar de Benalmádena (Málaga)",
   horasTotales: 160,
   horasSemanales: 5,
+  numParciales: 3,
   numUnidadesDidacticas: 0, // 0 = Automático por Bloques
   semanasCurso: 32, // 32 semanas lectivas estándar del curso (incluye FFEOE práctica y FCE práctica UDs)
   duracionSesionMinutos: 60,
@@ -327,12 +342,17 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
   const [udToRegenerate, setUdToRegenerate] = useState<SigreUDItem | null>(null);
   const [isAnalyzingCurriculum, setIsAnalyzingCurriculum] = useState(false);
   const [isGeneratingUd, setIsGeneratingUd] = useState(false);
+  const [generatingEditorialSectionId, setGeneratingEditorialSectionId] = useState<string | null>(null);
+  const [editorialProgressPercent, setEditorialProgressPercent] = useState<number>(0);
   const [isGeneratingCurricular, setIsGeneratingCurricular] = useState(false);
   const [isGeneratingHdi, setIsGeneratingHdi] = useState(false);
   const [isBatchGenerating, setIsBatchGenerating] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [isAudit6AxesOpen, setIsAudit6AxesOpen] = useState(false);
   const [isTechnicalAuditModalOpen, setIsTechnicalAuditModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportModalTab, setExportModalTab] = useState<"zip" | "individuales" | "importar" | "backup_restore">("zip");
+  const [exportModalTargetUdId, setExportModalTargetUdId] = useState<string | null>(null);
   const [globalViewMode, setGlobalViewMode] = useState<
     "unidades" | "parametros" | "planificacion" | "calendario" | "cronogramas" | "horarios"
   >("unidades");
@@ -409,69 +429,79 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
     });
   };
 
-  // Sync with LocalStorage and dynamically synchronize module portfolio calendars
+  // Sync with LocalStorage and dynamically synchronize module portfolio calendars (debounced to avoid quota/render churn)
   useEffect(() => {
-    try {
-      localStorage.setItem("docuexam_sigre_config", JSON.stringify(config));
-    } catch {}
+    const timer = setTimeout(() => {
+      try {
+        safeLocalStorageSet("docuexam_sigre_config", JSON.stringify(config));
+      } catch {}
+    }, 200);
+    return () => clearTimeout(timer);
   }, [config]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem("docuexam_sigre_uds", JSON.stringify(uds));
-      const currentKey = config.codigo || config.moduloFormativo;
-      if (currentKey) {
-        saveModuleCurriculum(currentKey, {
-          config,
-          uds,
-          ragDocuments,
-        });
+    const timer = setTimeout(() => {
+      try {
+        safeLocalStorageSet("docuexam_sigre_uds", JSON.stringify(uds));
+        const currentKey = config.codigo || config.moduloFormativo;
+        if (currentKey) {
+          saveModuleCurriculum(currentKey, {
+            config,
+            uds,
+            ragDocuments,
+          });
 
-        // Dynamic synchronization with academic calendars in portfolio
-        const STORAGE_KEY_CALENDARS = "sigre_academic_calendars_portfolio_v2";
-        const savedCals = localStorage.getItem(STORAGE_KEY_CALENDARS);
-        if (savedCals) {
-          const parsedCals: SigreAcademicCalendar[] = JSON.parse(savedCals);
-          if (Array.isArray(parsedCals) && parsedCals.length > 0) {
-            let changed = false;
-            const updatedCals = parsedCals.map((cal) => {
-              const matchesCode =
-                cal.codigoModulo &&
-                config.codigo &&
-                cal.codigoModulo.trim().toLowerCase() === config.codigo.trim().toLowerCase();
-              const matchesName =
-                cal.moduloFormativo &&
-                config.moduloFormativo &&
-                cal.moduloFormativo.trim().toLowerCase() === config.moduloFormativo.trim().toLowerCase();
+          // Dynamic synchronization with academic calendars in portfolio
+          const STORAGE_KEY_CALENDARS = "sigre_academic_calendars_portfolio_v2";
+          const savedCals = localStorage.getItem(STORAGE_KEY_CALENDARS);
+          if (savedCals) {
+            const parsedCals: SigreAcademicCalendar[] = JSON.parse(savedCals);
+            if (Array.isArray(parsedCals) && parsedCals.length > 0) {
+              let changed = false;
+              const updatedCals = parsedCals.map((cal) => {
+                const matchesCode =
+                  cal.codigoModulo &&
+                  config.codigo &&
+                  cal.codigoModulo.trim().toLowerCase() === config.codigo.trim().toLowerCase();
+                const matchesName =
+                  cal.moduloFormativo &&
+                  config.moduloFormativo &&
+                  cal.moduloFormativo.trim().toLowerCase() === config.moduloFormativo.trim().toLowerCase();
 
-              if (matchesCode || matchesName) {
-                changed = true;
-                return autoDistributeUdsToCalendar(cal, uds, config.codigo || cal.codigoModulo);
+                if (matchesCode || matchesName) {
+                  changed = true;
+                  return autoDistributeUdsToCalendar(cal, uds, config.codigo || cal.codigoModulo);
+                }
+                return cal;
+              });
+
+              if (changed) {
+                safeLocalStorageSet(STORAGE_KEY_CALENDARS, JSON.stringify(updatedCals));
               }
-              return cal;
-            });
-
-            if (changed) {
-              localStorage.setItem(STORAGE_KEY_CALENDARS, JSON.stringify(updatedCals));
             }
           }
         }
+      } catch (e) {
+        console.warn("Storage sync handled gracefully:", e);
       }
-    } catch (e) {
-      console.error("Error in dynamic calendar sync:", e);
-    }
+    }, 400);
+
+    return () => clearTimeout(timer);
   }, [uds, config, ragDocuments]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem("docuexam_sigre_rag_docs", JSON.stringify(ragDocuments));
-    } catch {}
+    const timer = setTimeout(() => {
+      try {
+        safeLocalStorageSet("docuexam_sigre_rag_docs", JSON.stringify(ragDocuments));
+      } catch {}
+    }, 300);
+    return () => clearTimeout(timer);
   }, [ragDocuments]);
 
   useEffect(() => {
     try {
       if (selectedUdId) {
-        localStorage.setItem("docuexam_sigre_selected_ud", selectedUdId);
+        safeLocalStorageSet("docuexam_sigre_selected_ud", selectedUdId);
       } else {
         localStorage.removeItem("docuexam_sigre_selected_ud");
       }
@@ -498,6 +528,25 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
       return true;
     });
   }, [uds, udFilterStatus, udSearchQuery]);
+
+  const handleDeleteSingleUd = (udId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const targetUd = uds.find((u) => u.id === udId);
+    const label = targetUd ? `${targetUd.id} (${targetUd.title})` : udId;
+    if (window.confirm(`¿Deseas eliminar la unidad didáctica ${label}?`)) {
+      const remaining = uds.filter((u) => u.id !== udId);
+      const renumbered = remaining.map((u, idx) => ({
+        ...u,
+        number: idx + 1,
+        id: `UD${String(idx + 1).padStart(2, "0")}`,
+        fullCode: `UD${String(idx + 1).padStart(2, "0")}. ${u.bcCode || "BC" + (idx + 1)}. ${u.title}`,
+      }));
+      setUds(renumbered);
+      if (selectedUdId === udId) {
+        setSelectedUdId(renumbered.length > 0 ? renumbered[0].id : null);
+      }
+    }
+  };
 
   const handleLoadSampleFPModule = () => {
     const sample = getSampleFPModuleUds(config);
@@ -537,6 +586,27 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
     const cleanModName = (config.moduloFormativo || "Instalaciones_Electricas").replace(/[^a-zA-Z0-9_-]/g, "_");
     const fileName = `SIGRE_Ejemplo_FP_${cleanModName}_${sample.length}UDs.json`;
     downloadBlob(fileName, jsonStr, "application/json;charset=utf-8");
+  };
+
+  const handleImportProjectJson = (importedUds: SigreUDItem[], importedConfig: SigreCurricularConfig) => {
+    setUds(importedUds);
+    setConfig(importedConfig);
+    setSelectedUdId(importedUds[0]?.id || null);
+    safeLocalStorageSet("docuexam_sigre_uds", JSON.stringify(importedUds));
+    safeLocalStorageSet("docuexam_sigre_config", JSON.stringify(importedConfig));
+  };
+
+  const handleOpenExportModal = (
+    tab: "zip" | "individuales" | "importar" | "backup_restore" = "zip",
+    targetUdId?: string
+  ) => {
+    setExportModalTab(tab);
+    setExportModalTargetUdId(targetUdId || selectedUdId || null);
+    setIsExportModalOpen(true);
+  };
+
+  const handleDownloadSingleUdJson = (targetUd: SigreUDItem) => {
+    exportSingleUdJson(targetUd, config);
   };
 
   // Compute live pedagogical audit if UD is selected
@@ -635,11 +705,14 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
         if (Array.isArray(parsed.uds)) {
           const defaultHoursPerUd = Math.round((config.horasTotales || 160) / parsed.uds.length);
           const defaultWeight = parseFloat((100 / parsed.uds.length).toFixed(2));
+          const numParcs = config.numParciales || 3;
+          const perParcial = Math.ceil(parsed.uds.length / numParcs);
           parsedUds = parsed.uds.map((item: any, idx: number) => {
             const h = item.horasEstimadas || defaultHoursPerUd;
             const hFfce = item.horasFfce ?? h;
             const hFfeoe = item.horasFfeoe ?? 0;
             const raCe = item.raCeText || (item.rasAssociated ? `${item.rasAssociated.join(", ")}: ${(item.crevsAssociated || []).join(", ")}` : `RA ${idx + 1}`);
+            const assignedTrimestre = item.trimestre || Math.min(numParcs, Math.floor(idx / perParcial) + 1);
             return {
               id: item.id || `UD${String(idx + 1).padStart(2, "0")}`,
               number: item.number || idx + 1,
@@ -656,6 +729,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
               raCeText: raCe,
               cppsText: item.cppsText || (idx % 2 === 0 ? "r" : "c"),
               ogText: item.ogText || (idx % 2 === 0 ? "s" : "c"),
+              trimestre: assignedTrimestre,
               fasePedagogicaId: item.fasePedagogicaId || (idx < 4 ? "fase_1" : idx < 7 ? "fase_2" : idx < 9 ? "fase_3" : "fase_4"),
               fasePedagogicaNombre: item.fasePedagogicaNombre || (idx < 4 ? "Fase I: Planificación y Fundamentos" : idx < 7 ? "Fase II: Desarrollo Técnico" : idx < 9 ? "Fase III: Aplicación y Práctica" : "Fase IV: Integración y Explotación"),
               status: "pending",
@@ -1240,6 +1314,447 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
     }
   };
 
+  // =========================================================================
+  // DEDICATED MODULAR EDITORIAL PIPELINE (1a. UD Editorial)
+  // =========================================================================
+
+  // Step 1: Generate Master Index, Objectives & Pedagogical Structure
+  const handleGenerateEditorialIndex = async (targetUd?: SigreUDItem) => {
+    const udToGen = targetUd || selectedUd;
+    if (!udToGen) return;
+
+    setIsGeneratingUd(true);
+    setGeneratingEditorialSectionId("index");
+    setEditorialProgressPercent(20);
+    setLoadingStatus(`Diseñando Índice Maestro y Bases Pedagógicas para ${udToGen.fullCode}...`);
+
+    try {
+      const ragContext = ragDocuments.map((f) => f.text).join("\n\n");
+      const prompt = buildSigreUDEditorialIndexPrompt(udToGen, config, ragContext);
+
+      const res = await fetch("/api/generate-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          providerId: activeProviderConfig.id,
+          apiKey: activeProviderConfig.apiKey,
+          endpoint: activeProviderConfig.endpoint,
+          model: activeProviderConfig.selectedModel,
+          temperature: 0.2,
+          jsonMode: true,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Error generando Índice Editorial");
+      const resData = await res.json();
+      const parsed = robustJsonParse<any>(resData.text, {});
+
+      setUds((prev) =>
+        prev.map((u) => {
+          if (u.id === udToGen.id) {
+            const currentM1 = u.data?.modulo1 || {
+              titulo: u.fullCode || u.title,
+              introduccion: "",
+              contenidos: { conceptuales: [], procedimentales: [], actitudinales: [] },
+              objetivosSmart: [],
+              indiceDesarrollo: "",
+              desarrolloEpigrafesHtml: "",
+              referenciasNormativasHtml: "",
+              bibliografiaWebgrafiaHtml: "",
+              conclusiones: "",
+              relacionIntradisciplinar: "",
+              glosarioHtml: "",
+              autoevaluacionHtml: "",
+            };
+
+            const updatedM1: SigreUDData["modulo1"] = {
+              ...currentM1,
+              titulo: cleanSigreLatexMath(parsed.titulo || currentM1.titulo),
+              cotRazonamiento: cleanSigreLatexMath(parsed.cotRazonamiento || currentM1.cotRazonamiento),
+              indiceDesarrollo: cleanSigreLatexMath(parsed.indiceDesarrollo || currentM1.indiceDesarrollo),
+              introduccion: cleanSigreLatexMath(parsed.introduccion || currentM1.introduccion),
+              contenidos: parsed.contenidos || currentM1.contenidos,
+              objetivosSmart: (parsed.objetivosSmart || currentM1.objetivosSmart || []).map(cleanSigreLatexMath),
+              epigrafes:
+                Array.isArray(parsed.epigrafes) && parsed.epigrafes.length > 0
+                  ? parsed.epigrafes.map((e: any, idx: number) => ({
+                      id: e.id || `5.${idx + 1}`,
+                      titulo: cleanSigreLatexMath(e.titulo || `5.${idx + 1}. Epígrafe`),
+                      subepigrafes: Array.isArray(e.subepigrafes) ? e.subepigrafes.map(cleanSigreLatexMath) : [],
+                      contenidoHtml: "",
+                      status: "pending" as const,
+                    }))
+                  : currentM1.epigrafes,
+            };
+
+            return {
+              ...u,
+              status: u.data ? u.status : "completed",
+              data: {
+                ...(u.data || ({} as any)),
+                modulo1: updatedM1,
+              },
+            };
+          }
+          return u;
+        })
+      );
+    } catch (err: any) {
+      console.error("Error en Índice Editorial:", err);
+      alert("Error al generar el Índice Maestro: " + (err.message || err));
+    } finally {
+      setIsGeneratingUd(false);
+      setGeneratingEditorialSectionId(null);
+      setEditorialProgressPercent(0);
+      setLoadingStatus("");
+    }
+  };
+
+  // Step 2: Generate a single technical epigraph
+  const handleGenerateEditorialEpigrafe = async (
+    epigrafe: SigreEpigrafeItem,
+    targetUd?: SigreUDItem
+  ) => {
+    const udToGen = targetUd || selectedUd;
+    if (!udToGen) return;
+
+    setIsGeneratingUd(true);
+    setGeneratingEditorialSectionId(epigrafe.id);
+    setLoadingStatus(`Desarrollando Epígrafe ${epigrafe.id} en profundidad (800-1500 palabras)...`);
+
+    try {
+      const ragContext = ragDocuments.map((f) => f.text).join("\n\n");
+      const epList = extractOrInitEpigrafesFromUD(udToGen);
+      const prompt = buildSigreUDEpigrafePrompt(
+        udToGen,
+        config,
+        epigrafe,
+        epList,
+        udToGen.data?.modulo1,
+        ragContext
+      );
+
+      const res = await fetch("/api/generate-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          providerId: activeProviderConfig.id,
+          apiKey: activeProviderConfig.apiKey,
+          endpoint: activeProviderConfig.endpoint,
+          model: activeProviderConfig.selectedModel,
+          temperature: 0.2,
+          jsonMode: true,
+        }),
+      });
+
+      if (!res.ok) throw new Error(`Error en Epígrafe ${epigrafe.id}`);
+      const resData = await res.json();
+      const parsed = robustJsonParse<any>(resData.text, {});
+
+      setUds((prev) =>
+        prev.map((u) => {
+          if (u.id === udToGen.id && u.data?.modulo1) {
+            const currentEps = extractOrInitEpigrafesFromUD(u);
+            const updatedEps = currentEps.map((ep) =>
+              ep.id === epigrafe.id
+                ? {
+                    ...ep,
+                    contenidoHtml: cleanSigreLatexMath(parsed.contenidoHtml || ""),
+                    status: "completed" as const,
+                  }
+                : ep
+            );
+            const combinedHtml = rebuildDesarrolloEpigrafesHtml(updatedEps);
+            return {
+              ...u,
+              data: {
+                ...u.data,
+                modulo1: {
+                  ...u.data.modulo1,
+                  epigrafes: updatedEps,
+                  desarrolloEpigrafesHtml: combinedHtml,
+                },
+              },
+            };
+          }
+          return u;
+        })
+      );
+    } catch (err: any) {
+      console.error(`Error generando Epígrafe ${epigrafe.id}:`, err);
+      alert(`Error al generar el Epígrafe ${epigrafe.id}: ` + (err.message || err));
+    } finally {
+      setIsGeneratingUd(false);
+      setGeneratingEditorialSectionId(null);
+      setLoadingStatus("");
+    }
+  };
+
+  // Step 3: Generate Closing / Normative / Bibliography / Glossary
+  const handleGenerateEditorialClosing = async (targetUd?: SigreUDItem) => {
+    const udToGen = targetUd || selectedUd;
+    if (!udToGen) return;
+
+    setIsGeneratingUd(true);
+    setGeneratingEditorialSectionId("closing");
+    setLoadingStatus(`Generando Normativas, Bibliografía y Cierre para ${udToGen.fullCode}...`);
+
+    try {
+      const ragContext = ragDocuments.map((f) => f.text).join("\n\n");
+      const prompt = buildSigreUDClosingSectionsPrompt(
+        udToGen,
+        config,
+        udToGen.data?.modulo1,
+        ragContext
+      );
+
+      const res = await fetch("/api/generate-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          providerId: activeProviderConfig.id,
+          apiKey: activeProviderConfig.apiKey,
+          endpoint: activeProviderConfig.endpoint,
+          model: activeProviderConfig.selectedModel,
+          temperature: 0.2,
+          jsonMode: true,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Error generando Cierre Editorial");
+      const resData = await res.json();
+      const parsed = robustJsonParse<any>(resData.text, {});
+
+      setUds((prev) =>
+        prev.map((u) => {
+          if (u.id === udToGen.id && u.data?.modulo1) {
+            return {
+              ...u,
+              data: {
+                ...u.data,
+                modulo1: {
+                  ...u.data.modulo1,
+                  referenciasNormativasHtml: cleanSigreLatexMath(
+                    parsed.referenciasNormativasHtml || u.data.modulo1.referenciasNormativasHtml
+                  ),
+                  bibliografiaWebgrafiaHtml: cleanSigreLatexMath(
+                    parsed.bibliografiaWebgrafiaHtml || u.data.modulo1.bibliografiaWebgrafiaHtml
+                  ),
+                  conclusiones: cleanSigreLatexMath(parsed.conclusiones || u.data.modulo1.conclusiones),
+                  relacionIntradisciplinar: cleanSigreLatexMath(
+                    parsed.relacionIntradisciplinar || u.data.modulo1.relacionIntradisciplinar
+                  ),
+                  glosarioHtml: cleanSigreLatexMath(parsed.glosarioHtml || u.data.modulo1.glosarioHtml),
+                },
+              },
+            };
+          }
+          return u;
+        })
+      );
+    } catch (err: any) {
+      console.error("Error en Cierre Editorial:", err);
+      alert("Error al generar el bloque de cierre: " + (err.message || err));
+    } finally {
+      setIsGeneratingUd(false);
+      setGeneratingEditorialSectionId(null);
+      setLoadingStatus("");
+    }
+  };
+
+  // Full Sequential Pipeline: Index -> Epigraph 1 -> Epigraph 2 -> ... -> Closing
+  const handleGenerateAllEditorialModular = async (targetUd?: SigreUDItem) => {
+    const udToGen = targetUd || selectedUd;
+    if (!udToGen) return;
+
+    setIsGeneratingUd(true);
+    setLoadingStatus(`Iniciando desarrollo modular integral para ${udToGen.fullCode}...`);
+
+    try {
+      const ragContext = ragDocuments.map((f) => f.text).join("\n\n");
+
+      // 1. Index Phase
+      setGeneratingEditorialSectionId("index");
+      setEditorialProgressPercent(10);
+      setLoadingStatus(`Paso 1/3: Diseñando Índice Maestro y Bases Curriculares...`);
+
+      const indexPrompt = buildSigreUDEditorialIndexPrompt(udToGen, config, ragContext);
+      const resIndex = await fetch("/api/generate-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: indexPrompt,
+          providerId: activeProviderConfig.id,
+          apiKey: activeProviderConfig.apiKey,
+          endpoint: activeProviderConfig.endpoint,
+          model: activeProviderConfig.selectedModel,
+          temperature: 0.2,
+          jsonMode: true,
+        }),
+      });
+
+      if (!resIndex.ok) throw new Error("Error generando Índice Maestro");
+      const indexRaw = await resIndex.json();
+      const parsedIndex = robustJsonParse<any>(indexRaw.text, {});
+
+      let freshEpList: SigreEpigrafeItem[] = [];
+      if (Array.isArray(parsedIndex.epigrafes) && parsedIndex.epigrafes.length > 0) {
+        freshEpList = parsedIndex.epigrafes.map((e: any, idx: number) => ({
+          id: e.id || `5.${idx + 1}`,
+          titulo: cleanSigreLatexMath(e.titulo || `5.${idx + 1}. Epígrafe`),
+          subepigrafes: Array.isArray(e.subepigrafes) ? e.subepigrafes.map(cleanSigreLatexMath) : [],
+          contenidoHtml: "",
+          status: "pending" as const,
+        }));
+      } else {
+        freshEpList = extractOrInitEpigrafesFromUD(udToGen);
+      }
+
+      // 2. Sequential Epigraph Generation
+      for (let i = 0; i < freshEpList.length; i++) {
+        const ep = freshEpList[i];
+        setGeneratingEditorialSectionId(ep.id);
+        const progress = Math.round(15 + ((i + 1) / (freshEpList.length + 2)) * 70);
+        setEditorialProgressPercent(progress);
+        setLoadingStatus(
+          `Paso 2/3: Desarrollando Epígrafe ${ep.id} (${i + 1}/${freshEpList.length}) con máxima extensión...`
+        );
+
+        const epPrompt = buildSigreUDEpigrafePrompt(
+          udToGen,
+          config,
+          ep,
+          freshEpList,
+          parsedIndex,
+          ragContext
+        );
+
+        const resEp = await fetch("/api/generate-content", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: epPrompt,
+            providerId: activeProviderConfig.id,
+            apiKey: activeProviderConfig.apiKey,
+            endpoint: activeProviderConfig.endpoint,
+            model: activeProviderConfig.selectedModel,
+            temperature: 0.2,
+            jsonMode: true,
+          }),
+        });
+
+        if (resEp.ok) {
+          const epRaw = await resEp.json();
+          const parsedEp = robustJsonParse<any>(epRaw.text, {});
+          ep.contenidoHtml = cleanSigreLatexMath(parsedEp.contenidoHtml || "");
+          ep.status = "completed";
+        }
+      }
+
+      // 3. Closing Phase
+      setGeneratingEditorialSectionId("closing");
+      setEditorialProgressPercent(90);
+      setLoadingStatus(`Paso 3/3: Redactando Normativas, Bibliografía y Cierre...`);
+
+      const closingPrompt = buildSigreUDClosingSectionsPrompt(udToGen, config, parsedIndex, ragContext);
+      const resClosing = await fetch("/api/generate-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: closingPrompt,
+          providerId: activeProviderConfig.id,
+          apiKey: activeProviderConfig.apiKey,
+          endpoint: activeProviderConfig.endpoint,
+          model: activeProviderConfig.selectedModel,
+          temperature: 0.2,
+          jsonMode: true,
+        }),
+      });
+
+      let parsedClosing: any = {};
+      if (resClosing.ok) {
+        const closingRaw = await resClosing.json();
+        parsedClosing = robustJsonParse<any>(closingRaw.text, {});
+      }
+
+      const combinedHtml = rebuildDesarrolloEpigrafesHtml(freshEpList);
+
+      // Save everything into UD
+      setUds((prev) =>
+        prev.map((u) => {
+          if (u.id === udToGen.id) {
+            const currentM1 = u.data?.modulo1 || ({} as any);
+            const updatedM1: SigreUDData["modulo1"] = {
+              ...currentM1,
+              titulo: cleanSigreLatexMath(parsedIndex.titulo || u.fullCode || u.title),
+              cotRazonamiento: cleanSigreLatexMath(parsedIndex.cotRazonamiento || ""),
+              indiceDesarrollo: cleanSigreLatexMath(parsedIndex.indiceDesarrollo || ""),
+              introduccion: cleanSigreLatexMath(parsedIndex.introduccion || ""),
+              contenidos: parsedIndex.contenidos || currentM1.contenidos,
+              objetivosSmart: (parsedIndex.objetivosSmart || []).map(cleanSigreLatexMath),
+              epigrafes: freshEpList,
+              desarrolloEpigrafesHtml: combinedHtml,
+              referenciasNormativasHtml: cleanSigreLatexMath(parsedClosing.referenciasNormativasHtml || ""),
+              bibliografiaWebgrafiaHtml: cleanSigreLatexMath(parsedClosing.bibliografiaWebgrafiaHtml || ""),
+              conclusiones: cleanSigreLatexMath(parsedClosing.conclusiones || ""),
+              relacionIntradisciplinar: cleanSigreLatexMath(parsedClosing.relacionIntradisciplinar || ""),
+              glosarioHtml: cleanSigreLatexMath(parsedClosing.glosarioHtml || ""),
+            };
+
+            return {
+              ...u,
+              status: "completed",
+              data: {
+                ...(u.data || ({} as any)),
+                modulo1: updatedM1,
+              },
+            };
+          }
+          return u;
+        })
+      );
+      setEditorialProgressPercent(100);
+    } catch (err: any) {
+      console.error("Error en desarrollo modular integral:", err);
+      alert("Error en el pipeline modular: " + (err.message || err));
+    } finally {
+      setIsGeneratingUd(false);
+      setGeneratingEditorialSectionId(null);
+      setEditorialProgressPercent(0);
+      setLoadingStatus("");
+    }
+  };
+
+  // Direct manual update of modulo1
+  const handleUpdateModulo1Data = (
+    updatedModulo1: Partial<SigreUDData["modulo1"]>,
+    targetUd?: SigreUDItem
+  ) => {
+    const udToUpdate = targetUd || selectedUd;
+    if (!udToUpdate) return;
+
+    setUds((prev) =>
+      prev.map((u) => {
+        if (u.id === udToUpdate.id && u.data?.modulo1) {
+          return {
+            ...u,
+            data: {
+              ...u.data,
+              modulo1: {
+                ...u.data.modulo1,
+                ...updatedModulo1,
+              },
+            },
+          };
+        }
+        return u;
+      })
+    );
+  };
+
   // Modular generation of specific UD sections
   const handleGenerateModularSections = async (
     targetUd: SigreUDItem,
@@ -1655,6 +2170,18 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
+              onClick={() => setIsExportModalOpen(true)}
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95"
+              title="Exportar todos los contenidos generados (ZIP, Word DOCX, GIFT, Rúbricas XML, Simuladores HDI, JSON)"
+            >
+              <FolderArchive className="w-4 h-4" />
+              <span>Exportar Todos los Contenidos</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-black/20 text-black text-[10px] font-mono font-black">
+                ZIP / Word / GIFT
+              </span>
+            </button>
+            <button
+              type="button"
               onClick={() => setIsTechnicalAuditModalOpen(true)}
               className="px-3.5 py-2 bg-gradient-to-r from-purple-500/20 to-indigo-500/20 hover:from-purple-500/30 hover:to-indigo-500/30 text-purple-300 border border-purple-500/40 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-md hover:scale-105"
               title="Auditoría técnica profunda, validación psicométrica y test de estrés extremo"
@@ -1802,6 +2329,26 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
 
             <button
               type="button"
+              onClick={() => handleOpenExportModal("importar")}
+              className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs hover:scale-105"
+              title="Importar o Actualizar contenido mediante archivo JSON o texto"
+            >
+              <Upload className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Importar / Actualizar</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleOpenExportModal("zip")}
+              className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs hover:scale-105"
+              title="Centro de Exportación: Exportar todo en ZIP, Dossier Word, GIFT consolidado o Copia JSON"
+            >
+              <Download className="w-3.5 h-3.5 text-amber-400" />
+              <span>Centro de Exportación ({uds.length} UDs)</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handleDownloadSampleFPModule}
               className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30 hover:border-amber-500/50 text-[11px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs hover:scale-105 active:scale-95"
               title="Descargar paquete completo del Módulo de Ejemplo FP (8 UDs desarrolladas con GIFT, rúbricas y simulador en JSON)"
@@ -1857,6 +2404,91 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
               </button>
             </div>
           </div>
+
+            {/* Marco Normativo y Adaptación Autonómica en Andalucía */}
+            <div className="col-span-1 md:col-span-3 p-3.5 bg-blue-500/10 border border-blue-500/30 rounded-xl space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded bg-blue-500 text-white shadow-xs">
+                    Normativa Autonómica Andalucía
+                  </span>
+                  <span className="text-xs font-bold text-blue-300">
+                    Adaptación Curricular Anual (Grados D y E)
+                  </span>
+                </div>
+                <span className="text-[10px] text-text-muted">
+                  Actualización por Resolución de la D.G. de Formación Profesional y Educación Permanente
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                <div>
+                  <label className="block text-[11px] font-bold text-text-secondary mb-1">
+                    Curso Escolar Lectivo:
+                  </label>
+                  <select
+                    value={config.cursoEscolar || "2026/2027"}
+                    onChange={(e) => {
+                      const c = e.target.value;
+                      const resAnd =
+                        c === "2026/2027"
+                          ? "Resolución de 24 de julio de 2026 de la Dirección General de Formación Profesional y Educación Permanente por la que se dictan Instrucciones para determinar aspectos relativos a la distribución horaria y a la concreción curricular de las enseñanzas correspondientes a los grados D y E del sistema de Formación Profesional para el curso escolar 2026/2027 en la comunidad autónoma de Andalucía"
+                          : `Resolución de Instrucciones de la D.G. de FP y Educación Permanente para el curso escolar ${c} en Andalucía`;
+                      setConfig({
+                        ...config,
+                        cursoEscolar: c,
+                        resolucionInstruccionesAndalucia: resAnd,
+                      });
+                    }}
+                    className="w-full px-2.5 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs font-bold focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="2026/2027">Curso 2026/2027 (Resolución 24/07/2026)</option>
+                    <option value="2025/2026">Curso 2025/2026 (Resolución 26/06/2025)</option>
+                    <option value="2027/2028">Curso 2027/2028 (Próximo curso)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-text-secondary mb-1">
+                    Normativa Estatal Adaptada:
+                  </label>
+                  <select
+                    value={config.etapaCiclo || "medio"}
+                    onChange={(e) => {
+                      const gr = e.target.value as any;
+                      const ord =
+                        gr === "medio"
+                          ? "Orden EFD/657/2024, de 25 de junio, por la que se determina el currículo y se regulan determinados aspectos organizativos para los ciclos formativos de grado medio en el ámbito de gestión del Ministerio de Educación, Formación Profesional y Deportes"
+                          : gr === "basico"
+                          ? "Orden EFD/658/2024, de 25 de junio (Grado Básico)"
+                          : "Orden EFD/659/2024, de 25 de junio (Grado Superior)";
+                      setConfig({
+                        ...config,
+                        etapaCiclo: gr,
+                        ordenEstatalReferencia: ord,
+                      });
+                    }}
+                    className="w-full px-2.5 py-1.5 bg-surface border border-border-default rounded-lg text-text-primary text-xs font-bold focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="medio">Grado Medio (Orden EFD/657/2024)</option>
+                    <option value="superior">Grado Superior (Orden EFD/659/2024)</option>
+                    <option value="basico">Grado Básico (Orden EFD/658/2024)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-text-secondary mb-1">
+                    Concreción Autonómica Oficial:
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={`Res. 24/07/2026 (D.G. FP Andalucía) · Curso ${config.cursoEscolar || "2026/2027"}`}
+                    className="w-full px-2.5 py-1.5 bg-alt border border-border-default rounded-lg text-blue-300 text-xs font-mono font-bold focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1">
@@ -1940,7 +2572,7 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {/* Horas Totales */}
                 <div className="p-3 bg-surface border border-border-default rounded-xl space-y-2 shadow-2xs">
                   <div className="flex items-center justify-between">
@@ -2112,68 +2744,6 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                     >
                       <Sparkles className="w-2.5 h-2.5" /> Auto 32s
                     </button>
-                  </div>
-                </div>
-
-                {/* Previsión de Sesiones Lectivas */}
-                <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl space-y-2 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <label className="font-bold text-purple-400 flex items-center gap-1.5 text-[11px]">
-                      <Layers className="w-3.5 h-3.5 text-purple-400" /> Sesiones Previstas:
-                    </label>
-                    <span className="font-mono font-black text-purple-300 text-xs">
-                      {Math.round((config.horasTotales || 160) / (config.horasPorSesion || 1))} ses.
-                    </span>
-                  </div>
-                  <div className="space-y-1.5">
-                    <select
-                      value={config.horasPorSesion || 1}
-                      onChange={(e) => {
-                        const h = Number(e.target.value);
-                        const totH = config.horasTotales || 160;
-                        setConfig({
-                          ...config,
-                          horasPorSesion: h,
-                          duracionSesionMinutos: h * 60,
-                          totalSesionesPrevistas: Math.round(totH / h),
-                        });
-                      }}
-                      className="w-full px-2 py-1.5 bg-alt border border-purple-500/40 rounded-lg text-text-primary font-semibold text-xs focus:outline-none"
-                    >
-                      <option value={1}>1h / sesión (60m - Estándar)</option>
-                      <option value={2}>2h / sesión (Taller 120m - Doble)</option>
-                      <option value={3}>3h / sesión (Taller-Lab 180m - Triple)</option>
-                      <option value={4}>4h / sesión (Intensivo / Proyecto 240m)</option>
-                    </select>
-
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4].map((hVal) => (
-                        <button
-                          key={hVal}
-                          type="button"
-                          onClick={() => {
-                            const totH = config.horasTotales || 160;
-                            setConfig({
-                              ...config,
-                              horasPorSesion: hVal,
-                              duracionSesionMinutos: hVal * 60,
-                              totalSesionesPrevistas: Math.round(totH / hVal),
-                            });
-                          }}
-                          className={`flex-1 py-0.5 rounded text-[10px] font-mono font-bold transition-colors cursor-pointer text-center ${
-                            (config.horasPorSesion || 1) === hVal
-                              ? "bg-purple-500 text-white shadow-xs font-black"
-                              : "bg-alt text-purple-300 hover:bg-purple-500/20 border border-purple-500/30"
-                          }`}
-                        >
-                          {hVal}h
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-purple-300/80 pt-1">
-                    <span>Semanal: <strong className="text-purple-300 font-mono">{Math.round((config.horasSemanales || 5) / (config.horasPorSesion || 1))} ses/sem</strong></span>
-                    <span>Total: <strong className="text-purple-300 font-mono">{Math.round((config.horasTotales || 160) / (config.horasPorSesion || 1))} ses</strong></span>
                   </div>
                 </div>
               </div>
@@ -2354,44 +2924,53 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                               }`}
                             >
                               <div className="flex items-center justify-between gap-1 mb-1.5">
-                                <label className="flex items-center gap-1 cursor-pointer select-none">
-                                  <input
-                                    type="checkbox"
-                                    checked={info.activo && info.horas > 0}
-                                    onChange={(e) => {
-                                      const active = e.target.checked;
-                                      updateDay(d.dia, active ? (info.horas || config.horasPorSesion || 1) : 0, active);
-                                    }}
-                                    className="w-3.5 h-3.5 text-purple-600 rounded border-border-default focus:ring-purple-500 cursor-pointer"
+                                <div className="flex items-center gap-1.5 select-none">
+                                  <span
+                                    className={`w-2 h-2 rounded-full transition-colors ${
+                                      info.activo && info.horas > 0 ? "bg-purple-500 shadow-xs" : "bg-text-muted/30"
+                                    }`}
                                   />
                                   <span className="font-black text-xs text-text-primary">
                                     {d.dia} <span className="hidden sm:inline font-semibold text-[11px] text-text-muted">({d.nombre.slice(0, 3)})</span>
                                   </span>
-                                </label>
-                                <span className={`text-[10px] font-mono font-black px-1 rounded ${
-                                  info.activo && info.horas > 0 ? "bg-purple-500 text-white" : "bg-alt text-text-muted"
+                                </div>
+                                <span className={`text-[10px] font-mono font-black px-1.5 py-0.5 rounded transition-colors ${
+                                  info.activo && info.horas > 0 ? "bg-purple-500 text-white shadow-2xs" : "bg-alt text-text-muted border border-border-default/40"
                                 }`}>
-                                  {info.activo ? `${info.horas}h` : "0h"}
+                                  {info.activo && info.horas > 0 ? `${info.horas}h` : "0h"}
                                 </span>
                               </div>
 
-                              {/* Session Hours Selector for this day: 1h, 2h, 3h, 4h */}
+                              {/* Session Hours Selector for this day: 1h, 2h, 3h, 4h (Toggleable Single Selection) */}
                               <div className="grid grid-cols-4 gap-0.5 pt-1 border-t border-border-default/40">
-                                {[1, 2, 3, 4].map((hVal) => (
-                                  <button
-                                    key={hVal}
-                                    type="button"
-                                    onClick={() => updateDay(d.dia, hVal, true)}
-                                    title={`${d.nombre}: sesión de ${hVal} hora(s)`}
-                                    className={`py-1 text-[10px] font-mono font-bold rounded cursor-pointer transition-colors text-center ${
-                                      info.activo && info.horas === hVal
-                                        ? "bg-purple-600 text-white font-black shadow-2xs"
-                                        : "bg-alt/80 hover:bg-purple-500/20 text-text-secondary hover:text-purple-300 border border-transparent"
-                                    }`}
-                                  >
-                                    {hVal}h
-                                  </button>
-                                ))}
+                                {[1, 2, 3, 4].map((hVal) => {
+                                  const isSelected = Boolean(info.activo && info.horas === hVal);
+                                  return (
+                                    <button
+                                      key={hVal}
+                                      type="button"
+                                      onClick={() => {
+                                        if (isSelected) {
+                                          updateDay(d.dia, 0, false);
+                                        } else {
+                                          updateDay(d.dia, hVal, true);
+                                        }
+                                      }}
+                                      title={
+                                        isSelected
+                                          ? `${d.nombre}: Desactivar sesión de ${hVal}h`
+                                          : `${d.nombre}: Activar sesión de ${hVal}h`
+                                      }
+                                      className={`py-1 text-[10px] font-mono font-bold rounded cursor-pointer transition-all text-center ${
+                                        isSelected
+                                          ? "bg-purple-600 text-white font-black shadow-xs ring-1 ring-purple-400"
+                                          : "bg-alt/80 hover:bg-purple-500/20 text-text-secondary hover:text-purple-300 border border-transparent hover:border-purple-500/30"
+                                      }`}
+                                    >
+                                      {hVal}h
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </div>
                           );
@@ -2844,9 +3423,11 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsPlanModalOpen(true)}
-                      className="text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline cursor-pointer"
+                      className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-xs font-bold text-amber-400 hover:text-amber-300 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                      title="Abrir Propuesta Integrada: Planificación Curricular & UDs (Editar/Eliminar)"
                     >
-                      Editar
+                      <Edit className="w-3.5 h-3.5" />
+                      <span>Editar Plan / UDs</span>
                     </button>
                   </div>
                 </div>
@@ -2923,27 +3504,38 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                 </div>
 
                 {/* Batch Action Bar */}
-                {uds.some((u) => u.status !== "completed") && (
-                  <div className="pt-1 pb-1">
+                <div className="pt-1 pb-1 space-y-1.5">
+                  <div className="grid grid-cols-2 gap-1.5">
                     {isBatchGenerating || isGeneratingUd ? (
                       <button
                         type="button"
                         onClick={handleCancelGeneration}
-                        className="w-full py-1.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                        className="py-1.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer col-span-2"
                       >
-                        <AlertTriangle className="w-3.5 h-3.5" /> Detener Generación
+                        <AlertTriangle className="w-3.5 h-3.5" /> Detener
                       </button>
                     ) : (
                       <button
                         type="button"
                         onClick={handleGenerateAllUds}
-                        className="w-full py-1.5 bg-gradient-to-r from-amber-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 border border-amber-500/40 text-amber-400 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        disabled={uds.length === 0 || uds.every((u) => u.status === "completed")}
+                        className="py-1.5 bg-gradient-to-r from-amber-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 border border-amber-500/40 text-amber-400 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40"
+                        title="Desarrollar secuencialmente todas las unidades didácticas pendientes"
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Desarrollar Todas las UDs
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Desarrollar Todas
                       </button>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenExportModal("zip")}
+                      className="py-1.5 bg-surface border border-border-default hover:border-amber-500/40 hover:bg-alt text-text-primary font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                      title="Exportar todos los contenidos generados en ZIP, Word, GIFT, XML o JSON"
+                    >
+                      <Download className="w-3.5 h-3.5 text-amber-500" /> Exportar Todo
+                    </button>
                   </div>
-                )}
+                </div>
 
                 <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
                   {filteredUds.length === 0 ? (
@@ -2983,17 +3575,27 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                               </span>
                             </div>
 
-                            {isCompleted ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                            ) : isGenerating ? (
-                              <RefreshCw className="w-4 h-4 text-amber-500 animate-spin shrink-0" />
-                            ) : isError ? (
-                              <span title={ud.error || "Error"} className="shrink-0">
-                                <AlertTriangle className="w-4 h-4 text-red-500" />
-                              </span>
-                            ) : (
-                              <span className="w-2 h-2 rounded-full bg-slate-600 shrink-0" />
-                            )}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isCompleted ? (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                              ) : isGenerating ? (
+                                <RefreshCw className="w-4 h-4 text-amber-500 animate-spin shrink-0" />
+                              ) : isError ? (
+                                <span title={ud.error || "Error"} className="shrink-0">
+                                  <AlertTriangle className="w-4 h-4 text-red-500" />
+                                </span>
+                              ) : (
+                                <span className="w-2 h-2 rounded-full bg-slate-600 shrink-0" />
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteSingleUd(ud.id, e)}
+                                className="p-1 text-text-muted hover:text-red-400 hover:bg-red-500/15 rounded-md transition-colors cursor-pointer"
+                                title={`Eliminar ${ud.id} (${ud.title})`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
 
                           <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border-default/40">
@@ -3144,16 +3746,50 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                       >
                         <Share2 className="w-3.5 h-3.5 text-purple-500" /> OPML (XMind)
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadSingleUdJson(selectedUd)}
+                        className="px-3 py-1.5 bg-surface border border-border-default hover:bg-alt text-text-primary text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title="Exportar esta Unidad Didáctica completa en JSON individual para editar o respaldar"
+                      >
+                        <Code2 className="w-3.5 h-3.5 text-amber-500" /> UD (JSON)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenExportModal("importar", selectedUd.id)}
+                        className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer"
+                        title="Importar / Actualizar los datos de esta Unidad Didáctica desde JSON o texto"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-emerald-400" /> Actualizar UD
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteSingleUd(selectedUd.id, e)}
+                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:scale-[1.02] active:scale-95"
+                        title={`Eliminar ${selectedUd.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-red-400" /> Eliminar UD
+                      </button>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      disabled={isGeneratingUd}
-                      onClick={() => handleGenerateChosenUD(selectedUd)}
-                      className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-50"
-                    >
-                      <Sparkles className="w-4 h-4" /> Desarrollar Esta Unidad Completa
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteSingleUd(selectedUd.id, e)}
+                        className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95"
+                        title={`Eliminar ${selectedUd.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-red-400" /> Eliminar UD
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isGeneratingUd}
+                        onClick={() => handleGenerateChosenUD(selectedUd)}
+                        className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-50"
+                      >
+                        <Sparkles className="w-4 h-4" /> Desarrollar Esta Unidad Completa
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -3223,56 +3859,78 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                       )}
                     </div>
 
-                    <div className="flex flex-wrap gap-2 border-b border-border-default pb-2">
+                    {/* Navigation Tabs Bar for UD Deliverables (High Visibility Dock) */}
+                    <div className="p-2.5 bg-slate-900/90 dark:bg-slate-950/90 border border-slate-700/80 dark:border-slate-800 rounded-2xl flex flex-wrap gap-2.5 shadow-md">
                       <button
+                        id="tab-btn-ud-completa"
                         type="button"
                         onClick={() => setActiveTab("ud_completa")}
                         className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                           activeTab === "ud_completa"
-                            ? "bg-amber-500 text-black shadow-md shadow-amber-500/20"
-                            : "bg-surface border border-border-default text-text-muted hover:text-text-primary hover:border-amber-500/40"
+                            ? "bg-amber-500 text-black shadow-lg shadow-amber-500/30 ring-2 ring-amber-300 font-black scale-[1.02]"
+                            : "bg-slate-800/95 dark:bg-slate-800/95 border-2 border-amber-500/40 text-slate-100 hover:text-white hover:border-amber-400 hover:bg-slate-700/90 shadow-xs hover:-translate-y-0.5"
                         }`}
                         title="1a. UD Editorial - Tratado técnico formal (Libro de texto / Memoria técnica 1.1 a 1.11)"
                       >
-                        <BookOpen className={`w-4 h-4 ${activeTab === "ud_completa" ? "text-black" : "text-amber-500 dark:text-amber-400"}`} /> 1a. UD Editorial
+                        <span className={`p-1 rounded-lg transition-colors ${activeTab === "ud_completa" ? "bg-black/20 text-black" : "bg-amber-500/25 text-amber-300 border border-amber-500/40"}`}>
+                          <BookOpen className="w-3.5 h-3.5" />
+                        </span>
+                        <span>1a. UD Editorial</span>
                       </button>
+
                       <button
+                        id="tab-btn-ud-curricular"
                         type="button"
                         onClick={() => setActiveTab("ud_curricular")}
                         className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                           activeTab === "ud_curricular"
-                            ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
-                            : "bg-surface border border-border-default text-text-muted hover:text-text-primary hover:border-indigo-500/40"
+                            ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 ring-2 ring-indigo-300 font-black scale-[1.02]"
+                            : "bg-slate-800/95 dark:bg-slate-800/95 border-2 border-indigo-500/40 text-slate-100 hover:text-white hover:border-indigo-400 hover:bg-slate-700/90 shadow-xs hover:-translate-y-0.5"
                         }`}
                       >
-                        <Layers className={`w-4 h-4 ${activeTab === "ud_curricular" ? "text-white" : "text-indigo-500 dark:text-indigo-400"}`} /> 1b. UD Curricular (19 Puntos)
+                        <span className={`p-1 rounded-lg transition-colors ${activeTab === "ud_curricular" ? "bg-white/20 text-white" : "bg-indigo-500/25 text-indigo-300 border border-indigo-500/40"}`}>
+                          <Layers className="w-3.5 h-3.5" />
+                        </span>
+                        <span>1b. UD Curricular (19 Puntos)</span>
                         {selectedUd.data?.udCurricular && (
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block shadow-sm"></span>
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block shadow-xs"></span>
                         )}
                       </button>
+
                       <button
+                        id="tab-btn-cuestionario-autoeval"
                         type="button"
                         onClick={() => setActiveTab("cuestionario_autoeval")}
                         className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                           activeTab === "cuestionario_autoeval"
-                            ? "bg-red-600 text-white shadow-md shadow-red-500/20"
-                            : "bg-surface border border-border-default text-text-muted hover:text-text-primary hover:border-red-500/40"
+                            ? "bg-red-600 text-white shadow-lg shadow-red-600/30 ring-2 ring-red-300 font-black scale-[1.02]"
+                            : "bg-slate-800/95 dark:bg-slate-800/95 border-2 border-red-500/40 text-slate-100 hover:text-white hover:border-red-400 hover:bg-slate-700/90 shadow-xs hover:-translate-y-0.5"
                         }`}
                       >
-                        <HelpCircle className={`w-4 h-4 ${activeTab === "cuestionario_autoeval" ? "text-white" : "text-red-500 dark:text-red-400"}`} /> 2. Cuestionario de Autoevaluación
+                        <span className={`p-1 rounded-lg transition-colors ${activeTab === "cuestionario_autoeval" ? "bg-white/20 text-white" : "bg-red-500/25 text-red-300 border border-red-500/40"}`}>
+                          <HelpCircle className="w-3.5 h-3.5" />
+                        </span>
+                        <span>2. Cuestionario de Autoevaluación</span>
                       </button>
+
                       <button
+                        id="tab-btn-recursos-docente"
                         type="button"
                         onClick={() => setActiveTab("recursos_docente")}
                         className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                           activeTab === "recursos_docente"
-                            ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
-                            : "bg-surface border border-border-default text-text-muted hover:text-text-primary hover:border-emerald-500/40"
+                            ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 ring-2 ring-emerald-300 font-black scale-[1.02]"
+                            : "bg-slate-800/95 dark:bg-slate-800/95 border-2 border-emerald-500/40 text-slate-100 hover:text-white hover:border-emerald-400 hover:bg-slate-700/90 shadow-xs hover:-translate-y-0.5"
                         }`}
                       >
-                        <GraduationCap className={`w-4 h-4 ${activeTab === "recursos_docente" ? "text-white" : "text-emerald-500 dark:text-emerald-400"}`} /> 3. Banco Moodle GIFT & Tests
+                        <span className={`p-1 rounded-lg transition-colors ${activeTab === "recursos_docente" ? "bg-white/20 text-white" : "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40"}`}>
+                          <GraduationCap className="w-3.5 h-3.5" />
+                        </span>
+                        <span>3. Banco Moodle GIFT & Tests</span>
                       </button>
+
                       <button
+                        id="tab-btn-diagrama-flujo"
                         type="button"
                         onClick={() => {
                           setActiveTab("diagrama_flujo");
@@ -3280,117 +3938,80 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
                         }}
                         className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                           activeTab === "diagrama_flujo"
-                            ? "bg-cyan-600 text-white shadow-md shadow-cyan-500/20"
-                            : "bg-surface border border-border-default text-text-muted hover:text-text-primary hover:border-cyan-500/40"
+                            ? "bg-cyan-600 text-white shadow-lg shadow-cyan-600/30 ring-2 ring-cyan-300 font-black scale-[1.02]"
+                            : "bg-slate-800/95 dark:bg-slate-800/95 border-2 border-cyan-500/40 text-slate-100 hover:text-white hover:border-cyan-400 hover:bg-slate-700/90 shadow-xs hover:-translate-y-0.5"
                         }`}
                       >
-                        <Workflow className={`w-4 h-4 ${activeTab === "diagrama_flujo" ? "text-white" : "text-cyan-500 dark:text-cyan-400"}`} /> 4. Diagrama & Mapa Mental (OPML)
+                        <span className={`p-1 rounded-lg transition-colors ${activeTab === "diagrama_flujo" ? "bg-white/20 text-white" : "bg-cyan-500/25 text-cyan-300 border border-cyan-500/40"}`}>
+                          <Workflow className="w-3.5 h-3.5" />
+                        </span>
+                        <span>4. Diagrama & Mapa Mental (OPML)</span>
                       </button>
+
                       <button
+                        id="tab-btn-programacion-eval"
                         type="button"
                         onClick={() => setActiveTab("programacion_eval")}
                         className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                           activeTab === "programacion_eval"
-                            ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
-                            : "bg-surface border border-border-default text-text-muted hover:text-text-primary hover:border-blue-500/40"
+                            ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30 ring-2 ring-blue-300 font-black scale-[1.02]"
+                            : "bg-slate-800/95 dark:bg-slate-800/95 border-2 border-blue-500/40 text-slate-100 hover:text-white hover:border-blue-400 hover:bg-slate-700/90 shadow-xs hover:-translate-y-0.5"
                         }`}
                       >
-                        <FileCheck className={`w-4 h-4 ${activeTab === "programacion_eval" ? "text-white" : "text-blue-500 dark:text-blue-400"}`} /> 5. Programación & Rúbricas XML
+                        <span className={`p-1 rounded-lg transition-colors ${activeTab === "programacion_eval" ? "bg-white/20 text-white" : "bg-blue-500/25 text-blue-300 border border-blue-500/40"}`}>
+                          <FileCheck className="w-3.5 h-3.5" />
+                        </span>
+                        <span>5. Programación & Rúbricas XML</span>
                       </button>
+
                       <button
+                        id="tab-btn-hdi-interactiva"
                         type="button"
                         onClick={() => setActiveTab("hdi_interactiva")}
                         className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                           activeTab === "hdi_interactiva"
-                            ? "bg-purple-600 text-white shadow-md shadow-purple-500/20"
-                            : "bg-surface border border-border-default text-text-muted hover:text-text-primary hover:border-purple-500/40"
+                            ? "bg-purple-600 text-white shadow-lg shadow-purple-600/30 ring-2 ring-purple-300 font-black scale-[1.02]"
+                            : "bg-slate-800/95 dark:bg-slate-800/95 border-2 border-purple-500/40 text-slate-100 hover:text-white hover:border-purple-400 hover:bg-slate-700/90 shadow-xs hover:-translate-y-0.5"
                         }`}
                       >
-                        <Cpu className={`w-4 h-4 ${activeTab === "hdi_interactiva" ? "text-white" : "text-purple-500 dark:text-purple-400"}`} /> 6. Simulador HDI
+                        <span className={`p-1 rounded-lg transition-colors ${activeTab === "hdi_interactiva" ? "bg-white/20 text-white" : "bg-purple-500/25 text-purple-300 border border-purple-500/40"}`}>
+                          <Cpu className="w-3.5 h-3.5" />
+                        </span>
+                        <span>6. Simulador HDI</span>
                       </button>
+
                       <button
+                        id="tab-btn-cronograma"
                         type="button"
                         onClick={() => setActiveTab("cronograma")}
                         className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                           activeTab === "cronograma"
-                            ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black"
-                            : "bg-surface border border-border-default text-text-muted hover:text-text-primary hover:border-amber-500/40"
+                            ? "bg-amber-500 text-black shadow-lg shadow-amber-500/30 ring-2 ring-amber-300 font-black scale-[1.02]"
+                            : "bg-slate-800/95 dark:bg-slate-800/95 border-2 border-amber-500/40 text-slate-100 hover:text-white hover:border-amber-400 hover:bg-slate-700/90 shadow-xs hover:-translate-y-0.5"
                         }`}
                       >
-                        <Clock className={`w-4 h-4 ${activeTab === "cronograma" ? "text-black" : "text-amber-500 dark:text-amber-400"}`} /> 7. Cronograma Visual (4 Niveles)
+                        <span className={`p-1 rounded-lg transition-colors ${activeTab === "cronograma" ? "bg-black/20 text-black" : "bg-amber-500/25 text-amber-300 border border-amber-500/40"}`}>
+                          <Clock className="w-3.5 h-3.5" />
+                        </span>
+                        <span>7. Cronograma Visual (4 Niveles)</span>
                       </button>
                     </div>
 
-                    {/* Tab 1: Documento Editorial Completo (1.1 - 1.11) */}
+                    {/* Tab 1: Documento Editorial Completo (1.1 - 1.11) con Generación Modular */}
                     {activeTab === "ud_completa" && (
-                      <div className="space-y-4">
-                        {/* Zoom & View Controls Bar */}
-                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-alt/60 border border-border-default rounded-xl max-w-4xl mx-auto">
-                          <div className="flex items-center gap-2 text-xs text-text-muted">
-                            <span className="font-semibold text-text-primary">Documento Editorial A4</span>
-                            <span>•</span>
-                            <span>Tratado técnico oficial (Libro de texto / Memoria)</span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleGenerateModularSections(selectedUd, ["ud_editorial"])}
-                              disabled={isGeneratingUd}
-                              className="px-3 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 font-bold rounded-lg text-xs border border-amber-500/30 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                              title="Regenerar exclusivamente el Documento Editorial Oficial (1.1 a 1.11)"
-                            >
-                              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Regenerar UD Editorial
-                            </button>
-
-                            <div className="flex items-center bg-surface border border-border-default rounded-lg p-0.5 text-xs text-text-muted shadow-sm">
-                              <button
-                                type="button"
-                                onClick={() => setDocZoom((z) => Math.max(0.6, Number((z - 0.1).toFixed(2))))}
-                                className="px-2 py-1 hover:text-text-primary rounded hover:bg-alt transition-colors cursor-pointer font-bold"
-                                title="Reducir tamaño del documento"
-                              >
-                                -
-                              </button>
-                              <span className="px-2 font-mono text-[11px] font-bold text-text-primary">
-                                {Math.round(docZoom * 100)}%
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => setDocZoom((z) => Math.min(1.5, Number((z + 0.1).toFixed(2))))}
-                                className="px-2 py-1 hover:text-text-primary rounded hover:bg-alt transition-colors cursor-pointer font-bold"
-                                title="Aumentar tamaño del documento"
-                              >
-                                +
-                              </button>
-                              <div className="w-[1px] h-3.5 bg-border-default mx-0.5" />
-                              <button
-                                type="button"
-                                onClick={() => setDocZoom(1)}
-                                className="px-2 py-0.5 text-[10px] text-text-muted hover:text-text-primary rounded hover:bg-alt transition-colors cursor-pointer"
-                                title="Restablecer zoom al 100%"
-                              >
-                                100%
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Printable A4 Content Box */}
-                        <div className="overflow-x-auto py-2">
-                          <div
-                            style={{
-                              transform: `scale(${docZoom})`,
-                              transformOrigin: "top center",
-                              transition: "transform 0.15s ease-out",
-                            }}
-                            className="bg-white text-slate-900 p-6 sm:p-10 rounded-xl border border-border-default shadow-lg max-w-4xl mx-auto"
-                            dangerouslySetInnerHTML={{
-                              __html: renderSigreUDCompleteA4Html(selectedUd, selectedUd.data),
-                            }}
-                          />
-                        </div>
-                      </div>
+                      <SigreEditorialViewer
+                        ud={selectedUd}
+                        config={config}
+                        theme={theme}
+                        isGenerating={isGeneratingUd}
+                        generatingSectionId={generatingEditorialSectionId}
+                        progressPercent={editorialProgressPercent}
+                        onGenerateIndex={() => handleGenerateEditorialIndex(selectedUd)}
+                        onGenerateEpigrafe={(ep) => handleGenerateEditorialEpigrafe(ep, selectedUd)}
+                        onGenerateClosing={() => handleGenerateEditorialClosing(selectedUd)}
+                        onGenerateAllModular={() => handleGenerateAllEditorialModular(selectedUd)}
+                        onUpdateModulo1Data={(updated) => handleUpdateModulo1Data(updated, selectedUd)}
+                      />
                     )}
 
                     {/* Tab 1b: UD Curricular Oficial (19 Puntos) */}
@@ -3736,6 +4357,17 @@ export const SigreCurricularView: React.FC<SigreCurricularViewProps> = ({
         config={config}
         uds={uds}
         theme={theme}
+      />
+
+      {/* Complete Export Hub Modal */}
+      <SigreExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        uds={uds}
+        config={config}
+        initialTab={exportModalTab}
+        selectedUdId={exportModalTargetUdId}
+        onImportProjectJson={handleImportProjectJson}
       />
     </div>
   );

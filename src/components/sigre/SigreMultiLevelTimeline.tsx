@@ -219,8 +219,16 @@ export const SigreMultiLevelTimeline: React.FC<SigreMultiLevelTimelineProps> = (
   }, [selectedUdId, uds]);
 
   // Synchronize modulo events in real-time with approved UDs from the Plan
+  const lastGenTimelineSignatureRef = useRef<string>("");
+
   useEffect(() => {
     if (uds !== undefined) {
+      const sig = `${currentModuleId}_${timelineData.schoolYear}_${uds.length}_${config?.codigo || ""}_${config?.moduloFormativo || ""}_${uds.map((u) => u.id + ":" + (u.horasEstimadas || 0)).join(",")}`;
+      if (lastGenTimelineSignatureRef.current === sig) {
+        return;
+      }
+      lastGenTimelineSignatureRef.current = sig;
+
       const generated = uds.length > 0
         ? generateModuleTimelineFromUds(uds, config, timelineData.schoolYear)
         : [];

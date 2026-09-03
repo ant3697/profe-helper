@@ -1,6 +1,7 @@
 import { SigreAcademicCalendar, SigreCurricularConfig, SigreUDItem, SigreRagDocument } from "../types/sigre";
 import { getSampleFPModuleUds } from "../data/sigreSampleModule";
 import { INITIAL_SIGRE_SCHEDULE_CONFIG } from "../data/sigreSchedulePresets";
+import { safeLocalStorageSet } from "./sigreStorageHelper";
 
 export const STORAGE_KEY_MODULE_CURRICULA = "sigre_module_curricula_portfolio_v2";
 
@@ -479,7 +480,7 @@ export function getAllSavedModuleCurricula(): Record<string, ModuleCurriculumPac
 }
 
 /**
- * Saves a module's curriculum to localStorage
+ * Saves a module's curriculum to localStorage using canonical keying to save memory
  */
 export function saveModuleCurriculum(
   moduleKeyOrCode: string,
@@ -488,20 +489,19 @@ export function saveModuleCurriculum(
   try {
     const all = getAllSavedModuleCurricula();
     const normKey = normalizeModuleCodeKey(moduleKeyOrCode);
+    const primaryKey = normKey || moduleKeyOrCode;
     const updatedPkg = {
       ...pkg,
       lastModified: new Date().toISOString(),
     };
 
-    all[moduleKeyOrCode] = updatedPkg;
-    if (normKey) {
-      all[normKey] = updatedPkg;
-    }
-    if (pkg.config.codigo) {
-      all[pkg.config.codigo] = updatedPkg;
+    all[primaryKey] = updatedPkg;
+    // If the caller key is different from normKey, only set an alias if necessary, otherwise clean old redundant keys
+    if (moduleKeyOrCode && moduleKeyOrCode !== primaryKey) {
+      all[moduleKeyOrCode] = updatedPkg;
     }
 
-    localStorage.setItem(STORAGE_KEY_MODULE_CURRICULA, JSON.stringify(all));
+    safeLocalStorageSet(STORAGE_KEY_MODULE_CURRICULA, JSON.stringify(all));
   } catch (err) {
     console.error("Error saving module curriculum to store:", err);
   }
@@ -527,6 +527,16 @@ export function getModuleCurriculum(calendar: SigreAcademicCalendar): ModuleCurr
   // 3. Check saved by normKey
   if (normKey && allSaved[normKey]) {
     return allSaved[normKey];
+  }
+  // 4. Check if any saved package matches by config code or name
+  for (const savedPkg of Object.values(allSaved)) {
+    if (
+      savedPkg?.config?.codigo &&
+      codeKey &&
+      savedPkg.config.codigo.trim().toLowerCase() === codeKey.toLowerCase()
+    ) {
+      return savedPkg;
+    }
   }
 
   // 4. Check predefined packages

@@ -125,50 +125,50 @@ export const SigreHDISandbox: React.FC<SigreHDISandboxProps> = ({
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 border-b border-border-default pb-2">
+      <div className="flex flex-wrap gap-2 p-1.5 bg-slate-900/80 dark:bg-slate-950/80 border border-slate-700/80 dark:border-slate-800 rounded-xl shadow-inner">
         <button
           type="button"
           onClick={() => setActiveTab("live_app")}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
             activeTab === "live_app"
-              ? "bg-purple-600 text-white shadow-md shadow-purple-500/20"
-              : "bg-surface border border-border-default text-text-muted hover:text-text-primary"
+              ? "bg-purple-600 text-white shadow-md shadow-purple-500/30 ring-1 ring-purple-400 font-black scale-[1.02]"
+              : "bg-slate-800/90 dark:bg-slate-800/90 border border-purple-500/30 text-slate-100 hover:text-white hover:border-purple-400 hover:bg-slate-700/90 shadow-xs"
           }`}
         >
-          <Play className="w-3.5 h-3.5" /> Simulador en Vivo
+          <Play className="w-3.5 h-3.5 text-purple-400" /> Simulador en Vivo
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("prd")}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
             activeTab === "prd"
-              ? "bg-purple-600 text-white shadow-md shadow-purple-500/20"
-              : "bg-surface border border-border-default text-text-muted hover:text-text-primary"
+              ? "bg-purple-600 text-white shadow-md shadow-purple-500/30 ring-1 ring-purple-400 font-black scale-[1.02]"
+              : "bg-slate-800/90 dark:bg-slate-800/90 border border-purple-500/30 text-slate-100 hover:text-white hover:border-purple-400 hover:bg-slate-700/90 shadow-xs"
           }`}
         >
-          <FileText className="w-3.5 h-3.5" /> PRD & Arquitectura
+          <FileText className="w-3.5 h-3.5 text-purple-400" /> PRD & Arquitectura
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("code")}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
             activeTab === "code"
-              ? "bg-purple-600 text-white shadow-md shadow-purple-500/20"
-              : "bg-surface border border-border-default text-text-muted hover:text-text-primary"
+              ? "bg-purple-600 text-white shadow-md shadow-purple-500/30 ring-1 ring-purple-400 font-black scale-[1.02]"
+              : "bg-slate-800/90 dark:bg-slate-800/90 border border-purple-500/30 text-slate-100 hover:text-white hover:border-purple-400 hover:bg-slate-700/90 shadow-xs"
           }`}
         >
-          <Code className="w-3.5 h-3.5" /> Código Fuente (.html)
+          <Code className="w-3.5 h-3.5 text-purple-400" /> Código Fuente (.html)
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("justificacion")}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
             activeTab === "justificacion"
-              ? "bg-purple-600 text-white shadow-md shadow-purple-500/20"
-              : "bg-surface border border-border-default text-text-muted hover:text-text-primary"
+              ? "bg-purple-600 text-white shadow-md shadow-purple-500/30 ring-1 ring-purple-400 font-black scale-[1.02]"
+              : "bg-slate-800/90 dark:bg-slate-800/90 border border-purple-500/30 text-slate-100 hover:text-white hover:border-purple-400 hover:bg-slate-700/90 shadow-xs"
           }`}
         >
-          <Sparkles className="w-3.5 h-3.5" /> Justificación Pedagógica
+          <Sparkles className="w-3.5 h-3.5 text-purple-400" /> Justificación Pedagógica
         </button>
       </div>
 
